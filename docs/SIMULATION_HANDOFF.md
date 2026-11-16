@@ -1,4 +1,4 @@
-# DEADBOARD — handoff (updated 2026-11-16, after the v0.1.0 release)
+# DEADBOARD — handoff (updated 2026-11-16, after the v0.1.0 release + first bug-fix round)
 
 Goal: make DEADBOARD (formerly PCB//FIX) a realistic board-repair trainer, as close to a real bench as possible,
 **universal** (any board, not just the MacBook), with honest provenance for every value.
@@ -26,6 +26,26 @@ No reference hardware is available, so realism is validated against *design inte
   Record against a frozen build instead:
   `npx vite build --outDir <tmp>/dist && npx vite preview --outDir <tmp>/dist --port 5299`,
   then `--base http://localhost:5299`.
+- **Bug fixes after release (2026-11-16, live on the site):**
+  - `71e63ff` 3D orbit is grab-and-turn by default (board follows the drag, `Camera.orbit`).
+    The old camera-style movement is a toggle next to 2D/3D (`#btn-invert-orbit`, rotate icon,
+    `Camera.invertOrbit`, saved as localStorage `pcbfix_invert_orbit`). The showcase recorder's
+    orbit call was sign-flipped so the recorded move is unchanged.
+  - `71e63ff` "WebGPU is not available" card gives Firefox-specific steps (`App.webGpuHelp()`:
+    update Firefox, `about:config` → `dom.webgpu.enabled`, driver / `about:support`).
+    Firefox reports "Intel Mac OS X" even on Apple silicon, so the text can't tell those apart.
+  - `3b68f5f` "Both" view: through-hole pads (`layers === 'FB'`) are now drawn on both panels
+    (mirrored on the back, with drill). Before, pins and mounting holes of top-side parts were
+    missing from the back panel, which read as "vias invisible". Vias themselves were fine; at
+    the Both fit zoom they are just half the size of the Bottom view.
+- **Testing in stock Firefox** (Playwright's `moz-firefox` channel can't start inside the Claude
+  Code sandbox): launch through Launch Services so Firefox runs outside the sandbox, then drive it
+  over WebDriver BiDi with a raw WebSocket client (`session.new` → `browsingContext.create` →
+  `navigate` / `input.performActions` / `captureScreenshot`; always `session.end`, Firefox allows
+  one session):
+  `open -n -a Firefox --args --no-remote --profile <tmp-profile> --remote-debugging-port 9333 --new-instance`
+  then connect to `ws://127.0.0.1:9333/session`. Put `user_pref("dom.webgpu.enabled", false);` in
+  the profile's `user.js` to see the no-WebGPU card.
 - **Private fixtures:** see Data / licensing. Before every push, check images and copy (not only
   code) for anything derived from them: a MacBook render once reached the public homepage.
 
@@ -39,7 +59,10 @@ No reference hardware is available, so realism is validated against *design inte
 5. Browser support: Firefox 160 on macOS verified 2026-11-16 (render, 3D orbit, wheel zoom).
    Firefox without WebGPU (older versions, Linux, Intel Macs, blocklisted GPUs) gets a tailored
    how-to on the error card; a WebGL2 fallback renderer would make it work there out of the box.
-   Safari still untested.
+   Safari still untested. Open: a customer reported Firefox not working; it works here, so it is
+   likely their setup. Ask for Firefox version, OS and `about:support` → WebGPU before building
+   the WebGL2 fallback (renderer GPU code is isolated: init, `ensureAttachments`, `render()` in
+   `src/render/webgpu.ts`; scene building is API-agnostic; 3 small WGSL shaders to port).
 6. Launch: Reddit posts drafted (kept outside the repo); trademark/domain clearance for the name not done.
 
 ## How to run
