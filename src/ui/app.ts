@@ -90,6 +90,14 @@ function makeStarterBoard(): Scenario {
   };
 }
 
+function readInvertOrbitPref(): boolean {
+  try {
+    return localStorage.getItem('pcbfix_invert_orbit') === '1';
+  } catch {
+    return false;
+  }
+}
+
 function readSolverPref(): Solver {
   try {
     const v = localStorage.getItem('pcbfix_solver');
@@ -101,7 +109,7 @@ function readSolverPref(): Solver {
 
 export class PcbApp {
   private renderer!: WebGPURenderer;
-  private camera = new Camera();
+  private camera = Object.assign(new Camera(), { invertOrbit: readInvertOrbitPref() });
   private canvas!: HTMLCanvasElement;
 
   private scenarios: Scenario[] = [];
@@ -270,13 +278,28 @@ export class PcbApp {
     }
   }
 
+  /** What the visitor can do about it, tuned to their browser (most reports come from Firefox). */
+  private webGpuHelp(): string {
+    const ua = navigator.userAgent;
+    const ff = /Firefox\/(\d+)/.exec(ua);
+    const general = 'DEADBOARD renders the bench with WebGPU: use Chrome or Edge 113+, Safari 26+, or Firefox 141+ (Windows) / 145+ (Mac with Apple silicon).';
+    if (!ff) return general;
+    const ver = Number(ff[1]);
+    if (!('gpu' in navigator)) {
+      if (/Windows/.test(ua) && ver < 141) return `Firefox ${ver} has no WebGPU yet: update Firefox (141+ enables it on Windows), or use Chrome / Edge.`;
+      if (/Mac OS X/.test(ua) && ver < 145) return `Firefox ${ver} has no WebGPU yet on macOS: update Firefox (145+ enables it on Apple-silicon Macs), or use Chrome / Safari.`;
+      return `Firefox ${ver} ships WebGPU switched off on this system (Linux and Intel Macs, for now). Use Chrome, or turn it on: open about:config, set dom.webgpu.enabled to true, and reload.`;
+    }
+    return 'Firefox has WebGPU, but did not offer it for this graphics card or driver. Update the graphics driver and make sure hardware acceleration is on (Settings → Performance), or use Chrome. about:support → WebGPU shows the reason.';
+  }
+
   private showWebGpuError(msg: string) {
     this.mount.innerHTML = `
       <div class="webgpu-err">
         <div class="card">
           <div class="card-title lg">WebGPU is not available</div>
           <p class="text-2" style="margin:0">${this.esc(msg)}</p>
-          <p class="muted" style="margin:0">DEADBOARD renders the bench with WebGPU: use Chrome or Edge 113+, Safari 26+, or Firefox Nightly with WebGPU enabled.</p>
+          <p class="muted" style="margin:0">${this.webGpuHelp()}</p>
         </div>
       </div>`;
   }
@@ -306,6 +329,7 @@ export class PcbApp {
               <button data-view="2d">2D</button>
               <button data-view="3d">3D</button>
             </div>
+            <button class="btn ghost icon" id="btn-invert-orbit">${icon('rotate')}</button>
             <div class="seg" id="seg-side" title="Board side (F)">
               <button data-side="F">Top</button>
               <button data-side="both">Both</button>
@@ -1219,6 +1243,11 @@ export class PcbApp {
         this.startTutorial();
       }
     });
+    q('#btn-invert-orbit').addEventListener('click', () => {
+      this.camera.invertOrbit = !this.camera.invertOrbit;
+      try { localStorage.setItem('pcbfix_invert_orbit', this.camera.invertOrbit ? '1' : '0'); } catch { /* storage unavailable */ }
+      this.updateTopButtons();
+    });
     q('#btn-sound').addEventListener('click', () => {
       setSoundEnabled(!soundEnabled);
       this.renderUI();
@@ -1854,6 +1883,12 @@ export class PcbApp {
     const pBtn = this.mount.querySelector('#btn-power')!;
     pBtn.classList.toggle('on', this.powerOn);
     pBtn.querySelector('.lbl')!.textContent = this.powerOn ? 'Power on' : 'Power off';
+
+    const oBtn = this.mount.querySelector<HTMLElement>('#btn-invert-orbit')!;
+    oBtn.classList.toggle('active', this.camera.invertOrbit);
+    oBtn.title = this.camera.invertOrbit
+      ? '3D orbit: inverted (drag moves the camera). Click for grab-and-turn.'
+      : '3D orbit: grab-and-turn (board follows the drag). Click to invert.';
 
     const sBtn = this.mount.querySelector('#btn-sound')!;
     sBtn.innerHTML = icon(soundEnabled ? 'volume' : 'mute');

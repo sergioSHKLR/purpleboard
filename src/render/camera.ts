@@ -8,6 +8,8 @@ export class Camera {
   mode: ViewMode = '2d';
   side: Side = 'F';
   bothSides = false;
+  /** Orbit drag moves the camera (board turns against the drag) instead of turning the board. */
+  invertOrbit = false;
 
   // Target point on board in mm
   tx = 32;
@@ -81,11 +83,17 @@ export class Camera {
     this.targetFlipT = side === 'B' ? 1 : 0;
   }
 
-  /** Free orbit: any yaw, any tilt — past edge-on the camera continues under the board. */
+  /**
+   * Free orbit: any yaw, any tilt — past edge-on the camera continues under the board.
+   * The board follows the drag (grab-and-turn, as in most 3D viewers): dragging right turns
+   * it right, dragging down tips its far edge toward the viewer. `invertOrbit` swaps to
+   * moving the camera instead (the board turns against the drag).
+   */
   orbit(dx: number, dy: number) {
     if (this.mode === '2d') this.setMode('3d');
-    this.targetYaw += dx * 0.45;
-    this.targetPitch += dy * 0.4;
+    const s = this.invertOrbit ? 1 : -1;
+    this.targetYaw += s * dx * 0.45;
+    this.targetPitch += s * dy * 0.4;
     this.rebaseSide();
   }
 

@@ -36,7 +36,10 @@ No reference hardware is available, so realism is validated against *design inte
 3. Real bench data: `npm run calibrate` with measurements from one known-good board.
 4. Thermal view: board heat around a hot part is drawn as sampled halo discs; a per-pixel
    temperature texture would be more faithful. Two-layer thermal model still open (below).
-5. Browser support beyond Chrome/Edge (WebGPU on Safari/Firefox untested).
+5. Browser support: Firefox 160 on macOS verified 2026-11-16 (render, 3D orbit, wheel zoom).
+   Firefox without WebGPU (older versions, Linux, Intel Macs, blocklisted GPUs) gets a tailored
+   how-to on the error card; a WebGL2 fallback renderer would make it work there out of the box.
+   Safari still untested.
 6. Launch: Reddit posts drafted (kept outside the repo); trademark/domain clearance for the name not done.
 
 ## How to run

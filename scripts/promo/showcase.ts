@@ -155,7 +155,7 @@ async function script(s: Show, prep: Prep) {
   await s.hold(0.05);
   await s.pr('frame', { y: 10, rx: 14, ry: -9, s: 0.86, o: 1 }, 1200);
   await s.pr('cap', '01', 'Real open hardware', 'MNT Reform 2 laptop mainboard · <b>530</b> parts, imported from KiCad');
-  await s.orbit(-260, -150, 3.2);
+  await s.orbit(260, 150, 3.2); // grab-style orbit: same camera move as before the direction fix
   await s.pr('frame', {}, 1000);
   await s.hold(1.0);
 
