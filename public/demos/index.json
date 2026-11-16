@@ -1,0 +1,22 @@
+[
+  {
+    "id": "demo-mnt-reform2-mb30",
+    "file": "demo-mnt-reform2-mb30.pcbfix.json",
+    "title": "MNT Reform 2 · dead 3.3 V rail",
+    "difficulty": 4,
+    "description": "An open-hardware laptop mainboard (529 parts) that came back from a repair desk: it powers up, but the system never starts. The bench supply is clipped onto the gated input rail. Find out why the 3.3 V rail is missing, fix it, and leave the board clean.",
+    "credits": "MNT Reform 2 motherboard rev 3.0, designed by MNT Research GmbH. Converted and modified (planted faults) for DEADBOARD.",
+    "license": "CERN-OHL-S-2.0",
+    "source": "https://source.mnt.re/reform/reform @ c3b7fad"
+  },
+  {
+    "id": "demo-antmicro-jetson-nano-bb",
+    "file": "demo-antmicro-jetson-nano-bb.pcbfix.json",
+    "title": "Antmicro baseboard · no 3.3 V, flaky 5 V",
+    "difficulty": 3,
+    "description": "An open-source carrier board for a compute module (392 parts), fed 12 V on VIN. The module will not start: 3.3 V is missing, and the customer says the 5 V rail \"sometimes\" drops out when the board is handled.",
+    "credits": "Jetson Nano / Xavier NX baseboard, Copyright (c) 2020-2024 Antmicro, Apache-2.0. Converted and modified (planted faults) for DEADBOARD. Jetson is a trademark of NVIDIA; no endorsement implied.",
+    "license": "Apache-2.0",
+    "source": "https://github.com/antmicro/jetson-nano-baseboard @ d8d0b2d"
+  }
+]

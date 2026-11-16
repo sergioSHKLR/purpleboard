@@ -1,0 +1,41 @@
+WEBVTT
+
+1
+00:00:00.005 --> 00:00:13.562
+ANTMICRO BASEBOARD · SOLUTION
+New converter, reflowed ferrite
+Diagnosis: the 3.3 V converter U2 is dead, and input ferrite FB1 has a cracked joint that opens when the board flexes.
+Tools: Desolder wick (4) · Select (1) · Soldering iron (3) · Multimeter (2)
+
+2
+00:00:18.589 --> 00:00:30.442
+STEP 1 · REMOVE U2
+Wick (4) U2 off its pads.
+Why: On a real board you would use hot air for a multi-pin IC, then clean the pads with wick and flux.
+
+3
+00:00:30.447 --> 00:00:38.599
+STEP 2 · FIT A NEW ONE
+Select the empty footprint and fit a new converter from the Inspector.
+
+4
+00:00:38.600 --> 00:00:43.964
+STEP 2 · CHECK
+3.3 V at C26: +3.301 V.
+
+5
+00:00:43.965 --> 00:00:59.283
+STEP 3 · CURE THE INTERMITTENT
+FB1 opens when the board flexes. Soldering iron (3): reflow its joint, even though it conducts right now.
+Why: A cracked joint can touch at rest and separate under stress. Reflowing re-forms the joint; waiting for it to fail on the bench wastes time.
+
+6
+00:00:59.284 --> 00:01:14.737
+STEP 4 · VERIFY
+Run the test bench (Run tests).
+Why: It powers the board, checks every objective, and only decrypts the flag if the circuit now matches the original design: a fix that merely works around a fault does not count.
+
+7
+00:01:14.740 --> 00:01:18.344
+STEP 4 · VERIFY
+All objectives pass and the flag is captured. Earn your own: it is blurred here.

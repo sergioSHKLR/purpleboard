@@ -1,0 +1,40 @@
+WEBVTT
+
+1
+00:00:00.005 --> 00:00:14.007
+ANTMICRO BASEBOARD · HOW TO APPROACH
+No 3.3 V, and a 5 V that drops out
+A carrier board for a compute module: 12 V in, switching converters make 5 V and 3.3 V.
+Symptoms: the module will not start, and 5 V "sometimes" drops out when the board is handled.
+You will learn: rail checks, the oscilloscope on a converter's switch node, and hunting an intermittent fault.
+
+2
+00:00:19.336 --> 00:00:25.786
+STEP 1 · MEASURE THE RAILS
+5 V rail at C32: +5.003 V. Fine right now.
+
+3
+00:00:25.787 --> 00:00:40.313
+STEP 1 · MEASURE THE RAILS
+3.3 V rail at C26: +0.1 mV. Dead, not sagging.
+Why: 0 V (not a low voltage) and no heat: nothing is overloading the rail. The converter is simply not producing anything.
+
+4
+00:00:40.314 --> 00:00:54.199
+STEP 2 · IS IT SWITCHING?
+Oscilloscope (O) on the 3.3 V converter's switch node, where its inductor L1 is driven: a flat line.
+Why: A buck converter chops its input on and off hundreds of thousands of times a second. No square wave here means the controller IC is not running.
+
+5
+00:00:54.200 --> 00:01:06.201
+STEP 2 · COMPARE
+Compare the working 5 V converter: a clean square wave.
+Why: Same input, same kind of circuit. When one converter switches and its twin does not, suspect the dead one's controller IC.
+
+6
+00:01:06.207 --> 00:01:20.209
+WHAT YOU LEARNED
+Dead rail vs. dragged rail; finding the intermittent
+Rail at 0 V and cold → the source is dead. Rail low and hot → something is overloading it.
+Scope the switch node: a square wave means the converter runs; flat means it does not.
+For "sometimes" faults: watch the rail and press or flex the board (B) near suspect joints, starting at the input filter.

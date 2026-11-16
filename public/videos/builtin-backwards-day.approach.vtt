@@ -1,0 +1,58 @@
+WEBVTT
+
+1
+00:00:00.002 --> 00:00:14.004
+BACKWARDS DAY · HOW TO APPROACH
+Wrong parts, wrong way round
+The circuit: USB 5 V on J1 feeds R1 (330 Ω) → D1 (yellow) and R2 (150 Ω) → D2 (blue). D2's anode trace runs on the bottom layer.
+You will learn: checking parts against the design, resistance in-circuit, LED polarity with the diode test, following a trace across layers.
+Tools: Select (1) · Multimeter (2) · Flip (F)
+
+2
+00:00:14.667 --> 00:00:28.128
+STEP 1 · SYMPTOM
+5 V applied, both LEDs dark, and the supply reads 0.0 mA.
+Why: No current at all: every path is open or blocked. Two dark branches on a carelessly built board usually means a separate fault in each, so check every part.
+
+3
+00:00:28.129 --> 00:00:44.667
+STEP 2 · CHECK THE PARTS
+Select R1 and read its colour bands in the Inspector: yellow-violet-orange is 47 kΩ. The design calls for 330 Ω.
+Why: With 47 kΩ, D1 could get at most (5 − 2) V / 47 kΩ ≈ 0.06 mA: far too little to see. A part from the wrong reel is a classic assembly fault.
+
+4
+00:00:44.668 --> 00:01:01.427
+STEP 2 · MEASURE
+Power off, Ω across R1: 47kΩ. The bands were right.
+Why: In-circuit readings can be pulled low by parallel paths. Nothing else parallels R1 here, so the meter sees the part itself.
+
+5
+00:01:01.428 --> 00:01:16.062
+STEP 3 · POLARITY
+Diode test on D1, red on the silkscreen anode, black on the cathode: OL.
+Why: An LED only conducts from anode to cathode; a good one reads about 2 V this way. OL means it is open… or fitted backwards. Swap the probes to tell which.
+
+6
+00:01:16.063 --> 00:01:32.378
+STEP 3 · POLARITY
+Probes swapped: 2.006 V. The LED works, it is fitted backwards.
+Why: Compare the flat edge of the LED body (cathode) with the silkscreen outline: they point opposite ways.
+
+7
+00:01:32.379 --> 00:01:45.890
+STEP 4 · THIRD FAULT
+D2's anode should connect straight to R2. Ω between them: OL.
+Why: There is no trace for it on the top: the connection runs on the bottom layer. Flip the board and follow it from pad to pad.
+
+8
+00:01:45.891 --> 00:01:53.163
+STEP 4 · LOCATE
+On the bottom, R2 → D2 is this one trace. Zoom in along it: the solution video shows the break.
+
+9
+00:01:53.164 --> 00:02:07.166
+WHAT YOU LEARNED
+Check every part against the design
+Read colour bands or measure with the power off: a wrong value is as bad as a missing part.
+Diode test both ways: OL one way and ~2 V the other = good LED, reversed. OL both ways = open.
+A trace with no copper on top lives on the bottom: flip the board and follow it.

@@ -1,0 +1,53 @@
+WEBVTT
+
+1
+00:00:00.004 --> 00:00:14.004
+BRIDGE TROLL · HOW TO APPROACH
+Two LEDs, one button, both dark
+The circuit: coin cell (3 V) → SW1 → a bus feeding two branches: R1 → D1 (red) and R2 → D2 (green), both back to ground.
+You will learn: what supply current tells you, reading solder joints, and the diode test on an LED.
+Tools: Select (1) · Multimeter (2) · Flip (F)
+
+2
+00:00:16.302 --> 00:00:29.478
+STEP 1 · SYMPTOM
+SW1 pressed: neither LED lights, yet the supply delivers 23.8 mA.
+Why: Current is flowing, but no LED glows. An LED that conducts lights up, so the current must be taking a path around the LEDs: a short.
+
+3
+00:00:29.485 --> 00:00:43.704
+STEP 2 · INSPECT
+Hand-soldered, through-hole: every joint was made on the bottom. Flip the board (F).
+Why: Leads go through the board and are soldered underneath. Rushed hand soldering leaves bridges between pins and dull, grainy cold joints there.
+
+4
+00:00:43.704 --> 00:00:55.707
+STEP 2 · INSPECT
+Look between D2's two legs: something joins them.
+Why: Good joints are shiny cones, one per lead, with clean board between them. Any solder spanning two pads is a bridge.
+
+5
+00:00:55.708 --> 00:01:12.240
+STEP 3 · MEASURE
+Confirm with the meter: power off (P), Multimeter (2), Diode mode, red on the anode, black on the cathode.
+Why: The diode test pushes about 1 mA through the part and shows the voltage it needs. A healthy green LED reads roughly 1.8–2.3 V.
+
+6
+00:01:12.241 --> 00:01:25.202
+STEP 3 · INTERPRET
+D2 reads 0.000 V: far below an LED's forward voltage.
+Why: Near 0 V means the test current found a path with no junction in it: the bridge shorts D2 out. That is also where the supply current went: through R2 straight to ground.
+
+7
+00:01:25.203 --> 00:01:37.207
+STEP 4 · SECOND FAULT
+Now D1's branch. No bridge here, but compare R1's two joints.
+Why: One is dull and grainy: a cold joint. The solder never got hot enough to wet both pad and lead, so the branch is open even though the part looks attached.
+
+8
+00:01:37.208 --> 00:01:51.210
+WHAT YOU LEARNED
+Read the board, then the meter
+Current but no light points to a short; no current at all points to an open.
+On through-hole boards, inspect the bottom: look for bridges between pins and dull, grainy cold joints.
+Diode test: an LED reads about 1.8–3 V; ~0 V means it is shorted out.

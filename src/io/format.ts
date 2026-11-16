@@ -1,0 +1,77 @@
+import type { Board, Component, Objective, Scenario } from '../types';
+
+export function normalizeBoard(b: Partial<Board>): Board {
+  const board: Board = {
+    w: num(b.w, 50), h: num(b.h, 30), thickness: num(b.thickness, 1.6), color: b.color,
+    components: arr(b.components).map(normalizeComponent),
+    traces: arr(b.traces), vias: arr(b.vias), blobs: arr(b.blobs), jumpers: arr(b.jumpers),
+    zones: arr(b.zones), silk: arr(b.silk), texts: arr(b.texts), nextId: num(b.nextId, 1),
+    ...(Array.isArray(b.hiddenCopperNets) && { hiddenCopperNets: b.hiddenCopperNets.filter((n) => typeof n === 'string') }),
+  };
+  // Make sure freshly generated ids never collide with existing ones.
+  board.nextId = Math.max(board.nextId, 1 + board.traces.length + board.blobs.length + board.jumpers.length + board.components.length) + 1000;
+  return board;
+}
+
+function normalizeComponent(c: Component): Component {
+  if (typeof c.ref !== 'string' || !Array.isArray(c.pads)) throw new Error('Invalid component');
+  return {
+    ...c,
+    rot: num(c.rot, 0),
+    side: c.side === 'B' ? 'B' : 'F',
+    pins: c.pins ?? {},
+    body: c.body ?? { shape: 'box', w: 2, h: 2, z: 1 },
+    state: {
+      populated: c.state?.populated ?? true,
+      reversed: !!c.state?.reversed,
+      burnt: !!c.state?.burnt,
+      cold: Array.isArray(c.state?.cold) ? c.state.cold.filter((x) => Number.isInteger(x)) : [],
+      closed: !!c.state?.closed,
+      ...(c.state?.leak && isFinite(c.state.leak.ohms) && c.state.leak.ohms > 0 && { leak: c.state.leak }),
+      ...(typeof c.state?.drift === 'number' && isFinite(c.state.drift) && c.state.drift > 0 && { drift: c.state.drift }),
+      ...(c.state?.coldOhms && typeof c.state.coldOhms === 'object' && { coldOhms: c.state.coldOhms }),
+      ...(Array.isArray(c.state?.lifted) && { lifted: c.state.lifted.filter((x) => Number.isInteger(x)) }),
+      ...(Array.isArray(c.state?.netBreak) && { netBreak: c.state.netBreak.filter((x) => Number.isInteger(x)) }),
+      ...(c.state?.residue && typeof c.state.residue.amount === 'number' && c.state.residue.amount > 0 && {
+        residue: { amount: Math.min(1, c.state.residue.amount), ...(c.state.residue.leaky && { leaky: true }), ...(Array.isArray(c.state.residue.pads) && { pads: c.state.residue.pads.filter((x) => Number.isInteger(x)) }) },
+      }),
+      ...(Array.isArray(c.state?.intermittent) && { intermittent: c.state.intermittent.filter((f) => f && typeof f.threshold === 'number' && ['thermal-open', 'thermal-leak', 'flex-open', 'flex-close'].includes(f.kind)) }),
+    },
+  };
+}
+
+const num = (v: unknown, d: number) => (typeof v === 'number' && isFinite(v) ? v : d);
+function arr<T>(v: T[] | undefined): T[] { return Array.isArray(v) ? v : []; }
+
+export function parseScenario(text: string): Scenario {
+  const raw = JSON.parse(text) as Partial<Scenario>;
+  if (raw.format !== 'pcbfix/1') throw new Error('Not a pcbfix/1 scenario file');
+  if (!raw.board) throw new Error('Scenario has no board');
+  const meta = raw.meta ?? ({} as Scenario['meta']);
+  return {
+    format: 'pcbfix/1',
+    id: String(raw.id ?? 'imported-' + Date.now().toString(36)),
+    meta: {
+      title: String(meta.title ?? 'Untitled board').slice(0, 120),
+      author: String(meta.author ?? 'anonymous').slice(0, 80),
+      difficulty: Math.min(5, Math.max(1, Math.round(num(meta.difficulty, 2)))),
+      description: String(meta.description ?? '').slice(0, 4000),
+      hints: arr(meta.hints).map(String).slice(0, 10),
+      par: meta.par === undefined ? undefined : num(meta.par, 0),
+      ...(typeof meta.credits === 'string' && { credits: meta.credits.slice(0, 400) }),
+      ...(typeof meta.license === 'string' && { license: meta.license.slice(0, 60) }),
+      ...(typeof meta.source === 'string' && /^https:\/\//.test(meta.source) && { source: meta.source.slice(0, 300) }),
+    },
+    board: normalizeBoard(raw.board),
+    objectives: arr<Objective>(raw.objectives).filter((o) => o && (o.type === 'led' || o.type === 'voltage')),
+    lock: raw.lock && typeof raw.lock.ct === 'string' ? raw.lock : undefined,
+    ...((raw.solver === 'fast' || raw.solver === 'spice' || raw.solver === 'spice-power') && { solver: raw.solver }),
+    ...(raw.calibration && typeof raw.calibration.loadScale === 'number' && raw.calibration.loadScale > 0 && {
+      calibration: { loadScale: raw.calibration.loadScale, ...(typeof raw.calibration.source === 'string' && { source: raw.calibration.source.slice(0, 200) }) },
+    }),
+  };
+}
+
+export function serializeScenario(s: Scenario): string {
+  return JSON.stringify(s);
+}

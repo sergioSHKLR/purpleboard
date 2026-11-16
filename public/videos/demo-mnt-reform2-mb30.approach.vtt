@@ -1,0 +1,46 @@
+WEBVTT
+
+1
+00:00:00.014 --> 00:00:14.015
+MNT REFORM 2 · HOW TO APPROACH
+A real laptop mainboard that will not start
+An open-hardware laptop board: 529 parts, a 30 V input stage, and converters making +5V, +3V3 and +1V2.
+Symptom: it draws power but the system never starts.
+You will learn: reading a power sequence, measuring rails at capacitors, and finding a shorted rail with the thermal camera.
+
+2
+00:00:14.713 --> 00:00:32.917
+STEP 1 · POWER-UP
+Watch the bench supply while the board powers up: it steps through power states.
+Why: A mainboard turns its rails on in order. If a rail fails, the controller stops or retries, and the supply current shows it.
+
+3
+00:00:32.928 --> 00:00:47.399
+STEP 2 · MEASURE THE RAILS
+Measure each rail at a decoupling capacitor. +5V at C35: +4.997 V. Fine.
+Why: Every rail has capacitors right next to the parts it feeds. Their pads are the easiest place to probe a rail.
+
+4
+00:00:47.412 --> 00:00:59.414
+STEP 2 · MEASURE THE RAILS
++3V3 at C29: +0.640 V, far below 3.3 V.
+Why: A converter that is running but cannot hold its voltage is being dragged down: something on the rail draws more current than it can deliver.
+
+5
+00:00:59.415 --> 00:01:11.947
+STEP 3 · FIND THE SHORT
+A rail pulled low by a short turns that current into heat at the shorted part.
+Why: Power = I² × R. The fault carries amps, so it warms up faster than anything else on the rail.
+
+6
+00:01:11.950 --> 00:01:18.452
+STEP 3 · FIND THE SHORT
+Switch the view to Thermal and give it a few seconds: look for the spot that heats first.
+
+7
+00:01:18.462 --> 00:01:32.463
+WHAT YOU LEARNED
+Rails first, then heat
+Measure every rail at its capacitors: a low rail with a running converter means overload.
+A short is a heater: use the thermal view, freeze spray, IPA or rosin (R) to see which part warms first.
+Many parts share one rail: the heat points to the one that matters.

@@ -1,0 +1,58 @@
+WEBVTT
+
+1
+00:00:00.003 --> 00:00:14.004
+FIRST LIGHT · HOW TO APPROACH
+A flashlight that will not light
+The circuit: coin cell (3 V) → push button SW1 → resistor R1 → red LED D1 → back to the cell.
+You will learn: why one break stops a series circuit, continuity testing in Ω mode, what OL means, and how to half-split a fault.
+Tools: Select (1) · Multimeter (2)
+
+2
+00:00:16.061 --> 00:00:26.759
+STEP 1 · SYMPTOM
+Press SW1. D1 stays dark.
+Why: In a series loop the same current flows through every part. A single break anywhere, and nothing in the loop conducts.
+
+3
+00:00:26.760 --> 00:00:39.955
+STEP 1 · SYMPTOM
+The supply panel confirms it: 0.0 mA while the button is pressed.
+Why: A dead LED alone would still let you measure… nothing either, but a short would draw a lot. Zero current points at an open circuit.
+
+4
+00:00:39.957 --> 00:00:57.010
+STEP 2 · MEASURE
+Turn the power off (P), take the multimeter (2), and switch it to Ω.
+Why: An ohmmeter pushes its own small test current through the part. On a powered circuit the board's voltages corrupt the reading, and can damage the meter.
+
+5
+00:00:57.011 --> 00:01:09.013
+STEP 3 · INTERPRET
+R1's right pad to D1's anode: the meter reads OL.
+Why: OL = "over limit": the test current found no path. These two pads are joined by one copper trace on paper, where you would expect about 0 Ω, so that copper is broken.
+
+6
+00:01:09.013 --> 00:01:22.711
+STEP 4 · NARROW IT DOWN
+Now half-split: move the red probe to the middle of the trace and measure again.
+Why: Each measurement halves the stretch that can contain the break. On a long trace, three or four readings find it.
+
+7
+00:01:22.712 --> 00:01:29.052
+STEP 4 · NARROW IT DOWN
+Still OL: the break lies between this point and D1.
+
+8
+00:01:29.054 --> 00:01:41.056
+STEP 4 · NARROW IT DOWN
+Near 0 Ω here: this point is still connected to D1.
+Why: So the break sits between the two probe points. Zoom into that stretch and look closely: the solution video shows the repair.
+
+9
+00:01:41.058 --> 00:01:55.059
+WHAT YOU LEARNED
+Find an open circuit
+A series circuit with no current and no heat usually has an open: a cracked trace, a cold joint, a missing part.
+Measure resistance with the power off. OL on a path that should be copper means it is broken.
+Half-split: probe the middle of the suspect stretch; the reading tells you which half to keep.

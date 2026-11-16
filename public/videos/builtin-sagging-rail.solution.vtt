@@ -1,0 +1,48 @@
+WEBVTT
+
+1
+00:00:00.006 --> 00:00:12.242
+THE SAGGING RAIL · SOLUTION
+Right resistor, whole return path
+Diagnosis (see "How to approach"): R2 is 1 kΩ instead of 10 kΩ, and D1's ground return is cut on the bottom layer.
+Tools: Select (1) · Soldering iron (3) · Multimeter (2)
+
+2
+00:00:17.040 --> 00:00:22.882
+STEP 1 · REPLACE R2
+Select R2 and fit 10 kΩ.
+
+3
+00:00:22.883 --> 00:00:30.061
+STEP 1 · CHECK
+TP1 now reads +2.500 V.
+Why: 5 V × 10k / (10k + 10k) = 2.50 V.
+
+4
+00:00:30.062 --> 00:00:39.328
+STEP 2 · BRIDGE THE RETURN
+On the bottom: the return trace is cut. Soldering iron (3): bridge it.
+
+5
+00:00:39.329 --> 00:00:46.270
+STEP 3 · CHECK
+D1 lights: its loop to ground is closed again.
+Why: Current: (5 − ~3 V for blue) / 330 Ω ≈ 6 mA.
+
+6
+00:00:46.271 --> 00:01:01.706
+STEP 4 · VERIFY
+Run the test bench (Run tests).
+Why: It powers the board, checks every objective, and only decrypts the flag if the circuit now matches the original design: a fix that merely works around a fault does not count.
+
+7
+00:01:01.708 --> 00:01:05.311
+STEP 4 · VERIFY
+All objectives pass and the flag is captured. Earn your own: it is blurred here.
+
+8
+00:01:05.312 --> 00:01:13.864
+WHAT YOU LEARNED
+Two layers, one loop
+Swap a wrong resistor and confirm with the divider maths.
+Bridge a broken trace on whichever layer it lives on.

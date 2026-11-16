@@ -1,0 +1,47 @@
+WEBVTT
+
+1
+00:00:00.002 --> 00:00:14.003
+GHOST SHORT · HOW TO APPROACH
+Blown fuse: find the cause first
+The circuit: 5 V on J1 → fuse F1 (0.5 A) → power LED D1 (via R3) and a divider R1/R2 that must put 2.5 V on TP1.
+It came back with F1 blown and R2 missing.
+You will learn: why a blown fuse is a symptom, checking for a short before powering up, and finding a short that is not a part.
+
+2
+00:00:18.965 --> 00:00:33.598
+STEP 1 · THE FUSE
+Power off, Ω across the fuse: OL. F1 is open.
+Why: A fuse is a deliberate weak link that melts above its rating, here 0.5 A. Something drew that much current, and a new fuse fitted blindly would blow again.
+
+3
+00:00:33.600 --> 00:00:45.857
+STEP 2 · LOOK FOR A SHORT
+J1's + pin to ground (TP2): 0.0 Ω. The 5 V input is shorted to ground.
+Why: A healthy input reads high here: the loads draw only milliamps. Under 10 Ω, a 5 V supply would push amps: that is what blew the fuse.
+
+4
+00:00:45.858 --> 00:00:58.818
+STEP 3 · NARROW IT DOWN
+F1 is open, so nothing behind it is in this reading. The short sits between J1 and the fuse.
+Why: The blown fuse splits the board for you: every part downstream is disconnected. Only J1 and its two traces remain.
+
+5
+00:00:58.824 --> 00:01:11.584
+STEP 3 · NARROW IT DOWN
+No part here can short. Zoom in between J1's pins and look at the copper itself.
+Why: Shorts are not always parts: a sliver of copper left over from etching, a whisker of solder or a stray wire strand can join two nets.
+
+6
+00:01:11.585 --> 00:01:23.587
+STEP 4 · MISSING PART
+One more: R2's footprint is empty. The divider gives V = 5 V × R2 / (R1 + R2), and R1 is 10 kΩ.
+Why: Without R2, TP1 would sit at the full 5 V. Work out which R2 gives 2.5 V.
+
+7
+00:01:23.589 --> 00:01:37.590
+WHAT YOU LEARNED
+Never just replace the fuse
+A blown fuse is a symptom: measure Ω across the input to ground before fitting a new one.
+An open fuse isolates the circuit behind it: use it to narrow down where the short can be.
+When no part can explain a short, inspect the copper: slivers, whiskers, bridges.

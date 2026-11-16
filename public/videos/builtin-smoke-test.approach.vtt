@@ -1,0 +1,41 @@
+WEBVTT
+
+1
+00:00:00.003 --> 00:00:14.004
+SMOKE TEST · HOW TO APPROACH
+The fuse is the victim
+The circuit: 5 V on J1 → fuse F1 → series protection diode D1 (1N4007) → rail TP1 → R1 → green LED D2.
+F1 is blown and the rail is dead.
+You will learn: testing a rail for a short, the diode test on a silicon diode, and checking polarity against the silkscreen.
+
+2
+00:00:19.234 --> 00:00:36.000
+STEP 1 · SHORT CHECK
+Power off, Ω from the rail (TP1) to ground (TP2): 0.0 Ω.
+Why: This rail feeds R1 (220 Ω) and an LED, so it should read hundreds of ohms or open. A few ohms is a short: a new fuse would blow at once.
+
+3
+00:00:36.003 --> 00:00:50.632
+STEP 2 · THE DIODE
+Diode test on D1, red on the anode, black on the band end per the silkscreen: OL.
+Why: A good silicon diode reads about 0.5–0.7 V from anode to cathode. OL means open or reversed: swap the probes.
+
+4
+00:00:50.634 --> 00:01:04.648
+STEP 2 · THE DIODE
+Swapped: 0.700 V. D1 is fine, but fitted backwards: its band does not match the silkscreen.
+Why: Reversed, the series diode blocks the supply. Even with a new fuse and no short, the rail would stay dead.
+
+5
+00:01:04.651 --> 00:01:16.653
+STEP 3 · FIND THE SHORT
+Now the short. The rail also runs on the bottom, right next to a ground trace. Inspect that area closely.
+Why: Shorts hide where two nets run close together: look for solder or debris spanning the gap.
+
+6
+00:01:16.655 --> 00:01:30.657
+WHAT YOU LEARNED
+Protect the next fuse
+A blown fuse is a symptom: check the rail for a short before replacing it.
+Diode test: ~0.6 V one way and OL the other = good. OL both ways = open; ~0 both ways = shorted.
+On a real bench: set the supply current limit (e.g. 100 mA) and use a thermal camera to see where a short heats up.

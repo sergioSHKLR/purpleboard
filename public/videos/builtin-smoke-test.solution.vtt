@@ -1,0 +1,59 @@
+WEBVTT
+
+1
+00:00:00.002 --> 00:00:14.003
+SMOKE TEST · SOLUTION
+Short, diode, then fuse
+Diagnosis (see "How to approach"): a solder blob on the bottom shorts the rail to ground, D1 is reversed, F1 is blown.
+Fix the cause, prove it, and fit the fuse last.
+Tools: Desolder wick (4) · Multimeter (2) · Rotate (5) · Soldering iron (3)
+
+2
+00:00:16.630 --> 00:00:23.099
+STEP 1 · LOCATE
+A blob of solder bridges the rail via and the ground trace.
+
+3
+00:00:23.101 --> 00:00:32.767
+STEP 2 · REMOVE THE SHORT
+Desolder wick (4): soak up the blob.
+
+4
+00:00:32.768 --> 00:00:46.312
+STEP 3 · PROVE IT
+Power off, rail to ground: OL. No more short.
+Why: What is left is R1 and the LED, which only conduct once the LED's forward voltage is reached: a meter sees a high resistance.
+
+5
+00:00:46.313 --> 00:00:52.811
+STEP 4 · FIX POLARITY
+Rotate tool (5): turn D1 so its band matches the silkscreen.
+
+6
+00:00:52.812 --> 00:01:01.050
+STEP 5 · NEW FUSE
+Only now, soldering iron (3) on F1: a fresh 0.5 A fuse.
+
+7
+00:01:01.051 --> 00:01:12.024
+STEP 6 · CHECK
+Power on: TP1 reads +4.293 V, and D2 lights.
+Why: Not 5 V: the series diode drops about 0.6–0.7 V. That drop is the price of reverse-polarity protection.
+
+8
+00:01:12.026 --> 00:01:27.492
+STEP 7 · VERIFY
+Run the test bench (Run tests).
+Why: It powers the board, checks every objective, and only decrypts the flag if the circuit now matches the original design: a fix that merely works around a fault does not count.
+
+9
+00:01:27.493 --> 00:01:31.096
+STEP 7 · VERIFY
+All objectives pass and the flag is captured. Earn your own: it is blurred here.
+
+10
+00:01:31.098 --> 00:01:42.069
+WHAT YOU LEARNED
+Cause first, fuse last
+Remove the short, prove it with Ω, fix the polarity, and only then replace the fuse.
+A rail behind a series diode sits about 0.7 V below the input.

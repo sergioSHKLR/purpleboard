@@ -1,0 +1,26 @@
+DEADBOARD demo boards — third-party open hardware
+
+The files in this folder are converted from open-hardware designs and modified
+(faults planted for repair training). Each keeps the licence of its source design;
+the full licence texts are in licenses/. Nothing here implies endorsement by the
+original designers.
+
+demo-mnt-reform2-mb30.pcbfix.json
+  Source: MNT Reform 2 motherboard rev 3.0, MNT Research GmbH
+          https://source.mnt.re/reform/reform  (commit c3b7fad440a3fab3d4b99aab0e06010fca1122a4,
+          reform2-motherboard30-pcb/reform2-motherboard30.kicad_pcb)
+  Licence: CERN-OHL-S-2.0 (strongly reciprocal). This modified version is distributed under
+           the same licence; its source is this JSON file together with scripts/build-demos.ts
+           in the DEADBOARD repository and the upstream design above.
+  Changes: converted to the DEADBOARD scenario format; bench supply added; capacitor C173
+           shorted and liquid residue added at C97; test objectives and an encrypted flag added.
+
+demo-antmicro-jetson-nano-bb.pcbfix.json
+  Source: Jetson Nano / Xavier NX baseboard, Copyright (c) 2020-2024 Antmicro
+          https://github.com/antmicro/jetson-nano-baseboard  (commit d8d0b2d71ab4cc4bcdb204a09f78be40d4c8cda3,
+          jetson-nano-baseboard.kicad_pcb)
+  Licence: Apache-2.0
+  Changes: converted to the DEADBOARD scenario format; bench supply added; regulator U2
+           marked damaged and a press-sensitive cracked joint added at FB1; test objectives
+           and an encrypted flag added.
+  "Jetson" is a trademark of NVIDIA Corporation.

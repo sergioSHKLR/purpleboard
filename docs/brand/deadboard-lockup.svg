@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 48" width="700" height="96" fill="none">
+  <rect width="350" height="48" rx="8" fill="#090C0A"/>
+  <g transform="translate(10 8)">
+    <path d="M7 4h15l6 6v15a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z" stroke="#E3EAE5" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M4 17h7l2.5-7 3 13 2.5-8h4" stroke="#4BE38A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="25" cy="15" r="2.2" fill="#090C0A" stroke="#4BE38A" stroke-width="2"/>
+  </g>
+  <text x="50" y="31" font-family="JetBrains Mono, ui-monospace, monospace" font-size="20" font-weight="700" letter-spacing="2.4" fill="#E3EAE5">DEADBOARD</text>
+  <rect x="181" y="15" width="10" height="19" fill="#4BE38A"/>
+  <text x="200" y="30" font-family="JetBrains Mono, ui-monospace, monospace" font-size="10" fill="#75817A">bring dead boards back</text>
+</svg>

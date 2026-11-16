@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.vite/
+
+# Private regression fixtures (Apple boardview / schematic data): local tests only, never published
+board_schemas/
+test/private/
+
+# Large media is attached to GitHub releases instead of committed
+docs/media/*.mp4

@@ -1,0 +1,52 @@
+WEBVTT
+
+1
+00:00:00.001 --> 00:00:11.191
+MNT REFORM 2 · SOLUTION
+Replace the shorted capacitor, clean the board
+Diagnosis: C173, a 22 µF capacitor on +3V3, is a dead short. Liquid residue near C97 leaks current too.
+Tools: Desolder wick (4) · Select (1) · IPA (0)
+
+2
+00:00:15.568 --> 00:00:30.384
+STEP 1 · REMOVE
+C173 is the hot spot. Ceramic capacitors fail short when they crack.
+Why: Board flex or thermal shock cracks the ceramic; the layers inside touch and the cap becomes a near-0 Ω path across the rail.
+
+3
+00:00:30.396 --> 00:00:39.313
+STEP 1 · REMOVE
+Wick (4) removes the shorted cap.
+
+4
+00:00:39.314 --> 00:00:52.283
+STEP 2 · REPLACE
+Select the empty footprint and fit a fresh 22 µF from the Inspector.
+Why: Match the value and the voltage rating. Decoupling caps keep the rail stable; leaving one out can make the converter ring.
+
+5
+00:00:52.296 --> 00:01:15.986
+STEP 3 · CLEAN
+Next to C97: dried liquid residue. It conducts a little, and corrodes over time.
+Why: Residue from a spill bridges pads with a few hundred ohms: a slow leak that drains rails and confuses measurements.
+
+6
+00:01:15.996 --> 00:01:24.214
+STEP 3 · CLEAN
+IPA (0): scrub until it is clean. Each pass removes about half.
+
+7
+00:01:24.214 --> 00:01:28.983
+STEP 4 · CHECK
++3V3 at C29: +3.298 V. The rail is back.
+
+8
+00:01:28.994 --> 00:01:46.679
+STEP 5 · VERIFY
+Run the test bench (Run tests).
+Why: It powers the board, checks every objective, and only decrypts the flag if the circuit now matches the original design: a fix that merely works around a fault does not count.
+
+9
+00:01:46.681 --> 00:01:50.295
+STEP 5 · VERIFY
+All objectives pass and the flag is captured. Earn your own: it is blurred here.

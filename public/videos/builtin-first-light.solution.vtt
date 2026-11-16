@@ -1,0 +1,46 @@
+WEBVTT
+
+1
+00:00:00.002 --> 00:00:14.003
+FIRST LIGHT · SOLUTION
+Bridging a broken trace
+Diagnosis (see "How to approach"): R1 → D1 reads OL, and half-splitting puts the break on the right-hand trace.
+Fix: bridge the gap with solder, check the LED, then verify on the test bench.
+Tools: Soldering iron (3) · Select (1) · Run tests
+
+2
+00:00:15.364 --> 00:00:26.816
+STEP 1 · LOCATE
+Here it is: a hairline gap in the copper.
+Why: Flexing, a scratch or corrosion can crack a trace. The gap is tiny, but no current crosses it.
+
+3
+00:00:26.817 --> 00:00:41.121
+STEP 2 · REPAIR
+Soldering iron (3): click the gap to flow a solder bridge across it.
+Why: Solder conducts. A blob that wets the copper on both sides restores the path. For wider gaps on a real board you would add a short piece of wire.
+
+4
+00:00:41.122 --> 00:00:54.311
+STEP 3 · CHECK
+Press SW1: D1 lights, and the supply now shows about 10 mA.
+Why: Ohm's law: the cell gives 3 V, the red LED drops about 1.9 V, so about 1.1 V is left across R1 (100 Ω): 1.1 V / 100 Ω ≈ 11 mA.
+
+5
+00:00:54.312 --> 00:01:09.738
+STEP 4 · VERIFY
+Run the test bench (Run tests).
+Why: It powers the board, checks every objective, and only decrypts the flag if the circuit now matches the original design: a fix that merely works around a fault does not count.
+
+6
+00:01:09.739 --> 00:01:13.342
+STEP 4 · VERIFY
+All objectives pass and the flag is captured. Earn your own: it is blurred here.
+
+7
+00:01:13.343 --> 00:01:27.344
+WHAT YOU LEARNED
+Repair and prove it
+A broken trace is bridged with solder (small gaps) or a jumper wire (long ones).
+Check the repair with a number you can predict: here I = V / R gives the LED current.
+Finish on the test bench: it proves the circuit, not just the symptom.

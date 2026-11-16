@@ -1,0 +1,53 @@
+WEBVTT
+
+1
+00:00:00.004 --> 00:00:14.005
+THE SAGGING RAIL · HOW TO APPROACH
+A divider that sags
+The circuit: 5 V USB on J1. R1/R2 divide it to 2.50 V at TP1; R3 → D1 (blue) is a power light whose ground return runs on the bottom layer.
+Symptoms: TP1 reads far too low and D1 stays dark.
+You will learn: the voltage divider, reading colour bands, and tracing a return path across layers.
+
+2
+00:00:17.419 --> 00:00:29.833
+STEP 1 · MEASURE
+Start at the input: J1 + reads +5.000 V. The supply is fine.
+Why: Always check the source first. If the input were low, everything after it would be too.
+
+3
+00:00:29.834 --> 00:00:43.644
+STEP 1 · MEASURE
+TP1 reads +0.455 V instead of 2.50 V.
+Why: A divider gives Vout = Vin × R2 / (R1 + R2). Equal resistors give exactly half. Far too low means R2 is too small for R1, or R1 too large.
+
+4
+00:00:43.645 --> 00:00:56.641
+STEP 2 · READ THE BANDS
+Select R1: brown-black-orange, 10 × 1 000 = 10 kΩ.
+Why: First two bands are digits, the third is the multiplier: black ×1, brown ×10, red ×100, orange ×1 000.
+
+5
+00:00:56.642 --> 00:01:11.942
+STEP 2 · READ THE BANDS
+R2: brown-black-red, 10 × 100 = 1 kΩ.
+Why: 5 V × 1k / (10k + 1k) = 0.45 V: that is the +0.455 V you measured. For 2.50 V, R2 must equal R1: 10 kΩ.
+
+6
+00:01:11.943 --> 00:01:25.461
+STEP 3 · THE LED
+D1 stays dark even though it has its own resistor. Power off, Ω from D1's cathode to ground: OL.
+Why: An LED's cathode must reach ground to complete its loop. OL means its return path is broken.
+
+7
+00:01:25.462 --> 00:01:37.464
+STEP 3 · FOLLOW THE RETURN
+The cathode drops through a via to the bottom layer and runs to TP2. Inspect this trace.
+Why: A via carries a net from one copper layer to the other. A trace you cannot see from the top can still be the broken link.
+
+8
+00:01:37.466 --> 00:01:51.468
+WHAT YOU LEARNED
+Do the maths, then trace it
+Divider: Vout = Vin × R2 / (R1 + R2). A wrong reading tells you which resistor to suspect.
+Colour bands: digit, digit, multiplier (×100 red, ×1 000 orange).
+Every loop needs a return: follow it through vias onto the other layer.

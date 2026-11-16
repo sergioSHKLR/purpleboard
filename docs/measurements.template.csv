@@ -1,0 +1,13 @@
+# Bench measurements of ONE known-good board, for: npm run calibrate -- <board> <this file>
+# kind,net,value[,state]   value: number or OL   state (volt / amps): G3H S5 S4 S3 S0 S0SW, default S0
+#   diode : diode mode, RED probe on GND, black on the net (boardview-database convention), volts
+#   ohm   : resistance from the net to GND, power off, ohms
+#   volt  : rail voltage with the board held in a power state, volts
+#   amps  : bench-supply current in a power state (standby G3H, booted S0), amps
+# Record the meter model and supply voltage in a comment. Example lines (replace with real readings):
+kind,net,value,state
+# diode,PP3V3_S5,0.000
+# ohm,PP3V3_S5,0
+# volt,PP3V3_S5,0.000,S5
+# amps,,0.000,G3H
+# amps,,0.000,S0

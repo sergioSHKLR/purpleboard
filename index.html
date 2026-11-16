@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DEADBOARD — bring dead boards back</title>
+    <meta name="description" content="A board-level repair bench in your browser: multimeter, bench supply with boot current, oscilloscope, thermal camera and rework, on real open-hardware boards. Train like a technician, or crack repair challenges." />
+    <meta name="theme-color" content="#090c0a" />
+    <meta property="og:title" content="DEADBOARD — bring dead boards back" />
+    <meta property="og:description" content="A board-level repair bench in your browser. Probe, scope, inject, reflow." />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="nav">
+      <a class="logo" href="./" aria-label="DEADBOARD home"><span data-mark></span><span class="wordmark">DEADBOARD</span></a>
+      <nav aria-label="Sections">
+        <a href="#bench">Bench</a>
+        <a href="#faults">Faults</a>
+        <a href="#boards">Boards</a>
+        <a href="#challenges">Challenges</a>
+      </nav>
+      <a class="btn primary small" href="./app.html">Open the bench</a>
+    </header>
+
+    <main id="main">
+      <!-- hero -->
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">&gt; board-level repair trainer</p>
+          <h1>Bring dead boards back.</h1>
+          <p class="lede">
+            DEADBOARD is a repair bench in your browser. Probe a real open-hardware board with a multimeter,
+            read boot current off the bench supply, scope the switch nodes, find the short with a
+            thermal camera, then fix it with an iron that obeys physics.
+          </p>
+          <div class="cta">
+            <a class="btn primary" href="./app.html">Open the bench <span aria-hidden="true">→</span></a>
+            <a class="btn ghost" href="./app.html?tutorial=1">Learn the basics · 5 min</a>
+          </div>
+          <p class="req">Runs in Chrome or Edge 113+, Safari 26+ (WebGPU). Nothing to install.</p>
+        </div>
+
+        <figure class="hero-shot">
+          <div class="frame">
+            <div class="frame-bar"><i></i><i></i><i></i><span>deadboard — bench</span></div>
+            <img src="./home/bench.jpg" width="2088" height="990" alt="The open-hardware MNT Reform 2 laptop mainboard in 3D on the DEADBOARD bench, with the oscilloscope on the 3.3 V converter's switch node and the bench supply reading 16.2 mA at 30 V." />
+          </div>
+          <figcaption>MNT Reform 2 laptop mainboard (open hardware, 530 parts), repaired and running: the 3.3&nbsp;V converter switching on the scope, 16.2&nbsp;mA from 30&nbsp;V on the supply.</figcaption>
+        </figure>
+      </section>
+
+      <!-- boot log -->
+      <section class="bootlog" aria-label="A simulated power-up">
+        <pre class="term" data-bootlog><code>$ power on --supply 30V --rail 30V_GATE
+G3H   standby .....................  0.0 mA
+seq   S5 → S4 → S3 → S0 ...........  0.0 mA
+S0    +5V +3V3 +1V2 up ............ 10.3 mA
+S0    loads settle ................ 16.2 mA
+ok    board alive</code></pre>
+        <p class="term-note">That's the board above, powering up on the bench (its rail names carry no power states, so every converter starts at S0). A stuck rail stalls the sequence. A short makes it loop.</p>
+      </section>
+
+      <!-- the bench -->
+      <section id="bench" class="section">
+        <p class="eyebrow">&gt; the bench</p>
+        <h2>Instruments that behave like instruments.</h2>
+        <p class="section-lede">Every tool a technician reaches for, with the same quirks and the same limits.</p>
+        <div class="cards">
+          <article class="card">
+            <span class="card-ic" data-icon="meter"></span>
+            <h3>Multimeter</h3>
+            <p>A 6000-count meter, not an ideal probe: 10&nbsp;MΩ input, contact resistance, diode test. Capacitance reads high in circuit. The 10&nbsp;A input only works in series.</p>
+          </article>
+          <article class="card">
+            <span class="card-ic" data-icon="power"></span>
+            <h3>Bench supply</h3>
+            <p>Boot current you can read: standby, sleep, running. Current limit, and voltage injection to make the culprit on a shorted rail heat up.</p>
+            <svg class="viz" viewBox="0 0 220 56" aria-hidden="true"><path d="M2 52 H40 V44 H80 V36 H120 V12 H218" class="viz-amber"/></svg>
+          </article>
+          <article class="card">
+            <span class="card-ic" data-icon="scope"></span>
+            <h3>Oscilloscope</h3>
+            <p>Roll through power-up ramps and boot loops. Catch a switch node, its ripple, or a clock that never started.</p>
+            <svg class="viz" viewBox="0 0 220 56" aria-hidden="true"><path d="M2 46 H22 V12 H52 V46 H82 V12 H112 V46 H142 V12 H172 V46 H202 V12 H218" class="viz-yellow"/></svg>
+          </article>
+          <article class="card">
+            <span class="card-ic" data-icon="snow"></span>
+            <h3>Thermal camera</h3>
+            <p>IR that reads like IR: bare solder looks cold. Freeze spray, isopropyl and the rosin method to pin the hot part.</p>
+            <svg class="viz" viewBox="0 0 220 56" aria-hidden="true"><defs><radialGradient id="hot"><stop offset="0" stop-color="#fff3b0"/><stop offset=".35" stop-color="#ff8a3d"/><stop offset=".7" stop-color="#7a1fa2"/><stop offset="1" stop-color="#1b1446" stop-opacity="0"/></radialGradient></defs><rect x="2" y="4" width="216" height="48" rx="6" fill="#1b1446"/><circle cx="140" cy="28" r="34" fill="url(#hot)"/></svg>
+          </article>
+          <article class="card">
+            <span class="card-ic" data-icon="iron"></span>
+            <h3>Rework</h3>
+            <p>Iron, hot air, preheater. Flux matters, ground pads fight back, and pads lift if you cook them.</p>
+          </article>
+          <article class="card">
+            <span class="card-ic" data-icon="target"></span>
+            <h3>Boardview</h3>
+            <p>Both sides, 2D or a full 3D orbit. Click a part to see where its nets go. Search hundreds of parts in a keystroke.</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- faults -->
+      <section id="faults" class="section split">
+        <div>
+          <p class="eyebrow">&gt; the faults</p>
+          <h2>Boards fail the way real boards fail.</h2>
+          <p class="section-lede">
+            Not "part missing, find it". Faults come with realistic severity and realistic symptoms.
+            Some only show up when the board is warm, or when you press on it.
+          </p>
+        </div>
+        <ul class="tags" aria-label="Fault types">
+          <li>dead-short MLCC</li><li>leaky capacitor</li><li>liquid residue</li><li>corroded copper</li>
+          <li>chip shorted inside</li><li>dead regulator</li><li>drifted resistor</li><li>resistive cold joint</li>
+          <li>opens when warm</li><li>works only when pressed</li><li>leaks when warm</li><li>lifted pad</li>
+          <li>cracked by thermal shock</li><li>reversed part</li>
+        </ul>
+      </section>
+
+      <!-- boards -->
+      <section id="boards" class="section split">
+        <div>
+          <p class="eyebrow">&gt; real boards</p>
+          <h2>Any board. No per-board scripting.</h2>
+          <p class="section-lede">
+            Import a boardview (.brd) or a KiCad layout. DEADBOARD finds the power tree, the
+            regulators and the power states from the netlist and its net names, then simulates
+            the whole board with a SPICE engine. Export it as an ngspice netlist whenever you like.
+          </p>
+        </div>
+        <div class="honest">
+          <p class="eyebrow">&gt; honest simulation</p>
+          <h3>Every number has a source.</h3>
+          <p>
+            Values come from the board data, datasheets and design intent. Where none exist, the
+            estimate is labelled as an estimate, and synthesized waveforms say so on the scope.
+            Measured a real board? Feed the readings back and DEADBOARD calibrates its model
+            against your bench.
+          </p>
+        </div>
+      </section>
+
+      <!-- challenges -->
+      <section id="challenges" class="section challenge">
+        <div class="challenge-copy">
+          <p class="eyebrow">&gt; challenges</p>
+          <h2>Break it. Lock a flag. Share the link.</h2>
+          <p class="section-lede">
+            Start from a working board, plant faults, and lock a flag to the repaired circuit. The
+            flag is encrypted with the board's topology, so only a real repair unlocks it.
+            There's no peeking and no shortcut. Share it as a file or a single link.
+          </p>
+        </div>
+        <pre class="term small" aria-label="Example challenge"><code>$ verify
+✗ V(TP1) = 0.42 V   expected 2.30–2.70 V
+✗ D1 is OFF          expected ON
+<span class="dim"># …swap R2 for 10 kΩ, bridge the broken bottom trace…</span>
+$ verify
+✓ all checks green
+✓ flag captured: PCB{…}</code></pre>
+      </section>
+
+      <!-- final CTA -->
+      <section class="final">
+        <h2>There's a dead board on the bench.</h2>
+        <a class="btn primary" href="./app.html">Open the bench <span aria-hidden="true">→</span></a>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <span class="logo small"><span data-mark></span><span class="wordmark">DEADBOARD</span></span>
+      <span class="muted">Board-level repair trainer · <span data-year></span></span>
+      <a href="./app.html">Open the bench</a>
+    </footer>
+
+    <script type="module" src="./src/home/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,51 @@
+WEBVTT
+
+1
+00:00:00.005 --> 00:00:14.006
+BACKWARDS DAY · SOLUTION
+Three faults, three fixes
+Diagnosis (see "How to approach"): R1 is 47 kΩ instead of 330 Ω, D1 is reversed, and D2's anode trace is cut on the bottom.
+Fix each one, check the current, then verify on the test bench.
+Tools: Select (1) · Rotate (5) · Soldering iron (3)
+
+2
+00:00:18.821 --> 00:00:33.319
+STEP 1 · REPLACE R1
+Select R1, enter 330 in the Inspector and fit the right resistor.
+Why: 330 Ω sets D1's current to about (5 − 2) V / 330 Ω ≈ 9 mA: bright, and well within a small LED's 20 mA rating.
+
+3
+00:00:33.320 --> 00:00:46.570
+STEP 2 · TURN D1 AROUND
+Rotate tool (5): click D1 to refit it turned 180°.
+Why: Its flat edge (cathode) now matches the silkscreen, so the anode sits on R1 and the cathode on ground.
+
+4
+00:00:46.571 --> 00:01:02.492
+STEP 3 · BRIDGE THE TRACE
+On the bottom: a cut across D2's anode trace. Soldering iron (3): bridge it with solder.
+Why: Solder wets the exposed copper on both sides and closes the gap. For a longer break you would lay a short wire along the trace.
+
+5
+00:01:02.493 --> 00:01:14.253
+STEP 4 · CHECK
+Both LEDs light; the supply shows 20.8 mA.
+Why: Yellow: (5 − ~2.0) V / 330 Ω ≈ 9 mA. Blue drops more, about 3 V: (5 − 3) V / 150 Ω ≈ 13 mA. About 21 mA together.
+
+6
+00:01:14.254 --> 00:01:29.689
+STEP 5 · VERIFY
+Run the test bench (Run tests).
+Why: It powers the board, checks every objective, and only decrypts the flag if the circuit now matches the original design: a fix that merely works around a fault does not count.
+
+7
+00:01:29.691 --> 00:01:33.293
+STEP 5 · VERIFY
+All objectives pass and the flag is captured. Earn your own: it is blurred here.
+
+8
+00:01:33.294 --> 00:01:45.366
+WHAT YOU LEARNED
+Assembly faults stack up
+Several faults can hide behind one symptom: keep checking after the first find.
+Fix value, orientation and connection faults, then predict the current and compare.

@@ -1,0 +1,51 @@
+WEBVTT
+
+1
+00:00:00.003 --> 00:00:14.004
+BRIDGE TROLL · SOLUTION
+Two soldering faults, two fixes
+Diagnosis (see "How to approach"): a solder bridge shorts D2, and a cold joint on R1 opens D1's branch.
+Fix: wick the bridge, reflow the cold joint, check both LEDs, then verify on the test bench.
+Tools: Desolder wick (4) · Soldering iron (3) · Multimeter (2) · Select (1)
+
+2
+00:00:16.616 --> 00:00:34.731
+STEP 1 · REMOVE THE BRIDGE
+Desolder wick (4): click the bridge between D2's legs.
+Why: Wick is braided copper soaked in flux. Heated on the blob, it pulls molten solder into the braid by capillary action and leaves the two pads separate.
+
+3
+00:00:34.733 --> 00:00:41.245
+STEP 1 · CHECK
+Power off, diode test again: D2 now reads 2.105 V, a healthy LED.
+
+4
+00:00:41.245 --> 00:00:58.897
+STEP 2 · REFLOW
+Soldering iron (3): click R1's cold joint to reflow it.
+Why: Reheating with fresh flux lets the solder melt fully and wet both pad and lead. A good joint ends up shiny with a concave fillet.
+
+5
+00:00:58.898 --> 00:01:12.092
+STEP 3 · CHECK
+Power on, press SW1: both LEDs light and the supply shows 14.5 mA.
+Why: Each branch carries (3 V − LED voltage) / 100 Ω. Both LEDs drop about 2 V, and the coin cell's own ~8 Ω internal resistance costs a little more: about 8 mA each, ~16 mA together.
+
+6
+00:01:12.093 --> 00:01:27.528
+STEP 4 · VERIFY
+Run the test bench (Run tests).
+Why: It powers the board, checks every objective, and only decrypts the flag if the circuit now matches the original design: a fix that merely works around a fault does not count.
+
+7
+00:01:27.529 --> 00:01:31.131
+STEP 4 · VERIFY
+All objectives pass and the flag is captured. Earn your own: it is blurred here.
+
+8
+00:01:31.133 --> 00:01:45.134
+WHAT YOU LEARNED
+Rework, then re-measure
+Wick removes excess solder; the iron with flux reflows a cold joint.
+Re-test the part you fixed: the same diode test that found the short proves it is gone.
+Predict the current with I = (V − V_LED) / R and compare it with the supply.

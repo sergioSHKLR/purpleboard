@@ -1,0 +1,114 @@
+{
+  "builtin-first-light": {
+    "approach": {
+      "file": "builtin-first-light.approach.mp4",
+      "captions": "builtin-first-light.approach.vtt",
+      "poster": "builtin-first-light.approach.jpg",
+      "seconds": 117
+    },
+    "solution": {
+      "file": "builtin-first-light.solution.mp4",
+      "captions": "builtin-first-light.solution.vtt",
+      "poster": "builtin-first-light.solution.jpg",
+      "seconds": 89
+    }
+  },
+  "builtin-bridge-troll": {
+    "approach": {
+      "file": "builtin-bridge-troll.approach.mp4",
+      "captions": "builtin-bridge-troll.approach.vtt",
+      "poster": "builtin-bridge-troll.approach.jpg",
+      "seconds": 113
+    },
+    "solution": {
+      "file": "builtin-bridge-troll.solution.mp4",
+      "captions": "builtin-bridge-troll.solution.vtt",
+      "poster": "builtin-bridge-troll.solution.jpg",
+      "seconds": 107
+    }
+  },
+  "builtin-backwards-day": {
+    "approach": {
+      "file": "builtin-backwards-day.approach.mp4",
+      "captions": "builtin-backwards-day.approach.vtt",
+      "poster": "builtin-backwards-day.approach.jpg",
+      "seconds": 129
+    },
+    "solution": {
+      "file": "builtin-backwards-day.solution.mp4",
+      "captions": "builtin-backwards-day.solution.vtt",
+      "poster": "builtin-backwards-day.solution.jpg",
+      "seconds": 107
+    }
+  },
+  "builtin-ghost-short": {
+    "approach": {
+      "file": "builtin-ghost-short.approach.mp4",
+      "captions": "builtin-ghost-short.approach.vtt",
+      "poster": "builtin-ghost-short.approach.jpg",
+      "seconds": 100
+    },
+    "solution": {
+      "file": "builtin-ghost-short.solution.mp4",
+      "captions": "builtin-ghost-short.solution.vtt",
+      "poster": "builtin-ghost-short.solution.jpg",
+      "seconds": 109
+    }
+  },
+  "builtin-smoke-test": {
+    "approach": {
+      "file": "builtin-smoke-test.approach.mp4",
+      "captions": "builtin-smoke-test.approach.vtt",
+      "poster": "builtin-smoke-test.approach.jpg",
+      "seconds": 93
+    },
+    "solution": {
+      "file": "builtin-smoke-test.solution.mp4",
+      "captions": "builtin-smoke-test.solution.vtt",
+      "poster": "builtin-smoke-test.solution.jpg",
+      "seconds": 104
+    }
+  },
+  "builtin-sagging-rail": {
+    "approach": {
+      "file": "builtin-sagging-rail.approach.mp4",
+      "captions": "builtin-sagging-rail.approach.vtt",
+      "poster": "builtin-sagging-rail.approach.jpg",
+      "seconds": 114
+    },
+    "solution": {
+      "file": "builtin-sagging-rail.solution.mp4",
+      "captions": "builtin-sagging-rail.solution.vtt",
+      "poster": "builtin-sagging-rail.solution.jpg",
+      "seconds": 76
+    }
+  },
+  "demo-mnt-reform2-mb30": {
+    "approach": {
+      "file": "demo-mnt-reform2-mb30.approach.mp4",
+      "captions": "demo-mnt-reform2-mb30.approach.vtt",
+      "poster": "demo-mnt-reform2-mb30.approach.jpg",
+      "seconds": 95
+    },
+    "solution": {
+      "file": "demo-mnt-reform2-mb30.solution.mp4",
+      "captions": "demo-mnt-reform2-mb30.solution.vtt",
+      "poster": "demo-mnt-reform2-mb30.solution.jpg",
+      "seconds": 112
+    }
+  },
+  "demo-antmicro-jetson-nano-bb": {
+    "approach": {
+      "file": "demo-antmicro-jetson-nano-bb.approach.mp4",
+      "captions": "demo-antmicro-jetson-nano-bb.approach.vtt",
+      "poster": "demo-antmicro-jetson-nano-bb.approach.jpg",
+      "seconds": 82
+    },
+    "solution": {
+      "file": "demo-antmicro-jetson-nano-bb.solution.mp4",
+      "captions": "demo-antmicro-jetson-nano-bb.solution.vtt",
+      "poster": "demo-antmicro-jetson-nano-bb.solution.jpg",
+      "seconds": 80
+    }
+  }
+}
