@@ -44,6 +44,12 @@ export const STAGE_INIT = (slow: number, frame: typeof FRAME) => {
       #pr-title .sub b { color: #4be38a; font-weight: 600; }
       #pr-title .w { display: inline-block; opacity: 0; }
       #pr-intro { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
+      #pr-hook { position: fixed; left: 0; right: 0; bottom: 0; height: 420px; z-index: 25; pointer-events: none; opacity: 0;
+        background: linear-gradient(to top, rgba(4,7,5,.94) 0%, rgba(4,7,5,.82) 45%, rgba(4,7,5,0) 100%);
+        display: flex; flex-direction: column; justify-content: flex-end; padding: 0 96px 70px; }
+      #pr-hook .big { font: 700 66px/1.05 ${MONO}; color: #f4f8f5; letter-spacing: -.01em; }
+      #pr-hook .sub { margin-top: 18px; font: 500 28px/1.3 ${SANS}; color: #c9d3cc; }
+      #pr-hook .sub b { font-family: ${MONO}; color: #ffb347; font-weight: 700; }
       #pr-cursor { position: fixed; left: 0; top: 0; width: 26px; height: 26px; z-index: 50; pointer-events: none; opacity: 0;
         transition: transform ${d(520)}ms cubic-bezier(.4,.1,.2,1), opacity ${d(200)}ms; filter: drop-shadow(0 2px 3px rgba(0,0,0,.8)); }
       .pr-ring { position: fixed; width: 40px; height: 40px; margin: -20px 0 0 -20px; border: 2.5px solid #4be38a; border-radius: 50%;
@@ -61,7 +67,7 @@ export const STAGE_INIT = (slow: number, frame: typeof FRAME) => {
     frameEl.appendChild(app);
     frameEl.style.transform = 'perspective(2400px) translate3d(0px,0px,0px) rotateX(0deg) rotateY(0deg) scale(1)';
     app.style.transform = 'translate(0px, 0px) scale(1)';
-    for (const [id, html] of [['pr-cap', ''], ['pr-title', ''], ['pr-intro', ''],
+    for (const [id, html] of [['pr-hook', ''], ['pr-cap', ''], ['pr-title', ''], ['pr-intro', ''],
       ['pr-cursor', '<svg viewBox="0 0 24 24" width="26" height="26"><path d="M3 2l7 19 2.5-7.5L20 11z" fill="#fff" stroke="#000" stroke-width="1.2"/></svg>']]) {
       const el = document.createElement('div'); el.id = id; el.innerHTML = html; document.body.appendChild(el);
     }
@@ -129,6 +135,14 @@ export const STAGE_INIT = (slow: number, frame: typeof FRAME) => {
       t.innerHTML = big || sub ? `<div style="transform: translateY(${y}px)"><div class="big">${words(big)}</div>${sub ? `<div class="sub">${words(sub)}</div>` : ''}</div>` : '';
       reveal(t);
     },
+    /** Cold open: headline over the live app, lower third with a scrim. */
+    hook: (big: string, sub: string) => {
+      const h = $('pr-hook');
+      h.innerHTML = `<div class="big">${words(big)}</div><div class="sub">${words(sub)}</div>`;
+      h.style.opacity = '1';
+      reveal(h, 380, 45);
+    },
+    hookOut: (ms = 350) => { to($('pr-hook'), { opacity: '0' }, ms); },
     titleOut: (ms = 300) => { const t = $('pr-title').firstElementChild as HTMLElement | null; if (t) to(t, { opacity: '0', transform: 'translateY(-24px)' }, ms); },
     /** Intro: a flatlined trace across the screen, a heartbeat spike, then the mark + wordmark. */
     intro: () => {

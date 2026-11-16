@@ -105,29 +105,52 @@ class Show {
   }
 }
 
-async function script(s: Show) {
+interface Prep { temp: number; hot: { x: number; y: number }; viz: string }
+
+/** Off camera: heat the faulted board on the thermal view and frame the hot spot full-bleed. */
+async function prepare(s: Show): Promise<Prep> {
+  const p = s.page;
+  const viz = await p.$eval('#viz-select', (e) => (e as HTMLSelectElement).value);
+  await p.selectOption('#viz-select', 'thermal');
+  const c = await s.app<{ x: number; y: number }>('part', 'C173');
+  await s.app('focus', c.x, c.y, 7);
+  await p.waitForTimeout(8000);
+  const hot = await s.screenOf(c.x + 0.3, c.y);
+  await p.mouse.move(hot.x, hot.y);
+  await p.waitForTimeout(300);
+  const status = (await p.locator('.statusbar, footer, #status').first().textContent()) ?? '';
+  const temp = Number(status.match(/IR (\d+) °C/)?.[1]);
+  if (!(temp > 60)) throw new Error(`hot spot not hot: "${status.slice(0, 120)}"`);
+  await p.mouse.move(4, 4);
+  await s.pr('frame', { y: 36, s: 1.137, o: 1 }, 1);
+  await s.pr('zoom', hot.x, hot.y, 1.6, 1);
+  await p.waitForTimeout(600);
+  return { temp, hot, viz };
+}
+
+async function script(s: Show, prep: Prep) {
   const p = s.page;
   const MNT = 'demo-mnt-reform2-mb30', ANT = 'demo-antmicro-jetson-nano-bb';
 
-  // ---- intro: a dead rail flatlines, spikes back, becomes the mark ----
-  s.mark('intro');
-  await s.pr('intro');
-  await s.hold(2.5);
-  await s.pr('logo', true);
-  await s.hold(2.6);
-  await s.pr('logoUp', -250, 0.5, 700);
-  await s.pr('title', 'Board-level repair, simulated.', 'Real boards. Real instruments. <b>A circuit simulator underneath.</b>', 40);
-  await s.hold(2.4);
-  await s.pr('titleOut', 350);
-  await s.pr('logoOut', 350);
+  // ---- cold open: the dead board on the thermal camera, full-bleed (prepared off camera) ----
+  s.mark('hook');
+  await s.pr('zoom', prep.hot.x, prep.hot.y, 1.35, 3400);
+  await s.hold(0.15);
+  await s.pr('hook', "This laptop board won't boot.", `One part is running at <b>${prep.temp}&nbsp;°C</b>. Find it. Fix it. Prove it.`);
+  await s.hold(3.0);
+  await s.pr('hookOut', 280);
+  await s.pr('frame', { y: 36, s: 1.2, o: 0 }, 280);
+  await s.hold(0.3);
 
   // ---- hero: the window flies in, tilted, the MNT board in 3D ----
   s.mark('hero');
+  await p.selectOption('#viz-select', prep.viz);
   await p.evaluate(() => (document.querySelector('#seg-view [data-view="3d"]') as HTMLElement).click());
   await s.app('fit');
-  await s.pr('frame', { y: 380, rx: 38, s: 0.62, o: 0 }, 1);
+  await s.pr('zoom', 0, 0, 1, 1);
+  await s.pr('frame', { y: 260, rx: 34, s: 0.66, o: 0 }, 1);
   await s.hold(0.05);
-  await s.pr('frame', { y: 10, rx: 14, ry: -9, s: 0.86, o: 1 }, 1500);
+  await s.pr('frame', { y: 10, rx: 14, ry: -9, s: 0.86, o: 1 }, 1200);
   await s.pr('cap', '01', 'Real open hardware', 'MNT Reform 2 laptop mainboard · <b>530</b> parts, imported from KiCad');
   await s.orbit(-260, -150, 3.2);
   await s.pr('frame', {}, 1000);
@@ -152,7 +175,7 @@ async function script(s: Show) {
   await s.pr('cap', '03', 'Find the short by its heat', 'Thermal camera, freeze spray, IPA, rosin');
   await s.app('fit');
   await p.selectOption('#viz-select', 'thermal');
-  await s.hold(1.4);
+  await s.hold(0.8);
   await s.focus('C173', 16);
   await s.hold(1.6);
   await s.focus('C173', 6);
@@ -256,6 +279,9 @@ async function main() {
     await page.locator('#tut-close').click({ timeout: 1000 }).catch(() => {});
     await page.waitForTimeout(2500); // board load + power-up sequence settles before the first frame
 
+    const show = new Show(page);
+    const prep = await prepare(show);
+    show.begin();
     const frames: number[] = [];
     let capturing = true;
     const loop = (async () => {
@@ -265,10 +291,8 @@ async function main() {
         writeFileSync(join(tmp, `f${frames.length - 1}.jpg`), buf);
       }
     })();
-    const show = new Show(page);
-    show.begin();
     const t0 = Date.now();
-    try { await script(show); } finally { capturing = false; await loop.catch(() => {}); }
+    try { await script(show, prep); } finally { capturing = false; await loop.catch(() => {}); }
     if (errors.length) throw new Error(`page errors: ${errors.join(' | ')}`);
 
     const first = Math.max(0, frames.findIndex((t) => t >= t0) - 1);
@@ -295,7 +319,7 @@ async function main() {
     execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-ss', gifFrom.toFixed(2), '-t', (gifTo - gifFrom).toFixed(2), '-i', mp4, '-i', pal,
       '-lavfi', 'fps=12,scale=880:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle',
       join(OUT, 'deadboard-showcase.gif')]);
-    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-ss', (m.hero + 2.2).toFixed(2), '-i', mp4, '-frames:v', '1', '-q:v', '3',
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-ss', (m.hook + 1.6).toFixed(2), '-i', mp4, '-frames:v', '1', '-q:v', '3',
       join(OUT, 'deadboard-showcase-poster.jpg')]);
     console.log('chapters (s):', Object.fromEntries(Object.entries(m).map(([k, v]) => [k, +v.toFixed(1)])));
     for (const f of ['deadboard-showcase.mp4', 'deadboard-showcase.gif', 'deadboard-showcase-poster.jpg']) {
