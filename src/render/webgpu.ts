@@ -882,6 +882,22 @@ export class WebGPURenderer {
           op.cyl.pushTRS(padPos[0], padPos[1], both ? zCenter : 0, p.drill, p.drill, both ? 0.07 : board.thickness + 0.13, 0, 0.03, 0.04, 0.06, 1, 0, 0.1, 0.9);
         }
 
+        // Side by side, a through-hole pad also shows on the other face's panel (mirrored there),
+        // as it does in the single-side Top / Bottom views.
+        if (both && p.layers === 'FB') {
+          const other: Side = c.side === 'F' ? 'B' : 'F';
+          const op2 = mpt(pw.at, other);
+          const rot2 = other === 'B' ? -pw.rot : pw.rot;
+          mesh.pushTRS(
+            op2[0], op2[1], zCenter, p.size[0], p.size[1], padH, rot2,
+            tint.rgb[0], tint.rgb[1], tint.rgb[2], 1,
+            isPadHov ? 0.35 : tint.emissive, 0.88, 0.22, isPadHov ? -1 : tint.special,
+          );
+          if (p.drill && p.drill > 0) {
+            op.cyl.pushTRS(op2[0], op2[1], zCenter, p.drill, p.drill, 0.07, 0, 0.03, 0.04, 0.06, 1, 0, 0.1, 0.9);
+          }
+        }
+
         // Solder fillet + clipped lead tip on populated THT pins
         if (!both && c.state.populated && p.drill) {
           const d = Math.min(p.size[0], p.size[1]) * 0.82;
