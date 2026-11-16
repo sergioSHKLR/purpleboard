@@ -1,14 +1,49 @@
-# Simulation work — handoff (updated 2026-11-16, realism batch)
+# DEADBOARD — handoff (updated 2026-11-16, after the v0.1.0 release)
 
-Goal: make PCB//FIX a realistic board-repair trainer, as close to a real bench as possible,
+Goal: make DEADBOARD (formerly PCB//FIX) a realistic board-repair trainer, as close to a real bench as possible,
 **universal** (any board, not just the MacBook), with honest provenance for every value.
 No reference hardware is available, so realism is validated against *design intent*
 (schematic/BOM values, rail names, datasheets) and physics checks — not measurements.
 
+## Status (start here)
+
+- **Released 2026-11-16 as v0.1.0**: public repo https://github.com/tholtman1-del/deadboard
+  (Apache-2.0), live site https://tholtman1-del.github.io/deadboard/ (homepage `index.html` +
+  bench `app.html`). `.github/workflows/pages.yml` runs `npm test` + `npm run build` and deploys
+  on every push to `main`. The release carries the showcase MP4 (`docs/media/*.mp4` is
+  git-ignored; upload with `gh release upload v0.1.0 <file> --clobber`).
+- **Content:** 11 built-in scenarios (5 beginner lessons added 2026-11-16: Cold Joint 101,
+  Solder Bridge 101, One-Way LED, Resistor & Ohm's Law, Voltage Divider 101) + 2 open-hardware
+  demos (MNT Reform 2 mainboard, Antmicro Jetson baseboard; `docs/DEMOS.md`).
+- **Videos:** walkthroughs for 8 scenes (approach + spoiler-gated solution), captions explain
+  each step and every quoted reading is checked live (`docs/VIDEOS.md`). The 5 beginner lessons
+  have **no videos yet**.
+- **Showcase video** (`scripts/promo/{stage,showcase}.ts`, `npm run showcase`): motion-graphics
+  stage around the live app, recorded slow (`--slow 2.5`) and retimed to 30 fps; writes
+  `docs/media/deadboard-showcase.{mp4,gif}` + poster. Starts at the 3D fly-in; `--hook` keeps
+  the 3 s thermal cold open. Outro shows the site and repo URLs.
+- **Recording tip:** a dev server reloads on every source save, which kills long recordings.
+  Record against a frozen build instead:
+  `npx vite build --outDir <tmp>/dist && npx vite preview --outDir <tmp>/dist --port 5299`,
+  then `--base http://localhost:5299`.
+- **Private fixtures:** see Data / licensing. Before every push, check images and copy (not only
+  code) for anything derived from them: a MacBook render once reached the public homepage.
+
+### Next steps (proposed)
+
+1. Walkthrough videos for the 5 beginner lessons (`scripts/videos/scenes.ts`, `npm run videos -- --dry` first).
+2. Full-board regression tests on the open demo boards, replacing the private MacBook coverage.
+3. Real bench data: `npm run calibrate` with measurements from one known-good board.
+4. Thermal view: board heat around a hot part is drawn as sampled halo discs; a per-pixel
+   temperature texture would be more faithful. Two-layer thermal model still open (below).
+5. Browser support beyond Chrome/Edge (WebGPU on Safari/Firefox untested).
+6. Launch: Reddit posts drafted (kept outside the repo); trademark/domain clearance for the name not done.
+
 ## How to run
 
 ```bash
-npm test                 # 15 suites, all passing
+npm test                 # 15 suites, all passing (private-fixture parts skip when absent)
+npm run showcase         # re-record the showcase video (needs a running site; see Status)
 npm run videos           # re-render walkthrough videos (needs the dev server; docs/VIDEOS.md)
 npm run demos -- --fetch # rebuild the open-hardware demo boards (docs/DEMOS.md)
 npm run calibrate -- <board.brd> <measurements.csv>   # model vs bench readings (template: docs/measurements.template.csv)
@@ -18,9 +53,10 @@ npm run spice -- "board_schemas/J113  820-00165.brd" --quiet --behavioral --stat
 npm run schematic -- <schematic.pdf | bom.csv> <board.brd> --list | --product 639-00623
 ```
 
-Browser automation used for UI checks: Playwright (`playwright-core` devDependency) driving the local Chrome
-driving `/Applications/Google Chrome.app` headless with `--enable-unsafe-webgpu --use-angle=metal`
-(scripts were in the session scratchpad; recreate if needed).
+Browser automation for UI checks, videos and the showcase: Playwright (`playwright-core`
+devDependency) driving the local `/Applications/Google Chrome.app` headless with
+`--enable-unsafe-webgpu --use-angle=metal` (`CHROME_PATH` to override). Ad-hoc screenshot
+scripts lived in the session scratchpad; recreate as needed.
 
 ## What exists (all test-covered)
 
@@ -81,8 +117,8 @@ intermittents (`!I`, even dormant), like `!X` for burnt — a fault the objectiv
 0. MacBook S4 load switch U3210 (PP3V3RHV_S4_TBTAPWR) never powers (input rail unmodelled);
    PP3V3_S0SW_LCD_UF buck is low-confidence (unmodelled). Scenario load (first solve) still blocks ~0.5 s.
 
-1. Visual polish: frost reads grey; Thermal view colours only copper/parts (bare board
-   stays 25 °C → needs a per-pixel temperature texture).
+1. Visual polish: frost reads grey; Thermal view shows bare board at ambient except halo discs
+   around hot parts (2026-11-16); chip terminations now read at their IR-apparent temperature.
 2. Missing chip models: IC-internal LDOs (PCH/SMC), setpoints for VID rails (CPU VR),
    charger and backlight boost targets.
 3. Two-layer thermal model (surface vs planes) to drop the hot-air coefficient compensation.
