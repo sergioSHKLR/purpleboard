@@ -2,6 +2,7 @@
 //
 //   npx vite --port 5199                      # or a frozen build: npx vite build && npx vite preview --port 5299
 //   npm run showcase -- --base http://localhost:5199
+//   npm run showcase -- --hook                # keep the 3 s thermal cold open at the start
 //
 // Writes docs/media/deadboard-showcase.mp4 (1920×1080, H.264, no audio), a README loop
 // (deadboard-showcase.gif) and a poster. The page runs `--slow` times slower than the video
@@ -17,6 +18,8 @@ const args = process.argv.slice(2);
 const opt = (k: string) => (args.includes(k) ? args[args.indexOf(k) + 1] : undefined);
 const BASE = opt('--base') ?? 'http://localhost:5199';
 const SLOW = Number(opt('--slow') ?? 2.5);
+/** The thermal cold open is recorded but cut by default: the video starts at "01" (the board flying in). */
+const KEEP_HOOK = args.includes('--hook');
 const OUT = 'docs/media';
 const CHROME = process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
@@ -295,7 +298,9 @@ async function main() {
     try { await script(show, prep); } finally { capturing = false; await loop.catch(() => {}); }
     if (errors.length) throw new Error(`page errors: ${errors.join(' | ')}`);
 
-    const first = Math.max(0, frames.findIndex((t) => t >= t0) - 1);
+    const cut = KEEP_HOOK ? 0 : show.marks.hero;
+    for (const k of Object.keys(show.marks)) show.marks[k] -= cut;
+    const first = Math.max(0, frames.findIndex((t) => t >= t0 + cut * SLOW * 1000) - (KEEP_HOOK ? 1 : 0));
     const lines = ['ffconcat version 1.0'];
     for (let i = first; i < frames.length; i++) {
       const dt = ((frames[i + 1] ?? frames[i] + 300) - frames[i]) / 1000 / SLOW;
@@ -319,7 +324,7 @@ async function main() {
     execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-ss', gifFrom.toFixed(2), '-t', (gifTo - gifFrom).toFixed(2), '-i', mp4, '-i', pal,
       '-lavfi', 'fps=12,scale=880:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle',
       join(OUT, 'deadboard-showcase.gif')]);
-    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-ss', (m.hook + 1.6).toFixed(2), '-i', mp4, '-frames:v', '1', '-q:v', '3',
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-ss', (KEEP_HOOK ? m.hook + 1.6 : m.hero + 2.2).toFixed(2), '-i', mp4, '-frames:v', '1', '-q:v', '3',
       join(OUT, 'deadboard-showcase-poster.jpg')]);
     console.log('chapters (s):', Object.fromEntries(Object.entries(m).map(([k, v]) => [k, +v.toFixed(1)])));
     for (const f of ['deadboard-showcase.mp4', 'deadboard-showcase.gif', 'deadboard-showcase-poster.jpg']) {
