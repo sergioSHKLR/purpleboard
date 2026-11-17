@@ -7,6 +7,10 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
+- **Session 2026-11-17 in one line:** all work is pushed and live (last commit `635c2c5`);
+  GitHub issue #1 closed with a comment; no open issues; feedback form verified end to end
+  (a test mail arrived). Nothing is waiting on the maintainer.
+
 - **Released 2026-11-16 as v0.1.0**: public repo https://github.com/tholtman1-del/deadboard
   (Apache-2.0), live site https://tholtman1-del.github.io/deadboard/ (homepage `index.html` +
   bench `app.html`). `.github/workflows/pages.yml` runs `npm test` + `npm run build` and deploys
@@ -52,16 +56,32 @@ No reference hardware is available, so realism is validated against *design inte
   - `3e1ac56` No-WebGPU card: Chrome/Edge-on-Linux advice (flags + Vulkan driver).
   - `03b8f9a` In-app **Feedback** (speech bubble in the top bar, help modal, homepage footer
     `app.html?feedback`, no-WebGPU card): bug / idea + optional contact + optional diagnostics,
-    sent by FormSubmit to the address in the build setting `VITE_FEEDBACK_TO` (repository
-    variable `FEEDBACK_TO`; activated). Never put the address in source. Unset → prefilled GitHub
+    sent by FormSubmit to the build setting `VITE_FEEDBACK_TO`, fed on Pages from the
+    **repository** variable `FEEDBACK_TO` (not an environment variable: the build job has no
+    environment). It holds FormSubmit's random alias, not the address, so the public bundle has
+    no email; activated and tested 2026-11-17. Never put the address in source (a session privacy
+    guard also refuses it). Local builds: `.env.local` (git-ignored); `src/ui/feedback.ts`. Unset → prefilled GitHub
     issue (`.github/ISSUE_TEMPLATE/{bug_report,suggestion}.yml`), also offered as secondary route.
-  - IR view: the board surface is drawn from the thermal grid (one vertex per cell, colours
+  - `635c2c5` IR view: the board surface is drawn from the thermal grid (one vertex per cell, colours
     interpolated, near-ambient cells fade out) instead of per-part halo discs; copper pours take
     their net colour in IR / voltage views. Palette is fixed 24–119 °C (no auto-range yet).
 - **Linux check (2026-11-17):** production build in the Playwright Linux image (Ubuntu 24.04,
   arm64) under Colima: Chromium on SwiftShader and Firefox 146 on Mesa llvmpipe Vulkan
   (`mesa-vulkan-drivers`, `dom.webgpu.enabled`) render everything with no page errors. Colima only
   mounts `$HOME`, so pipe scripts in via stdin and `docker cp` results out. Real GPU drivers untested.
+  Recipe: `colima start`; `docker run -i --ipc=host -v $PWD/dist:/site:ro
+  -v $PWD/node_modules/playwright-core:/pw:ro mcr.microsoft.com/playwright:v1.58.2-noble
+  node --input-type=module < script.mjs` (script serves /site on :8080 and imports `/pw/index.mjs`;
+  Chromium flags `--enable-unsafe-webgpu --enable-features=Vulkan --use-vulkan=swiftshader
+  --use-webgpu-adapter=swiftshader --enable-unsafe-swiftshader`; for Firefox
+  `apt-get install mesa-vulkan-drivers xvfb`, run under `xvfb-run`, prefs `dom.webgpu.enabled`,
+  `gfx.webgpu.ignore-blocklist`). Software GPUs run the Reform at 1–4 fps. `colima stop` after;
+  the image (3.7 GB) stays cached in the VM.
+- **Ad-hoc screenshot scripts** (macOS Chrome, `?automation=1` → `window.deadboard` API in
+  `App.exposeAutomation`): write them as `.mts` in the scratchpad and import playwright-core by
+  absolute path (`<repo>/node_modules/playwright-core/index.mjs`); tsx injects `__name` into
+  named inner functions, so pass `page.evaluate` a string when it defines functions. Reading a
+  WebGPU canvas back via `createImageBitmap` returns black; judge renders from screenshots.
 - **Testing in stock Firefox** (Playwright's `moz-firefox` channel can't start inside the Claude
   Code sandbox): launch through Launch Services so Firefox runs outside the sandbox, then drive it
   over WebDriver BiDi with a raw WebSocket client (`session.new` → `browsingContext.create` →
@@ -75,19 +95,23 @@ No reference hardware is available, so realism is validated against *design inte
 
 ### Next steps (proposed)
 
+0. Thermal view polish (user said "not for now" on 2026-11-17, so ask first): auto-range IR
+   palette (real cameras rescale to the scene; a 45 °C spot is faint on the fixed 24–119 °C
+   scale), and show sub-ambient cold spots from IPA / freeze spray (palette floor is 24 °C).
 1. Walkthrough videos for the 5 beginner lessons (`scripts/videos/scenes.ts`, `npm run videos -- --dry` first).
 2. Full-board regression tests on the open demo boards, replacing the private MacBook coverage.
 3. Real bench data: `npm run calibrate` with measurements from one known-good board.
-4. Thermal view: optional auto-range palette (real IR cameras rescale to the scene). Two-layer
-   thermal model still open (below).
+4. Two-layer thermal model still open (below).
 5. Browser support: Firefox 160 on macOS verified 2026-11-16 (render, 3D orbit, wheel zoom).
    Firefox without WebGPU (older versions, Linux, Intel Macs, blocklisted GPUs) gets a tailored
    how-to on the error card; a WebGL2 fallback renderer would make it work there out of the box.
-   Safari still untested. Open: a customer reported Firefox not working; it works here, so it is
+   Linux checked 2026-11-17 (see above). Safari still untested. Open: a customer reported Firefox not working; it works here, so it is
    likely their setup. Ask for Firefox version, OS and `about:support` → WebGPU before building
    the WebGL2 fallback (renderer GPU code is isolated: init, `ensureAttachments`, `render()` in
    `src/render/webgpu.ts`; scene building is API-agnostic; 3 small WGSL shaders to port).
-6. Launch: Reddit posts drafted (kept outside the repo); trademark/domain clearance for the name not done.
+6. Player feedback now arrives by email (Feedback form) and as GitHub issues: check both at the
+   start of a session (`gh issue list`).
+7. Launch: Reddit posts drafted (kept outside the repo); trademark/domain clearance for the name not done.
 
 ## How to run
 
