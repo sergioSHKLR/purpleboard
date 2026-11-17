@@ -3,6 +3,9 @@ dist/
 .DS_Store
 *.log
 .vite/
+# local build settings (e.g. VITE_FEEDBACK_TO)
+.env.local
+.env.*.local
 
 # Private regression fixtures (Apple boardview / schematic data): local tests only, never published
 board_schemas/

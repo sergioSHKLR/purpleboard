@@ -1,0 +1,20 @@
+name: Bug report
+description: Something on the bench looks or behaves wrong
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: No GitHub account? Use **Feedback** (speech-bubble button) inside the bench instead; it works without one.
+  - type: textarea
+    id: what
+    attributes:
+      label: What went wrong?
+      description: What you did just before, what you expected, and what happened. Screenshots help a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Technical details
+      description: Filled in automatically when you come from the bench's Feedback form (build, browser, GPU, board, view).
+      render: text

@@ -1,0 +1,17 @@
+name: Suggestion
+description: An idea that would make DEADBOARD better
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: What should change, and what would it help you do?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Technical details
+      description: Optional; filled in automatically from the bench.
+      render: text

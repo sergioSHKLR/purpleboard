@@ -56,6 +56,18 @@ npm run build      # static site in dist/
 Import your own board: KiCad `.kicad_pcb`, OpenBoardView/TopTest `.brd`, or a shared
 `.pcbfix.json` challenge.
 
+## Feedback
+
+Found a bug or have an idea? Press the speech-bubble button in the bench (or **Feedback** on the
+homepage). No account needed: the message is emailed to the maintainer, with optional technical
+details (browser, GPU, board, view) so the problem can be reproduced. With a GitHub account you can
+also [open an issue](https://github.com/tholtman1-del/deadboard/issues/new/choose).
+
+The form delivers through [FormSubmit](https://formsubmit.co). The destination is a build setting,
+`VITE_FEEDBACK_TO` (an address, or the alias FormSubmit sends after its one-time activation): put it
+in `.env.local` for local builds, and in the repository variable `FEEDBACK_TO` for GitHub Pages.
+Without it, the form falls back to a prefilled GitHub issue.
+
 ## Docs
 
 - [docs/DEMOS.md](docs/DEMOS.md): how the demo boards are built from upstream KiCad sources

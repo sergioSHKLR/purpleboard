@@ -243,6 +243,8 @@ function placeLabels(labels: Label[]): Label[] {
 
 export class WebGPURenderer {
   private device!: GPUDevice;
+  /** WebGPU adapter as reported by the browser (vendor / architecture / device), for bug reports. */
+  adapterDescription = 'unknown';
   private ctx!: GPUCanvasContext;
   private format!: GPUTextureFormat;
   private meshes!: PackedMeshes;
@@ -296,6 +298,8 @@ export class WebGPURenderer {
     if (!ctx) throw new Error('Could not create a WebGPU canvas context.');
 
     const r = new WebGPURenderer(canvas);
+    const info = adapter.info;
+    r.adapterDescription = info ? [info.vendor, info.architecture, info.device, info.description].filter(Boolean).join(' / ') || 'unknown' : 'unknown';
     r.device = device;
     r.ctx = ctx;
     r.format = navigator.gpu.getPreferredCanvasFormat();

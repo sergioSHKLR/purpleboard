@@ -28,6 +28,7 @@ import { HOTAIR_H, IRON_G, PREHEAT_H, ReworkMonitor, type ReworkEvent } from '..
 import { WebGPURenderer, type VizMode } from '../render/webgpu';
 import { setSoundEnabled, sfxBeep, sfxBlow, sfxClick, sfxCut, sfxSolder, sfxWin, soundEnabled } from './audio';
 import { icon } from './icons';
+import { mountFeedbackForm, type FeedbackContext } from './feedback';
 import { BRAND, markSvg } from './logo';
 import { BEGINNER_PRIMER_HTML, TUTORIAL_SCENARIO_IDS, TUTORIAL_TOPICS, getTutorialSteps, isTutorialScenario, nextTutorialScenarioId } from './tutorial';
 
@@ -174,6 +175,7 @@ export class PcbApp {
   private revealedFlag: string | null = null;
   private compSearch = '';
   private showHelp = false;
+  private showFeedback = false;
   private showBoards = false;
   private boardFilter: 'all' | 'tutorials' | 'challenges' | 'hardware' = 'all';
   private boardSearch = '';
@@ -247,6 +249,7 @@ export class PcbApp {
     if (params.has('boards')) {
       this.showBoards = true;
     }
+    if (params.has('feedback')) this.showFeedback = true;
 
     // Load from URL hash if present (#s=...)
     const loadedHash = await this.tryLoadFromHash();
@@ -255,7 +258,7 @@ export class PcbApp {
     }
 
     this.bindEvents();
-    if (this.showBoards) this.renderModal();
+    if (this.showBoards || this.showFeedback) this.renderModal();
     void this.loadVideoIndex();
     if (params.has('automation')) this.exposeAutomation();
     this.rafId = requestAnimationFrame(this.loop);
@@ -305,7 +308,51 @@ export class PcbApp {
           <p class="text-2" style="margin:0">${this.esc(msg)}</p>
           <p class="muted" style="margin:0">${this.webGpuHelp()}</p>
         </div>
+        <div class="card">
+          <div class="card-title">Still stuck? Tell us</div>
+          <div id="fb-host"></div>
+        </div>
       </div>`;
+    const host = this.mount.querySelector<HTMLElement>('#fb-host');
+    if (host) mountFeedbackForm(host, () => ({ error: msg }), { kind: 'bug' });
+  }
+
+  private openFeedback(open = true) {
+    this.showFeedback = open;
+    if (open) { this.showHelp = false; this.showBoards = false; }
+    this.modalPos = [0, 0];
+    this.renderModal();
+  }
+
+  /** What a bug report needs to know about the current bench (no personal data). */
+  private feedbackContext(): FeedbackContext {
+    const sc = this.activeScenario;
+    const cam = this.camera;
+    return {
+      board: sc ? `${sc.meta.title} (${sc.id})` : undefined,
+      view: `${cam.mode.toUpperCase()}, ${cam.bothSides ? 'both sides' : cam.side === 'F' ? 'top' : 'bottom'}, ${this.vizMode}${this.powerOn ? ', power on' : ''}`,
+      solver: this.solver,
+      gpu: this.renderer?.adapterDescription,
+    };
+  }
+
+  private renderFeedbackModal() {
+    this.modalRootEl.innerHTML = `
+      <div class="modal-backdrop" id="fb-close-bg">
+        <div class="modal" style="transform: translate3d(${this.modalPos[0]}px, ${this.modalPos[1]}px, 0)">
+          <div class="modal-head" title="Drag to move window">
+            <h2>Feedback</h2>
+            <button class="btn ghost icon sm" id="fb-close" title="Close">${icon('x', 14)}</button>
+          </div>
+          <div class="card"><div id="fb-host"></div></div>
+        </div>
+      </div>`;
+    mountFeedbackForm(this.modalRootEl.querySelector<HTMLElement>('#fb-host')!, () => this.feedbackContext());
+    this.modalRootEl.querySelector('#fb-close')?.addEventListener('click', () => this.openFeedback(false));
+    this.modalRootEl.querySelector('#fb-close-bg')?.addEventListener('click', (e) => {
+      if (this.suppressModalBgClose) { this.suppressModalBgClose = false; return; }
+      if ((e.target as HTMLElement).id === 'fb-close-bg') this.openFeedback(false);
+    });
   }
 
   private buildDom() {
@@ -384,6 +431,7 @@ export class PcbApp {
             <button class="btn primary" id="btn-verify" title="Run test bench">${icon('play', 14)}<span>Run tests</span></button>
             <button class="btn ghost" id="btn-tutorial" title="Interactive beginner tutorial">${icon('book', 14)}<span>Tutorial</span></button>
             <button class="btn ghost icon" id="btn-sound" title="Sound"></button>
+            <button class="btn ghost icon" id="btn-feedback" title="Report a bug or suggest an idea">${icon('message')}</button>
             <button class="btn ghost icon" id="btn-help" title="Help">${icon('help')}</button>
             <button class="btn ghost icon" id="btn-panel-toggle" title="Toggle panel">${icon('sidebar')}</button>
           </div>
@@ -1146,7 +1194,7 @@ export class PcbApp {
 
     q('#btn-boards').addEventListener('click', () => {
       this.showBoards = !this.showBoards;
-      if (this.showBoards) this.showHelp = false;
+      if (this.showBoards) { this.showHelp = false; this.showFeedback = false; }
       this.modalPos = [0, 0];
       this.renderModal();
     });
@@ -1256,9 +1304,10 @@ export class PcbApp {
       setSoundEnabled(!soundEnabled);
       this.renderUI();
     });
+    q('#btn-feedback').addEventListener('click', () => this.openFeedback(!this.showFeedback));
     q('#btn-help').addEventListener('click', () => {
       this.showHelp = !this.showHelp;
-      if (this.showHelp) this.showBoards = false;
+      if (this.showHelp) { this.showBoards = false; this.showFeedback = false; }
       this.modalPos = [0, 0];
       this.renderModal();
     });
@@ -1514,9 +1563,10 @@ export class PcbApp {
   }
 
   private onKeyDown(e: KeyboardEvent) {
-    if (e.key === 'Escape' && (this.showBoards || this.showHelp)) {
+    if (e.key === 'Escape' && (this.showBoards || this.showHelp || this.showFeedback)) {
       this.showBoards = false;
       this.showHelp = false;
+      this.showFeedback = false;
       this.renderModal();
       return;
     }
@@ -3039,6 +3089,7 @@ export class PcbApp {
   private openBoardCatalog() {
     this.showBoards = true;
     this.showHelp = false;
+    this.showFeedback = false;
     this.modalPos = [0, 0];
     this.renderModal();
   }
@@ -3211,8 +3262,13 @@ export class PcbApp {
 
   private renderModal() {
     this.mount.querySelector('#btn-boards')?.classList.toggle('active', this.showBoards);
+    this.mount.querySelector('#btn-feedback')?.classList.toggle('active', this.showFeedback);
     if (this.showBoards) {
       this.renderBoardsModal();
+      return;
+    }
+    if (this.showFeedback) {
+      this.renderFeedbackModal();
       return;
     }
     if (!this.showHelp) {
@@ -3245,6 +3301,11 @@ export class PcbApp {
             </ul>
           </div>
           <div class="card">
+            <div class="card-title">Found a bug? Have an idea?</div>
+            <p class="text-2" style="margin:0">Tell us from inside the bench: no account needed. Technical details (browser, GPU, board) can be attached so the problem can be reproduced.</p>
+            <div class="row"><button class="btn sm" id="help-feedback">${icon('message', 13)}<span>Send feedback</span></button></div>
+          </div>
+          <div class="card">
             <div class="card-title">Importing &amp; authoring</div>
             <p class="text-2" style="margin:0">
               Drag and drop a KiCad <code>.kicad_pcb</code> or <code>.pcbfix.json</code> file into the workspace.
@@ -3254,6 +3315,7 @@ export class PcbApp {
         </div>
       </div>
     `;
+    this.modalRootEl.querySelector('#help-feedback')?.addEventListener('click', () => this.openFeedback(true));
     this.modalRootEl.querySelector('#help-close')?.addEventListener('click', () => {
       this.showHelp = false;
       this.renderModal();
