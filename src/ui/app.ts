@@ -34,6 +34,7 @@ import { icon } from './icons';
 import { mountFeedbackForm, type FeedbackContext } from './feedback';
 import { BRAND, markSvg } from './logo';
 import { BEGINNER_PRIMER_HTML, TUTORIAL_SCENARIO_IDS, TUTORIAL_TOPICS, getTutorialSteps, isTutorialScenario, nextTutorialScenarioId } from './tutorial';
+import { TOOL_SHORT, TouchGestures, touchCopy, wantsMobileLayout } from './touch';
 
 type ToolId = 'inspect' | 'dmm' | 'iron' | 'wick' | 'flip180' | 'jumper' | 'knife' | 'replace' | 'freeze' | 'ipa' | 'press' | 'hotair' | 'scope' | 'rosin';
 type PanelTab = 'mission' | 'inspect' | 'studio';
@@ -223,6 +224,29 @@ export class PcbApp {
     origY: number;
   } | null = null;
 
+  // Touch / mobile (src/ui/touch.ts). The desktop layout is untouched unless `mobile`.
+  /** Touch-only device: phone layout (tool strip, bottom sheets, stacked instruments) and touch wording. */
+  private mobile = wantsMobileLayout();
+  /** Touch gestures on the board (any layout): tap = tool, one finger pans (orbits in 3D), pinch zooms. */
+  private gestures = new TouchGestures({
+    tap: (x, y) => this.touchTap(x, y),
+    pan: (dx, dy) => this.camera.panScreen(dx, dy, Math.max(1, this.canvas.clientHeight)),
+    orbit: (dx, dy) => this.orbitBy(dx, dy),
+    zoom: (f, x, y) => {
+      const r = this.canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      this.camera.zoomAt(f, (x - r.left) * dpr, (y - r.top) * dpr, Math.max(1, r.width * dpr), Math.max(1, r.height * dpr), this.board.thickness);
+    },
+  }, () => (this.camera.mode === '3d' ? 'orbit' : 'pan'));
+  /** Probe a touch tap places (no right-click on touch); auto = chosen by the meter, not the player. */
+  private activeProbe: 'red' | 'black' = 'red';
+  private activeProbeAuto = false;
+  private tutCollapsed = false;
+  /** Canvas aspect the board was last fitted to (mobile: refit on first layout and on rotation). */
+  private fitAspect = 0;
+  private psuExpanded = false;
+  private toolTipsShown = new Set<ToolId>();
+
   private lastFrameMs = performance.now();
   private rafId = 0;
 
@@ -303,6 +327,15 @@ export class PcbApp {
       if (/Linux/.test(ua)) return 'The desktop app renders with WebGPU on Vulkan. Install or update the Vulkan driver for your graphics card (vulkaninfo should list it), then restart DEADBOARD.';
       return 'The desktop app renders with WebGPU, which needs a graphics card and driver that support DirectX 12 (Windows) or Metal (macOS). Update the graphics driver and restart DEADBOARD.';
     }
+    // phones and tablets
+    if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) {
+      return 'On iPhone and iPad, WebGPU needs iOS / iPadOS 26 or later (Safari, and every other browser there). Update in Settings → General → Software Update. On iOS 18 it can be switched on in Settings → Apps → Safari → Advanced → Feature Flags → WebGPU.';
+    }
+    if (/Android/.test(ua)) {
+      return ff
+        ? 'Firefox for Android has no WebGPU yet: open DEADBOARD in Chrome instead.'
+        : 'On Android, WebGPU needs Chrome 121 or later on Android 12+ with a supported GPU (most Qualcomm Adreno and ARM Mali phones). Update Chrome from the Play Store and try again.';
+    }
     // Chromium on Linux still enables WebGPU only for some GPU / driver combinations
     if (!ff && /Linux/.test(ua) && !/Android|CrOS/.test(ua)) {
       return 'On Linux, Chrome and Edge turn WebGPU on only for some graphics drivers. Open chrome://flags, enable "Unsafe WebGPU Support" and "Vulkan", and restart the browser; or use Firefox with dom.webgpu.enabled set to true in about:config. Make sure your Vulkan driver is installed (vulkaninfo should list your GPU).';
@@ -373,8 +406,20 @@ export class PcbApp {
   }
 
   private buildDom() {
+    const m = this.mobile;
+    if (m) {
+      document.body.classList.add('is-mobile');
+      this.panelOpen = false;
+      // installable to the home screen (full screen, no browser bars); desktop browsers get no install prompt
+      if (!document.querySelector('link[rel="manifest"]')) {
+        const l = document.createElement('link');
+        l.rel = 'manifest';
+        l.href = './app.webmanifest';
+        document.head.append(l);
+      }
+    }
     this.mount.innerHTML = `
-      <div class="layout" id="layout">
+      <div class="layout${m ? ' mobile panel-collapsed' : ''}" id="layout">
         <header class="topbar">
           <div class="topbar-group">
             <a class="brand" href="./" title="${BRAND.name} — home">${markSvg(22)}</a>
@@ -443,18 +488,19 @@ export class PcbApp {
             <button class="btn sm" id="btn-spice-export" title="Export SPICE netlist (.cir, ngspice compatible)">${icon('download', 13)}<span>Export SPICE netlist (.cir)</span></button>
               </div>
             </div>
-            <button class="power" id="btn-power" title="Bench supply (P)"><span class="dot"></span><span class="lbl">Power</span></button>
+            <button class="power" id="btn-power" title="Bench supply (P)"><span class="dot"></span>${m ? icon('power', 15) : ''}<span class="lbl">Power</span></button>
             <span class="topbar-divider"></span>
             <button class="btn primary" id="btn-verify" title="Run test bench">${icon('play', 14)}<span>Run tests</span></button>
             <button class="btn ghost" id="btn-tutorial" title="Interactive beginner tutorial">${icon('book', 14)}<span>Tutorial</span></button>
             <button class="btn ghost icon" id="btn-sound" title="Sound"></button>
             <button class="btn ghost icon" id="btn-feedback" title="Report a bug or suggest an idea">${icon('message')}</button>
             <button class="btn ghost icon" id="btn-help" title="Help">${icon('help')}</button>
-            <button class="btn ghost icon" id="btn-panel-toggle" title="Toggle panel">${icon('sidebar')}</button>
+            <button class="btn ghost icon" id="btn-panel-toggle" title="${m ? 'Mission, inspector and author' : 'Toggle panel'}">${icon(m ? 'flag' : 'sidebar')}</button>
+            ${m ? `<button class="btn ghost icon" id="btn-more" title="View, bench and settings">${icon('more', 18)}</button>` : ''}
           </div>
         </header>
 
-        <aside class="tooldock" id="tooldock">
+        ${m ? this.mobileDockHtml() : `<aside class="tooldock" id="tooldock">
           ${TOOLS.map((t) => `
             <button class="tool-btn ${t.id === this.activeTool ? 'active' : ''}" data-tool="${t.id}" data-tip="${this.esc(t.lbl)} · ${t.key}" aria-label="${this.esc(t.tip)}">
               ${icon(t.ico, 18)}
@@ -466,13 +512,20 @@ export class PcbApp {
           <button class="tool-btn" id="btn-undo" data-tip="Undo · ⌘Z">${icon('undo', 18)}</button>
           <button class="tool-btn" id="btn-redo" data-tip="Redo · ⇧⌘Z">${icon('redo', 18)}</button>
           <button class="tool-btn" id="btn-reset" data-tip="Reset board">${icon('reset', 18)}</button>
-        </aside>
+        </aside>`}
 
         <main class="viewport" id="viewport">
           <canvas id="gpu-canvas"></canvas>
           <div class="hud-top-left"><div id="tut-box"></div></div>
+          ${m ? `
+          <div class="m-viewctl">
+            <button class="m-vbtn" id="m-fit" title="Fit board">${icon('fit', 18)}</button>
+            <button class="m-vbtn" id="m-mode" title="2D / 3D"></button>
+            <button class="m-vbtn" id="m-flip" title="Top / Bottom side"></button>
+          </div>
+          <div class="m-hud"><div id="scope-box"></div><div id="psu-box"></div><div id="dmm-box"></div></div>` : `
           <div class="hud-bottom-left"><div id="dmm-box"></div></div>
-          <div class="hud-bottom-right"><div id="scope-box"></div><div id="psu-box"></div></div>
+          <div class="hud-bottom-right"><div id="scope-box"></div><div id="psu-box"></div></div>`}
           <div class="toast-stack" id="toasts"></div>
         </main>
 
@@ -482,6 +535,7 @@ export class PcbApp {
             <button class="tab active" data-tab="mission">Overview</button>
             <button class="tab" data-tab="inspect">Inspector</button>
             <button class="tab" data-tab="studio">Author</button>
+            ${m ? `<button class="btn ghost icon m-sheet-close" id="m-panel-close" title="Close">${icon('x', 16)}</button>` : ''}
           </div>
           <div class="panel-body" id="side-body"></div>
         </aside>
@@ -498,6 +552,7 @@ export class PcbApp {
         </footer>
       </div>
       <div id="modal-root"></div>
+      ${m ? this.mobileMoreHtml() + this.rotateHintHtml() : ''}
       <div class="drop-overlay" id="drop-overlay" style="display:none">Drop a .brd, .kicad_pcb, .pcbfix.json, or mod .zip to import</div>
     `;
 
@@ -513,7 +568,91 @@ export class PcbApp {
     this.modalRootEl = this.mount.querySelector('#modal-root')!;
     this.dropOverlayEl = this.mount.querySelector('#drop-overlay')!;
     this.fileInputEl = this.mount.querySelector('#file-input')!;
+    if (m) this.fillMobileMore();
     this.refreshScenarioSelect();
+  }
+
+  /** Mobile tool strip: scrolling tools with labels, undo / redo pinned at the end (reset is in More). */
+  private mobileDockHtml(): string {
+    return `
+        <aside class="tooldock" id="tooldock">
+          <div class="tool-scroll">
+            ${TOOLS.map((t) => `
+              <button class="tool-btn ${t.id === this.activeTool ? 'active' : ''}" data-tool="${t.id}" aria-label="${this.esc(t.lbl)}">
+                ${icon(t.ico, 20)}
+                <span class="tool-lbl">${TOOL_SHORT[t.id] ?? t.lbl}</span>
+              </button>
+            `).join('')}
+          </div>
+          <div class="tool-pinned">
+            <button class="tool-btn" id="btn-undo" aria-label="Undo">${icon('undo', 20)}<span class="tool-lbl">Undo</span></button>
+            <button class="tool-btn" id="btn-redo" aria-label="Redo">${icon('redo', 20)}<span class="tool-lbl">Redo</span></button>
+          </div>
+        </aside>`;
+  }
+
+  /** Mobile "More" sheet: view, display and bench controls that live in the desktop top bar. */
+  private mobileMoreHtml(): string {
+    const row = (id: string, ico: string, label: string) => `<button class="m-row" data-proxy="${id}">${icon(ico, 16)}<span>${label}</span></button>`;
+    return `
+      <div class="m-more-bg" id="m-more" hidden>
+        <div class="m-more" role="dialog" aria-label="View, bench and settings">
+          <div class="m-more-head"><span>View &amp; bench</span><button class="btn ghost icon" id="m-more-close" title="Close">${icon('x', 16)}</button></div>
+          <div class="m-more-body">
+            <div class="m-sec"><div class="m-sec-t">View</div><div class="m-ctl" id="m-slot-view"></div><div class="m-ctl" id="m-slot-side"></div>
+              <button class="m-row" data-proxy="#btn-invert-orbit">${icon('rotate', 16)}<span id="m-invert-lbl"></span></button></div>
+            <div class="m-sec"><div class="m-sec-t">Display</div><div class="m-ctl" id="m-slot-viz"></div></div>
+            <div class="m-sec"><div class="m-sec-t">Bench</div><div class="m-bench" id="m-slot-bench"></div></div>
+            <div class="m-sec"><div class="m-sec-t">Board</div>
+              ${row('#btn-tutorial', 'book', 'Tutorial')}
+              ${row('#btn-reset', 'reset', 'Reset board')}
+              ${row('#btn-new-board', 'plus', 'New blank board')}
+              ${row('#btn-import', 'upload', 'Import a board or mod')}
+            </div>
+            <div class="m-sec"><div class="m-sec-t">App</div>
+              <button class="m-row" data-proxy="#btn-sound"><span id="m-sound-ico"></span><span id="m-sound-lbl"></span></button>
+              ${row('#btn-feedback', 'message', 'Feedback')}
+              ${row('#btn-help', 'help', 'Help')}
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  /**
+   * Phone in portrait: suggest landscape (shown by CSS only in portrait on a phone-sized screen,
+   * so rotating hides it). "Keep portrait" is remembered.
+   */
+  private rotateHintHtml(): string {
+    let ok = false;
+    try { ok = localStorage.getItem('pcbfix_portrait_ok') === '1'; } catch { /* storage unavailable */ }
+    if (ok) return '';
+    return `
+      <div class="m-rotate" id="m-rotate" role="dialog" aria-labelledby="m-rotate-t">
+        <div class="m-rotate-card">
+          <div class="m-rotate-ico">${icon('phone', 56)}</div>
+          <div class="m-rotate-t" id="m-rotate-t">Turn your phone sideways</div>
+          <p>The bench has more room in landscape: the board, tools and meter fit side by side.</p>
+          <button class="btn" id="m-rotate-keep">Keep portrait</button>
+        </div>
+      </div>`;
+  }
+
+  /** Moves the desktop top-bar controls into the More sheet (their listeners move with them). */
+  private fillMobileMore() {
+    const q = (sel: string) => this.mount.querySelector<HTMLElement>(sel);
+    q('#m-slot-view')?.append(q('#seg-view')!);
+    q('#m-slot-side')?.append(q('#seg-side')!);
+    q('#m-slot-viz')?.append(q('#viz-select')!);
+    const pop = q('#bench-pop');
+    if (pop) q('#m-slot-bench')?.append(...Array.from(pop.children));
+    // the reset button lives in the More sheet on mobile; a hidden one keeps the proxy simple
+    if (!q('#btn-reset')) {
+      const b = document.createElement('button');
+      b.id = 'btn-reset';
+      b.hidden = true;
+      q('#tooldock')?.append(b);
+    }
   }
 
   /** Walkthrough videos per scenario id (videos/index.json, rendered by scripts/videos/record.ts). */
@@ -785,6 +924,14 @@ export class PcbApp {
     } else {
       this.tutorialOpen = false;
     }
+    if (this.mobile) {
+      // phone: a new board opens on its mission, unless the tutorial card is there to guide
+      this.activeTab = 'mission';
+      this.panelOpen = !this.tutorialOpen;
+      this.tutCollapsed = false;
+      this.activeProbe = 'red';
+      this.activeProbeAuto = false;
+    }
     this.camera.setSide('F');
     this.camera.bothSides = this.board.components.length > 500;
     this.cursorWorld = null;
@@ -1022,6 +1169,13 @@ export class PcbApp {
           <canvas class="psu-chart" id="psu-chart" width="528" height="128"></canvas>
           <div class="psu-state" id="psu-state"></div>
         </div>`;
+      if (this.mobile) {
+        this.psuBoxEl.classList.toggle('expanded', this.psuExpanded);
+        this.psuBoxEl.querySelector('.psu-head')?.addEventListener('click', () => {
+          this.psuExpanded = !this.psuExpanded;
+          this.psuBoxEl.classList.toggle('expanded', this.psuExpanded);
+        });
+      }
     }
     const rd = this.supplyReading();
     const amps = this.powerOn ? this.boot.amps : 0;
@@ -1443,8 +1597,10 @@ export class PcbApp {
     this.mount.querySelectorAll<HTMLButtonElement>('.tool-btn[data-tool]').forEach((btn) => {
       btn.addEventListener('click', () => {
         this.setTool(btn.dataset.tool as ToolId);
+        if (this.mobile && this.panelOpen) this.setPanel(false); // back to the board
       });
     });
+    if (this.mobile) this.bindMobile();
 
     q('#btn-undo').addEventListener('click', () => this.undo());
     q('#btn-redo').addEventListener('click', () => this.redo());
@@ -1462,6 +1618,7 @@ export class PcbApp {
     this.mount.addEventListener('pointerdown', (e) => this.onPointerDown(e));
     window.addEventListener('pointermove', (e) => this.onPointerMove(e));
     window.addEventListener('pointerup', (e) => this.onPointerUp(e));
+    window.addEventListener('pointercancel', (e) => { if (this.gestures.has(e.pointerId)) this.gestures.cancel(e.pointerId); });
     this.canvas.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
 
     // Keyboard shortcuts
@@ -1486,6 +1643,72 @@ export class PcbApp {
     });
   }
 
+  /** Mobile-only controls: More sheet, floating view buttons, sheet close. */
+  private bindMobile() {
+    const q = (sel: string) => this.mount.querySelector<HTMLElement>(sel);
+    const more = q('#m-more')!;
+    q('#btn-more')?.addEventListener('click', () => { more.hidden = !more.hidden; this.updateTopButtons(); });
+    q('#m-more-close')?.addEventListener('click', () => { more.hidden = true; });
+    more.addEventListener('click', (e) => { if (e.target === more) more.hidden = true; });
+    more.querySelectorAll<HTMLButtonElement>('[data-proxy]').forEach((b) => b.addEventListener('click', () => {
+      const sel = b.dataset.proxy!;
+      // these open something else (a modal, a file picker, a fresh board): close the sheet first
+      if (sel !== '#btn-sound' && sel !== '#btn-invert-orbit') more.hidden = true;
+      q(sel)?.click();
+      this.updateTopButtons();
+    }));
+    q('#m-fit')?.addEventListener('click', () => this.camera.fitBoard(this.board.w, this.board.h));
+    q('#m-mode')?.addEventListener('click', () => {
+      this.camera.setMode(this.camera.mode === '2d' ? '3d' : '2d');
+      this.renderUI();
+    });
+    q('#m-flip')?.addEventListener('click', () => this.flipSide());
+    q('#m-panel-close')?.addEventListener('click', () => this.setPanel(false));
+    q('#m-rotate-keep')?.addEventListener('click', () => {
+      try { localStorage.setItem('pcbfix_portrait_ok', '1'); } catch { /* storage unavailable */ }
+      q('#m-rotate')?.remove();
+    });
+    // iOS Safari zooms the page on a pinch outside the canvas: the board has its own pinch zoom
+    document.addEventListener('gesturestart', (e) => e.preventDefault());
+  }
+
+  /**
+   * Phones change shape (first layout, rotation): the camera only learns the canvas aspect when it
+   * renders, so a fit made before that frames a portrait screen as if it were landscape.
+   */
+  private refitOnShapeChange() {
+    const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
+    if (w < 2 || h < 2) return;
+    const a = w / h;
+    if (this.fitAspect && Math.abs(a / this.fitAspect - 1) < 0.08) return;
+    this.fitAspect = a;
+    this.camera.matrices(w, h); // updates the aspect the fit uses
+    this.camera.fitBoard(this.board.w, this.board.h);
+  }
+
+  /** Opens / closes the side panel (the bottom sheet on mobile). */
+  private setPanel(open: boolean) {
+    this.panelOpen = open;
+    this.layoutEl.classList.toggle('panel-collapsed', !open);
+  }
+
+  /** F key / mobile flip button: the other face (leaving the side-by-side view for the bottom). */
+  private flipSide() {
+    if (this.camera.bothSides) {
+      this.camera.bothSides = false;
+      this.camera.setSide('B');
+      this.camera.fitBoard(this.board.w, this.board.h);
+    } else {
+      this.camera.flip();
+    }
+    this.renderUI();
+  }
+
+  /** Mouse wording → touch wording on the mobile layout. */
+  private txt(s: string): string {
+    return this.mobile ? touchCopy(s) : s;
+  }
+
   private async handleFile(f: File) {
     if (/\.zip$/i.test(f.name)) { await this.installModFile(f); return; }
     try {
@@ -1500,6 +1723,11 @@ export class PcbApp {
   }
 
   private setTool(t: ToolId) {
+    if (this.mobile && t !== this.activeTool && !this.toolTipsShown.has(t)) {
+      this.toolTipsShown.add(t);
+      const tool = TOOLS.find((x) => x.id === t);
+      if (tool && t !== 'inspect') this.toast(`${tool.lbl}: ${tool.tip}`, 'info');
+    }
     this.activeTool = t;
     if (t !== 'jumper') this.jumperStart = null;
     this.mount.querySelectorAll<HTMLButtonElement>('.tool-btn[data-tool]').forEach((b) => {
@@ -1530,9 +1758,15 @@ export class PcbApp {
   }
 
   private onPointerDown(e: PointerEvent) {
+    if (e.pointerType === 'touch' && e.target === this.canvas) {
+      e.preventDefault();
+      this.hovered = null;
+      this.gestures.down(e.pointerId, e.clientX, e.clientY);
+      return;
+    }
     if (e.button === 0) {
       const target = e.target as HTMLElement | null;
-      if (target) {
+      if (target && !this.mobile) { // the mobile layout has fixed windows
         if (target.closest('#sidepanel-resizer')) {
           this.winDrag = { target: 'sidepanel', startX: e.clientX, startY: e.clientY, origX: this.sidepanelW, origY: 0 };
           document.body.classList.add('resizing-panel');
@@ -1584,6 +1818,10 @@ export class PcbApp {
   }
 
   private onPointerMove(e: PointerEvent) {
+    if (e.pointerType === 'touch' && this.gestures.has(e.pointerId)) {
+      this.gestures.move(e.pointerId, e.clientX, e.clientY);
+      return;
+    }
     if (this.winDrag) {
       const dx = e.clientX - this.winDrag.startX;
       const dy = e.clientY - this.winDrag.startY;
@@ -1624,13 +1862,7 @@ export class PcbApp {
           this.camera.panScreen(dx, dy, Math.max(1, this.canvas.clientHeight));
         }
       } else if (this.dragMode === 'orbit') {
-        if (this.dragMoved) {
-          const prevMode = this.camera.mode, prevSide = this.camera.side;
-          this.camera.orbit(dx, dy);
-          this.updateTopButtons();
-          if (this.camera.side !== prevSide) this.renderTopHud(); // orbited over to the other face
-          if (this.camera.mode !== prevMode) this.renderTutorial();
-        }
+        if (this.dragMoved) this.orbitBy(dx, dy);
       }
       return;
     }
@@ -1644,7 +1876,38 @@ export class PcbApp {
     this.renderTopHud();
   }
 
+  private orbitBy(dx: number, dy: number) {
+    const prevMode = this.camera.mode, prevSide = this.camera.side;
+    this.camera.orbit(dx, dy);
+    this.updateTopButtons();
+    if (this.camera.side !== prevSide) this.renderTopHud(); // orbited over to the other face
+    if (this.camera.mode !== prevMode) this.renderTutorial();
+  }
+
+  /** A touch tap on the board: the active tool at that point (the meter places the active probe). */
+  private touchTap(x: number, y: number) {
+    const r = this.canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const raw = this.camera.screenToBoard((x - r.left) * dpr, (y - r.top) * dpr, Math.max(1, r.width * dpr), Math.max(1, r.height * dpr), this.board.thickness);
+    const resolved = this.resolveBoardPt(raw);
+    if (!resolved) return;
+    this.cursorWorld = resolved.pt;
+    this.cursorSide = resolved.side;
+    if (this.activeTool !== 'dmm') { this.applyToolAt(resolved.pt, resolved.side); return; }
+    const which = this.activeProbe;
+    if (this.mobile) {
+      // two-probe modes: after the red probe the meter offers the black one, then back to red
+      if (which === 'red' && this.dmmMode !== 'V' && !this.probeBlack) { this.activeProbe = 'black'; this.activeProbeAuto = true; }
+      else if (which === 'black' && this.activeProbeAuto) { this.activeProbe = 'red'; this.activeProbeAuto = false; }
+    }
+    this.placeProbe(which, resolved.pt, resolved.side);
+  }
+
   private onPointerUp(e: PointerEvent) {
+    if (e.pointerType === 'touch' && this.gestures.has(e.pointerId)) {
+      this.gestures.up(e.pointerId, e.clientX, e.clientY);
+      return;
+    }
     if (this.winDrag) {
       this.winDrag = null;
       document.body.classList.remove('dragging-win', 'resizing-panel');
@@ -1714,14 +1977,7 @@ export class PcbApp {
     }
     const k = e.key.toLowerCase();
     if (k === 'f') {
-      if (this.camera.bothSides) {
-        this.camera.bothSides = false;
-        this.camera.setSide('B');
-        this.camera.fitBoard(this.board.w, this.board.h);
-      } else {
-        this.camera.flip();
-      }
-      this.renderUI();
+      this.flipSide();
       return;
     }
     if (k === 'c') { this.camera.fitBoard(this.board.w, this.board.h); return; }
@@ -1851,6 +2107,7 @@ export class PcbApp {
           this.selectedNet = idx !== undefined ? this.conn.net[idx] : -1;
         }
         this.activeTab = 'inspect';
+        if (this.mobile) this.panelOpen = true; // no hover on touch: the inspector says what was tapped
         this.renderUI();
         return;
       }
@@ -1883,6 +2140,7 @@ export class PcbApp {
         if (!c.state.populated) {
           this.selectedCompId = c.id;
           this.activeTab = 'inspect';
+          if (this.mobile) this.panelOpen = true;
           this.toast(`${c.ref} footprint is empty — pick a replacement in Inspector!`, 'info');
           this.renderUI();
           return;
@@ -2046,7 +2304,7 @@ export class PcbApp {
   private toast(msg: string, kind: 'info' | 'success' | 'warn' | 'danger' = 'info') {
     const el = document.createElement('div');
     el.className = `toast ${kind}`;
-    el.textContent = msg;
+    el.textContent = this.txt(msg);
     this.toastEl.appendChild(el);
     setTimeout(() => el.remove(), 4500);
   }
@@ -2078,6 +2336,16 @@ export class PcbApp {
     (tBtn as HTMLElement).hidden = !tutBoard; // shown only on tutorial boards
     tBtn.classList.toggle('active', this.tutorialOpen && tutBoard);
 
+    if (this.mobile) {
+      const set = (sel: string, html: string) => { const el = this.mount.querySelector<HTMLElement>(sel); if (el) el.innerHTML = html; };
+      set('#m-mode', `<b>${this.camera.mode.toUpperCase()}</b>`);
+      set('#m-flip', `${icon('layers', 16)}<b>${this.camera.bothSides ? 'BOTH' : this.camera.side === 'F' ? 'TOP' : 'BOT'}</b>`);
+      set('#m-invert-lbl', this.camera.invertOrbit ? '3D drag moves the camera (tap: board follows)' : '3D drag turns the board (tap: camera moves)');
+      set('#m-sound-ico', icon(soundEnabled ? 'volume' : 'mute', 16));
+      set('#m-sound-lbl', soundEnabled ? 'Sound on' : 'Sound off');
+      const tutRow = this.mount.querySelector<HTMLElement>('[data-proxy="#btn-tutorial"]');
+      if (tutRow) tutRow.hidden = !tutBoard;
+    }
     (this.mount.querySelector('#viz-select') as HTMLSelectElement).value = this.vizMode;
     (this.mount.querySelector('#ocp-select') as HTMLSelectElement).value = String(this.ocpAmps);
     (this.mount.querySelector('#solver-select') as HTMLSelectElement).value = this.solver;
@@ -2274,10 +2542,15 @@ export class PcbApp {
           <div class="dmm-val">${this.esc(reading)}</div>
           <div class="dmm-sub">${this.esc(sub)}</div>
         </div>
+        ${this.mobile ? `
+        <div class="dmm-probes m-probes">
+          <button class="probe-tag red ${this.activeProbe === 'red' ? 'armed' : ''}" id="probe-red">${this.esc(this.probeRed?.label ?? (this.activeProbe === 'red' ? 'Tap the board' : 'Red probe'))}</button>
+          <button class="probe-tag blk ${this.activeProbe === 'black' ? 'armed' : ''}" id="probe-blk">${this.esc(this.probeBlack?.label ?? (this.activeProbe === 'black' ? 'Tap the board' : this.dmmMode === 'V' ? 'Supply GND' : 'Black probe'))}</button>
+        </div>` : `
         <div class="dmm-probes">
           <div class="probe-tag red" title="${this.esc(this.probeRed?.label ?? '')}">${this.esc(this.probeRed?.label ?? 'Click to place')}</div>
           <div class="probe-tag blk" title="${this.esc(this.probeBlack?.label ?? '')}">${this.esc(this.probeBlack?.label ?? (this.dmmMode === 'V' ? 'Supply GND' : 'Right-click'))}</div>
-        </div>
+        </div>`}
       </div>
     `;
 
@@ -2300,15 +2573,25 @@ export class PcbApp {
     for (const [id, mode] of [['#dmm-cap', 'CAP'], ['#dmm-amp', 'AMP']] as const) {
       this.dmmBoxEl.querySelector(id)!.addEventListener('click', () => { this.dmmMode = mode; this.renderDmm(); this.renderTutorial(); });
     }
+    for (const [id, which] of [['#probe-red', 'red'], ['#probe-blk', 'black']] as const) {
+      this.dmmBoxEl.querySelector(id)?.addEventListener('click', () => {
+        this.activeProbe = which;
+        this.activeProbeAuto = false;
+        this.renderDmm();
+      });
+    }
     this.dmmBoxEl.querySelector('#dmm-clr')!.addEventListener('click', () => {
       this.probeRed = null;
       this.probeBlack = null;
+      this.activeProbe = 'red';
+      this.activeProbeAuto = false;
       this.renderDmm();
       this.renderTutorial();
     });
   }
 
   private renderUI() {
+    if (this.mobile) this.layoutEl.classList.toggle('panel-collapsed', !this.panelOpen);
     this.updateTopButtons();
     this.renderTopHud();
     this.renderDmm();
@@ -2350,25 +2633,25 @@ export class PcbApp {
     const nextPrimary = isLast ? !(done && nextId) : done;
 
     this.tutBoxEl.innerHTML = `
-      <div class="tut-card" style="transform: translate3d(${this.tutPos[0]}px, ${this.tutPos[1]}px, 0)">
-        <div class="tut-head" title="Drag to move window">
-          <span class="tut-step">${icon('book', 13)}<span>Tutorial ${tutIdx >= 0 ? `${tutIdx + 1}/${TUTORIAL_SCENARIO_IDS.length} · ` : ''}Step ${idx + 1} / ${total}</span></span>
+      <div class="tut-card${this.mobile && this.tutCollapsed ? ' collapsed' : ''}" style="transform: translate3d(${this.tutPos[0]}px, ${this.tutPos[1]}px, 0)">
+        <div class="tut-head" title="${this.mobile ? 'Tap to fold / unfold' : 'Drag to move window'}">
+          <span class="tut-step">${icon(this.mobile ? (this.tutCollapsed ? 'chevronDown' : 'book') : 'book', 13)}<span>Tutorial ${tutIdx >= 0 ? `${tutIdx + 1}/${TUTORIAL_SCENARIO_IDS.length} · ` : ''}Step ${idx + 1} / ${total}${this.mobile && this.tutCollapsed ? ` · ${this.esc(step.title)}` : ''}</span></span>
           <button class="btn ghost icon sm" id="tut-close" title="Close tutorial">${icon('x', 13)}</button>
         </div>
         <div class="tut-prog"><i style="width:${pct}%"></i></div>
         <div class="tut-body">
-          <div class="tut-title">${this.esc(step.title)}</div>
-          <div class="tut-concept">${this.esc(step.concept)}</div>
+          <div class="tut-title">${this.esc(this.txt(step.title))}</div>
+          <div class="tut-concept">${this.esc(this.txt(step.concept))}</div>
           <div class="tut-goal ${done ? 'done' : ''}">
             <div class="tut-goal-head">
               <span>${done ? 'Step complete' : 'Your turn'}</span>
               ${done ? `<span class="badge pass">${icon('check', 11)}<span>Done</span></span>` : ''}
             </div>
-            <div class="tut-goal-txt">${this.esc(step.task)}</div>
+            <div class="tut-goal-txt">${this.esc(this.txt(step.task))}</div>
             ${step.target || step.quickAction ? `
               <div class="row wrap" style="margin-top:2px">
                 ${step.target ? `<button class="btn sm" id="tut-focus">${icon('target', 12)}<span>Locate on board</span></button>` : ''}
-                ${step.quickAction ? `<button class="btn sm" id="tut-quick">${this.esc(step.quickAction.label)}</button>` : ''}
+                ${step.quickAction ? `<button class="btn sm" id="tut-quick">${this.esc(this.txt(step.quickAction.label))}</button>` : ''}
               </div>
             ` : ''}
           </div>
@@ -2389,6 +2672,13 @@ export class PcbApp {
       </div>
     `;
 
+    if (this.mobile) {
+      this.tutBoxEl.querySelector('.tut-head')?.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).closest('button')) return;
+        this.tutCollapsed = !this.tutCollapsed;
+        this.renderTutorial();
+      });
+    }
     this.tutBoxEl.querySelector('#tut-close')?.addEventListener('click', () => {
       this.tutorialOpen = false;
       localStorage.setItem('pcbfix_tut_dismissed', '1');
@@ -2482,7 +2772,7 @@ export class PcbApp {
           <span class="muted">By ${this.esc(s.meta.author)}</span>
           <span class="lvl" title="Difficulty ${s.meta.difficulty}/5">${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= s.meta.difficulty ? 'on' : ''}"></i>`).join('')}</span>
         </div>
-        <div class="text-2">${this.esc(s.meta.description)}</div>
+        <div class="text-2">${this.esc(this.txt(s.meta.description))}</div>
         ${s.meta.credits ? `
           <div class="credits">
             <span>${this.esc(s.meta.credits)}</span>
@@ -2587,7 +2877,7 @@ export class PcbApp {
             ${this.hintsShown < hints.length ? `<button class="btn sm" id="btn-next-hint">Reveal note</button>` : ''}
           </div>
           ${hints.slice(0, this.hintsShown).map((h, i) => `
-            <div class="hint-item"><b>${i + 1}.</b> ${this.esc(h)}</div>
+            <div class="hint-item"><b>${i + 1}.</b> ${this.esc(this.txt(h))}</div>
           `).join('')}
           ${this.hintsShown === 0 ? `<div class="muted">Progressive diagnostic notes are available if needed.</div>` : ''}
         </div>
@@ -3578,7 +3868,7 @@ export class PcbApp {
       this.modalRootEl.innerHTML = '';
       return;
     }
-    this.modalRootEl.innerHTML = `
+    this.modalRootEl.innerHTML = this.txt(`
       <div class="modal-backdrop" id="help-close-bg">
         <div class="modal" style="transform: translate3d(${this.modalPos[0]}px, ${this.modalPos[1]}px, 0)">
           <div class="modal-head" title="Drag to move window">
@@ -3618,7 +3908,7 @@ export class PcbApp {
           </div>
         </div>
       </div>
-    `;
+    `);
     this.modalRootEl.querySelector('#help-feedback')?.addEventListener('click', () => this.openFeedback(true));
     this.modalRootEl.querySelector('#help-close')?.addEventListener('click', () => {
       this.showHelp = false;
@@ -3649,6 +3939,7 @@ export class PcbApp {
     }
     this.thermal?.step(dt);
     this.flex.advance(dt);
+    if (this.mobile) this.refitOnShapeChange();
     if (this.rework && this.reworkMode.realistic) {
       const evs = this.rework.update(dt);
       if (evs.length) this.onReworkEvents(evs);

@@ -7,6 +7,26 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
+- **Mobile / touch (2026-11-17, pushed to main):** phone layout + touch controls for a first
+  test in mobile browsers (later: App Store). `src/ui/touch.ts` (layout switch, `TouchGestures`,
+  `touchCopy`), `test/touch.test.ts` (18th suite). Mobile layout only on touch-only devices
+  (`(pointer: coarse)` and no fine pointer) or `?mobile=1` (`?mobile=0` forces desktop); the
+  desktop DOM is byte-identical to before apart from whitespace (checked against a HEAD build). Phone:
+  compact top bar (board · power · run tests · panel · More ⋯), tool strip with labels (bottom in
+  portrait, left in landscape), panel = bottom sheet / right drawer, More sheet holds view /
+  display / bench / board / app controls (moved from the top bar), floating Fit · 2D/3D · side
+  buttons, instruments stacked above the strip (supply folds to one line), foldable tutorial card,
+  full-screen modals. Phones in portrait (≤ 600 px wide) get a "Turn your phone sideways" overlay
+  (`#m-rotate`, CSS media query, so rotating hides it; "Keep portrait" → localStorage
+  `pcbfix_portrait_ok`). Touch (any layout): tap = tool, 1 finger pans (orbits in 3D), pinch zooms
+  + pans; meter probe tags pick red / black (two-probe modes auto-advance red → black).
+  Tutorial / hints / toasts in touch wording on mobile. Web manifest + icons (`public/icons/`)
+  injected only on mobile (no desktop install prompt). Tested in headless Chrome with iPhone
+  emulation (`isMobile`, `hasTouch`, CDP touch events); **no real phone yet**. WebGPU needs a
+  secure context: a phone on `http://<LAN-IP>` gets no `navigator.gpu`, so test on the Pages
+  site or over HTTPS. Open: landscape phones are tight (tutorial card + instruments cover much of
+  the board); iOS Safari 26 untested on hardware.
+
 - **Mods (2026-11-17):** `deadboard-mod/1`, data-only packages (folder or .zip with `mod.json`)
   of boards (.kicad_pcb / .brd / .pcbfix.json) + optional BOM CSV (R/C values, DNP via
   `applyBom` in `src/io/bom.ts`) + optional schematic (PDF / image, floating viewer). Loader in

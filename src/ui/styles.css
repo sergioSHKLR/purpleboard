@@ -972,3 +972,402 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); }
 .schem-body iframe { display: block; width: 100%; height: 100%; border: 0; }
 .schem-body img { display: block; max-width: 100%; margin: 0 auto; cursor: zoom-in; }
 .schem-body img.zoom { max-width: none; cursor: zoom-out; }
+
+/* ---------- Touch ---------- */
+/* the board handles its own gestures (src/ui/touch.ts): no browser scroll / zoom / callout on it */
+.viewport canvas { touch-action: none; -webkit-touch-callout: none; }
+
+/* ---------- Mobile layout (touch-only devices or ?mobile=1; src/ui/touch.ts) ----------
+   Everything below is scoped to body.is-mobile / .layout.mobile: the desktop layout is unchanged.
+   Portrait: top bar, board, tool strip at the bottom; panel = bottom sheet.
+   Landscape: tool strip on the left; panel = drawer from the right. */
+body.is-mobile {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  /* scrolling only: no page pinch-zoom or double-tap zoom anywhere (the board has its own pinch) */
+  touch-action: pan-x pan-y;
+  overscroll-behavior: none;
+}
+.layout.mobile,
+.layout.mobile.panel-collapsed {
+  --m-top: calc(48px + env(safe-area-inset-top));
+  --m-dock: calc(62px + env(safe-area-inset-bottom));
+  height: 100%;
+  height: 100dvh;
+  grid-template-rows: var(--m-top) minmax(0, 1fr) var(--m-dock);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "top" "view" "dock";
+}
+.layout.mobile .topbar { grid-area: top; gap: 4px; padding: env(safe-area-inset-top) calc(6px + env(safe-area-inset-right)) 0 env(safe-area-inset-left); }
+.layout.mobile .viewport { grid-area: view; }
+.layout.mobile .tooldock { grid-area: dock; }
+.layout.mobile .statusbar,
+.layout.mobile .sidepanel-resizer,
+.layout.mobile .brand-name,
+.layout.mobile .topbar-divider,
+.layout.mobile .bench-wrap,
+.layout.mobile #btn-new-board,
+.layout.mobile #btn-import,
+.layout.mobile #btn-invert-orbit,
+.layout.mobile #btn-fit,
+.layout.mobile #btn-tutorial,
+.layout.mobile #btn-sound,
+.layout.mobile #btn-feedback,
+.layout.mobile #btn-help { display: none; }
+
+/* top bar: logo · board picker · power · run tests · panel · more */
+.layout.mobile .brand { width: 42px; height: 48px; margin-right: 0; border-right: none; }
+.layout.mobile .topbar-group { gap: 4px; }
+.layout.mobile .topbar-group:first-child { flex: 1 1 auto; }
+.layout.mobile .board-picker-btn { flex: 1 1 auto; max-width: none; height: 38px; font-size: 13px; }
+.layout.mobile .topbar .btn,
+.layout.mobile .power { height: 38px; }
+.layout.mobile .topbar .btn.icon { width: 38px; }
+.layout.mobile .power { gap: 6px; padding: 0 9px; }
+.layout.mobile .power .lbl { display: none; }
+.layout.mobile .power.on { color: var(--ok); border-color: rgba(52, 199, 123, 0.4); }
+.layout.mobile #btn-verify { width: 42px; padding: 0; }
+.layout.mobile #btn-verify span { display: none; }
+.layout.mobile:not(.panel-collapsed) #btn-panel-toggle { background: var(--accent-weak); color: var(--accent); }
+
+/* tool strip: tools scroll sideways, undo / redo stay put */
+.layout.mobile .tooldock {
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  border-right: none;
+  border-top: 1px solid var(--border);
+}
+.tool-scroll { display: contents; }
+.layout.mobile .tool-scroll {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+  padding: 4px 6px;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.layout.mobile .tool-scroll::-webkit-scrollbar { display: none; }
+.layout.mobile .tool-pinned { display: flex; gap: 2px; padding: 4px 6px; border-left: 1px solid var(--border); flex-shrink: 0; }
+.layout.mobile .tool-btn { width: 54px; height: 52px; flex-shrink: 0; flex-direction: column; gap: 4px; }
+.layout.mobile .tool-btn:hover:not(.active) { background: transparent; color: var(--muted); }
+.layout.mobile .tool-btn:active { background: var(--surface-3); }
+.layout.mobile .tool-lbl { font-size: 10px; font-weight: 500; line-height: 1; white-space: nowrap; }
+
+/* floating view buttons (fit · 2D/3D · side) */
+.m-viewctl {
+  position: absolute;
+  top: 8px;
+  right: calc(8px + env(safe-area-inset-right));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 12;
+}
+.m-vbtn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0;
+  background: rgba(15, 19, 17, 0.92);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  color: var(--text);
+  font: 600 11px/1 var(--mono);
+  cursor: pointer;
+}
+.m-vbtn b { font-weight: 600; font-size: 10.5px; letter-spacing: 0.04em; }
+.m-vbtn:active { background: var(--surface-3); }
+
+/* tutorial card: full width at the top, folds to its header */
+.layout.mobile .hud-top-left { top: 8px; left: 8px; right: 60px; max-width: none; }
+.layout.mobile .tut-card { width: 100%; max-height: 36dvh; overflow-y: auto; overscroll-behavior: contain; }
+.layout.mobile .tut-head { cursor: pointer; padding: 6px 6px 6px 12px; }
+.layout.mobile .tut-step { min-width: 0; }
+.layout.mobile .tut-step > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.layout.mobile .tut-body { padding: 10px 12px; gap: 8px; }
+.layout.mobile .tut-concept { font-size: 12.5px; }
+.layout.mobile .tut-goal-txt { font-size: 13px; }
+.layout.mobile .tut-card.collapsed .tut-body,
+.layout.mobile .tut-card.collapsed .tut-foot { display: none; }
+
+/* instruments: one column above the tool strip (scope, supply, meter) */
+.m-hud {
+  position: absolute;
+  left: calc(8px + env(safe-area-inset-left));
+  right: calc(8px + env(safe-area-inset-right));
+  bottom: 8px;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+  z-index: 11;
+}
+.m-hud > div:empty { display: none; }
+.m-hud > * { pointer-events: auto; }
+.m-hud .dmm-card,
+.m-hud .psu-card,
+.m-hud .scope-card { width: 100%; background: rgba(15, 19, 17, 0.95); }
+.m-hud .dmm-head { cursor: default; padding: 5px 6px; }
+.m-hud .dmm-head > span:first-child { display: none; }
+.m-hud .dmm-head > .row { width: 100%; justify-content: space-between; }
+.m-hud .seg { height: 36px; }
+.m-hud .seg button { height: 30px; padding: 0 11px; font-size: 13px; }
+.m-hud .dmm-head .btn.icon { width: 36px; height: 36px; }
+.m-hud .dmm-lcd { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; padding: 6px 10px; }
+.m-hud .dmm-val { font-size: 24px; }
+.m-hud .dmm-sub { margin-top: 0; font-size: 11.5px; }
+.m-probes .probe-tag {
+  min-height: 40px;
+  border: none;
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.m-probes .probe-tag + .probe-tag { border-left: 1px solid var(--border); }
+.m-probes .probe-tag::before { width: 9px; height: 9px; }
+.m-probes .probe-tag.armed { color: var(--text); }
+.m-probes .probe-tag.armed.red { background: var(--danger-weak); box-shadow: inset 0 -2px 0 var(--danger); }
+.m-probes .probe-tag.armed.blk { background: rgba(212, 214, 219, 0.1); box-shadow: inset 0 -2px 0 #d4d6db; }
+.m-hud .psu-head { cursor: pointer; padding: 6px 10px; }
+.m-hud .psu-head > span:first-child::after { content: ' ▾'; color: var(--muted); }
+.m-hud #psu-box.expanded .psu-head > span:first-child::after { content: ' ▴'; }
+.m-hud #psu-box:not(.expanded) .psu-chart,
+.m-hud #psu-box:not(.expanded) .psu-lcd .l { display: none; }
+.m-hud #psu-box:not(.expanded) .psu-lcd { padding: 4px 10px 0; }
+.m-hud #psu-box:not(.expanded) .psu-lcd .v,
+.m-hud #psu-box:not(.expanded) .psu-lcd .a { font-size: 16px; }
+.m-hud .psu-state { padding: 2px 10px 6px; }
+/* folded supply: one status line (boot-loop warnings still show in full) */
+.m-hud #psu-box:not(.expanded) .psu-state:not(.warn) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-hud .scope-screen { height: 96px; }
+.m-hud .psu-head .btn.icon { width: 34px; height: 34px; }
+
+/* toasts: top, not in the way of taps, at most two */
+.layout.mobile .toast-stack { top: 8px; left: 8px; right: 8px; width: auto; align-items: center; }
+.layout.mobile .toast { width: 100%; max-width: 480px; font-size: 13px; pointer-events: none; }
+.layout.mobile .toast:nth-last-child(n+3) { display: none; }
+
+/* panel = bottom sheet */
+.layout.mobile .sidepanel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--m-dock);
+  height: 58%;
+  height: 58dvh;
+  z-index: 26;
+  border-left: none;
+  border-top: 1px solid var(--border-strong);
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.5);
+  padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
+  transition: transform 0.22s ease, visibility 0s;
+}
+.layout.mobile.panel-collapsed .sidepanel {
+  transform: translateY(calc(100% + var(--m-dock)));
+  visibility: hidden;
+  transition: transform 0.22s ease, visibility 0s 0.22s;
+}
+.layout.mobile .tabs { height: 46px; padding: 0 4px 0 8px; }
+.layout.mobile .tab { flex: 1; font-size: 13px; }
+.layout.mobile .m-sheet-close { align-self: center; width: 38px; height: 38px; }
+.layout.mobile .panel-body { overscroll-behavior: contain; padding-bottom: 8px; }
+
+/* touch-sized controls; 16px text inputs (iOS zooms the page into smaller ones) */
+body.is-mobile .btn.sm { height: 34px; padding: 0 12px; font-size: 13px; }
+body.is-mobile select,
+body.is-mobile input[type="text"],
+body.is-mobile input[type="number"],
+body.is-mobile input:not([type]) { height: 38px; font-size: 16px; }
+body.is-mobile textarea { font-size: 16px; }
+body.is-mobile .list-btn { min-height: 44px; }
+body.is-mobile .tool-btn[data-tip]:hover::after { display: none; }
+
+/* modals, video and schematic windows: full screen */
+body.is-mobile .modal-backdrop { padding: 0; align-items: stretch; }
+body.is-mobile .modal,
+body.is-mobile .modal.board-catalog {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  transform: none !important;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+body.is-mobile .modal-head { cursor: default; position: sticky; top: 0; z-index: 1; background: var(--surface); flex-wrap: wrap; gap: 8px; padding-right: 58px; }
+body.is-mobile .modal-head > div { flex-wrap: wrap; }
+body.is-mobile .modal-head h2 { white-space: nowrap; font-size: 16px; }
+/* close button stays top right when the header wraps */
+body.is-mobile .modal-head #modal-close,
+body.is-mobile .modal-head #mods-close,
+body.is-mobile .modal-head #help-close,
+body.is-mobile .modal-head #fb-close { position: absolute; top: 8px; right: 10px; width: 40px; height: 40px; }
+body.is-mobile .modal.board-catalog .cat-body { flex: 1; min-height: 0; }
+body.is-mobile .cat-grid { grid-template-columns: minmax(0, 1fr); }
+body.is-mobile .cat-toolbar .grow { flex-basis: 100%; min-width: 0; }
+body.is-mobile .video-backdrop { padding: 0; }
+body.is-mobile .schem-win {
+  left: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 0;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+body.is-mobile .schem-head { cursor: default; }
+
+/* More sheet: view, display, bench, board and app settings */
+.m-more-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+}
+.m-more-bg[hidden] { display: none; }
+.m-more {
+  width: 100%;
+  max-width: 520px;
+  max-height: 86%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-bottom: none;
+  border-radius: 14px 14px 0 0;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.m-more-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 8px 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 600;
+}
+.m-more-head .btn.icon { width: 38px; height: 38px; }
+.m-more-body { display: flex; flex-direction: column; padding: 0 14px 10px; }
+.m-sec { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.m-sec:last-child { border-bottom: none; }
+.m-sec-t { font: 600 11px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.m-ctl .seg { display: flex; width: 100%; height: 42px; }
+.m-ctl .seg button { flex: 1; height: 36px; font-size: 14px; }
+.m-ctl select { width: 100%; }
+.m-bench { display: flex; flex-direction: column; gap: 8px; }
+.m-bench .bench-row { grid-template-columns: 110px 1fr; font-size: 13px; }
+.m-bench .btn { height: 40px; }
+.m-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 4px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: var(--text);
+  font: 500 14px/1.3 var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+.m-row:active { background: var(--surface-3); }
+.m-row[hidden] { display: none; }
+.m-row .ic { color: var(--text-2); }
+
+@media (orientation: landscape) {
+  .layout.mobile,
+  .layout.mobile.panel-collapsed {
+    --m-top: calc(44px + env(safe-area-inset-top));
+    --m-dock: 0px;
+    grid-template-rows: var(--m-top) minmax(0, 1fr);
+    grid-template-columns: calc(62px + env(safe-area-inset-left)) minmax(0, 1fr);
+    grid-template-areas: "top top" "dock view";
+  }
+  .layout.mobile .brand { height: 44px; }
+  .layout.mobile .topbar .btn,
+  .layout.mobile .power,
+  .layout.mobile .board-picker-btn { height: 34px; }
+  .layout.mobile .board-picker-btn { flex: 0 1 auto; max-width: 340px; }
+  .layout.mobile .tooldock {
+    flex-direction: column;
+    border-top: none;
+    border-right: 1px solid var(--border);
+    padding: 0 0 env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .layout.mobile .tool-scroll { flex-direction: column; overflow-x: hidden; overflow-y: auto; padding: 4px; }
+  .layout.mobile .tool-pinned { flex-direction: column; border-left: none; border-top: 1px solid var(--border); padding: 4px; }
+  .layout.mobile .tool-btn { height: 48px; }
+  .layout.mobile .sidepanel {
+    left: auto;
+    top: var(--m-top);
+    bottom: 0;
+    width: min(380px, 62vw);
+    height: auto;
+    border-top: none;
+    border-left: 1px solid var(--border-strong);
+    border-radius: 14px 0 0 0;
+    box-shadow: -16px 0 40px rgba(0, 0, 0, 0.5);
+    padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) 0;
+  }
+  .layout.mobile.panel-collapsed .sidepanel { transform: translateX(110%); }
+  .m-viewctl { flex-direction: row; }
+  .layout.mobile .hud-top-left { right: auto; width: min(340px, 46%); }
+  .layout.mobile .tut-card { max-height: calc(100dvh - var(--m-top) - 16px); }
+  .m-hud { left: auto; width: min(320px, 46%); }
+}
+/* touch keeps :hover after a tap: no hover colours on the mobile layout */
+.layout.mobile .btn.primary:hover { background: var(--accent); border-color: var(--accent); }
+.layout.mobile .btn.ghost:hover:not(.active) { background: transparent; color: var(--text-2); }
+
+/* Phone in portrait: suggest landscape. Only on phone-sized screens; rotating hides it. */
+.m-rotate { display: none; }
+@media (orientation: portrait) and (max-width: 600px) {
+  body.is-mobile .m-rotate {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(9, 12, 10, 0.94);
+  }
+}
+.m-rotate-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 300px;
+  text-align: center;
+}
+.m-rotate-card p { margin: 0 0 6px; color: var(--text-2); font-size: 14px; line-height: 1.5; }
+.m-rotate-card .btn { height: 44px; padding: 0 20px; font-size: 14px; }
+.m-rotate-t { font-size: 18px; font-weight: 600; color: var(--text); }
+.m-rotate-ico { color: var(--accent); margin-bottom: 6px; animation: m-rotate-turn 2.4s ease-in-out infinite; }
+@keyframes m-rotate-turn {
+  0%, 20% { transform: rotate(0deg); }
+  45%, 75% { transform: rotate(-90deg); }
+  100% { transform: rotate(0deg); }
+}
+@media (prefers-reduced-motion: reduce) { .m-rotate-ico { animation: none; transform: rotate(-90deg); } }
