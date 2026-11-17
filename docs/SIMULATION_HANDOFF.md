@@ -174,6 +174,75 @@ No reference hardware is available, so realism is validated against *design inte
 - **Mobile first** (the user's current focus): test on a real phone via the live site, fix what
   the screenshots show, then the open mobile items above (landscape, panel content, performance),
   then the App Store wrapper.
+- **Sim expansion idea: ESP32 board** (user, 2026-11-17; not started, nothing ESP32-related in
+  the project yet). ESP32 boards are what many hobbyists actually repair, so one would be a
+  strong "real hardware" scenario next to the Reform / Jetson demos. Plan:
+  - Source: an open-hardware ESP32 dev board with KiCad files and a licence that allows
+    redistribution (candidates to check: Olimex ESP32 boards, other KiCad-native open designs);
+    import through `npm run demos` like the existing demos (`scripts/build-demos.ts`, pinned
+    commit, credits + licence in `public/demos/`).
+  - Model: the ESP32 module is a **black box** (no firmware): a 3.3 V load with a plausible idle
+    / active current (estimate, labelled), its pins as nets. What gets simulated is the support
+    circuitry: USB 5 V input, 3.3 V LDO (e.g. AMS1117-class), USB-UART bridge, EN / IO0
+    auto-reset transistors, decoupling, LEDs. Check `src/spice/devicelib.ts` for the LDO and
+    USB-UART parts; add datasheet specs with `verified: false` like the others.
+  - Faults that fit (all existing fault classes): dead or shorted LDO (`ic-rail-short`), shorted
+    3.3 V decoupling cap (thermal camera / injection finds it), cracked joint on the USB connector
+    (intermittent), broken auto-reset path (board powers but won't enter flash mode: needs a new
+    objective type, e.g. "IO0 low while EN rises"), reversed / missing protection diode.
+  - Open question: a "flash mode" / "boots" objective would need a small behavioural model of
+    the ESP32 strapping pins (IO0, EN, IO2, IO12 at reset), still without running firmware.
+- **Sim expansion idea: car ECU, EDC15 / EDC16-style** (user, 2026-11-17; not started). Engine
+  control units are a large share of real paid board repair, and their typical faults are
+  electrical, which is what the simulator does well.
+  - **Legal / data:** EDC15 / EDC16 are proprietary Bosch designs: no public board files or
+    schematics, so (like the MacBook fixtures, see Data / licensing) nothing of theirs can ship.
+    Build an **invented board with a typical diesel-ECU architecture** (Builder or KiCad), named
+    generically (e.g. "Diesel ECU, EDC-style"); check that using the EDC name in a description is
+    acceptable before release.
+  - **Typical architecture to model:** 12 V vehicle supply with terminal 30 (battery) and 15
+    (ignition), reverse-polarity / transient protection, main-relay driver, 5 V regulator for the
+    microcontroller and a separate 5 V sensor supply, analog sensor inputs (pull-ups / dividers /
+    RC filters), injector and solenoid power stages (MOSFET / transistor drivers into inductive
+    loads with flyback / clamp diodes), CAN + K-line transceivers. The microcontroller is a
+    black box (no firmware, no immobiliser / EEPROM data), like the ESP32 idea above.
+  - **Faults that match real ECU repairs** (all from existing fault classes): cracked joints from
+    heat cycling and vibration (`thermal-open`, `flex-open`: Press tool, freeze spray / hot air),
+    dead 5 V sensor-supply regulator or shorted sensor line, failed injector / solenoid driver,
+    shorted CAN transceiver (no communication), corrosion from water ingress (residue, IPA),
+    blown protection diode after a reverse jump-start. Verify the list against ECU-repair
+    sources before writing scenario text; keep severity values labelled as estimates.
+  - **New pieces needed:** a bench-harness setup (supply 12–14 V on terminals 30 / 15 / ground,
+    like real bench ECU testing), inductive loads in the board → SPICE path (L is supported by
+    the engine), objectives such as "sensor supply 5 V present", "CAN transceiver powered and not
+    shorted", "injector driver switches" (scope, synthesized PWM like the converter switch node),
+    and optionally conformal coating that must be removed before rework.
+- **More expansion ideas** (proposed by Claude 2026-11-17 when the user asked for more; the user
+  has not picked any yet, so ask). Claude's suggested order: Arduino Uno-style board first, then
+  known-good comparison, then repair-shop mode.
+  - Boards:
+    - **Arduino Uno-style board:** open hardware (Eagle files; KiCad ports exist; check the
+      licence and credit). Classic first repairs: dead 5 V regulator, blown USB polyfuse, dead
+      USB-serial chip, reverse-polarity diode. Bridges the tutorials and the big demos; needs
+      nothing new in the engine.
+    - **3D-printer mainboard:** open designs exist (e.g. Prusa Einsy, licence to check). Faults:
+      burnt heated-bed MOSFET (the thermal camera finds it), melted power connector, dead stepper
+      driver, broken thermistor input.
+    - **Mains switching PSU** (TV / charger / LED driver): the most common real repair (bulging
+      caps, shorted switching transistor, blown fuse, open start-up resistor) and the place to
+      teach safety (discharge the bulk cap, isolation transformer). Needs a mains flyback /
+      switching model: more work than the two above.
+    - **Guitar pedal / small audio amp:** simple analog, many open designs; signal tracing with
+      the scope instead of power-fault hunting.
+  - Features:
+    - **Known-good comparison:** reference readings (diode mode / resistance to ground per net)
+      from the healthy board, as real repairers compare against a good board or boardview values;
+      works on every board and builds on `src/spice/dmm.ts`.
+    - **Repair-shop mode:** customer tickets with a symptom ("dead after a coffee spill", "works
+      only when cold"), time budget, parts cost; turns the scenarios into a campaign (good for
+      Steam, see `desktop/STEAM.md`).
+    - **Microscope tool:** magnified inspection where cracked joints, corrosion and bridges are
+      only visible up close.
 0. Thermal view polish (user said "not for now" on 2026-11-17, so ask first): auto-range IR
    palette (real cameras rescale to the scene; a 45 °C spot is faint on the fixed 24–119 °C
    scale), and show sub-ambient cold spots from IPA / freeze spray (palette floor is 24 °C).
