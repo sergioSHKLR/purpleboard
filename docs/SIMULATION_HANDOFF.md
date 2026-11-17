@@ -18,7 +18,14 @@ No reference hardware is available, so realism is validated against *design inte
   buttons, instruments stacked above the strip (supply folds to one line), foldable tutorial card,
   full-screen modals. Phones in portrait (≤ 600 px wide) get a "Turn your phone sideways" overlay
   (`#m-rotate`, CSS media query, so rotating hides it; "Keep portrait" → localStorage
-  `pcbfix_portrait_ok`). Touch (any layout): tap = tool, 1 finger pans (orbits in 3D), pinch zooms
+  `pcbfix_portrait_ok`). Phone text is shorter, not smaller: each tutorial step has a
+  hand-written `phone` task (≤ 70 chars, no coordinates, tested), the explanation sits behind
+  "Why?"; tool tips have phone versions (`TOOL_TIP_PHONE`); toasts over ~90 chars show the first
+  sentence + More (`splitLead`); meter / scope / supply explanations are one line (tap for all);
+  Inspector notes fold to their heading. Board list on the phone (`phoneCatalogSection`): one
+  compact row per board (lesson / difficulty badge, title, 2-line description without the
+  "Beginner Tutorial N:" prefix, status), filters on one scrolling line, Blank / Import / Mods in
+  a bottom bar (header in landscape, 2 columns). Touch (any layout): tap = tool, 1 finger pans (orbits in 3D), pinch zooms
   + pans; meter probe tags pick red / black (two-probe modes auto-advance red → black).
   Tutorial / hints / toasts in touch wording on mobile. Web manifest + icons (`public/icons/`)
   injected only on mobile (no desktop install prompt). Tested in headless Chrome with iPhone

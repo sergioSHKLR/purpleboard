@@ -33,8 +33,8 @@ import { setSoundEnabled, sfxBeep, sfxBlow, sfxClick, sfxCut, sfxSolder, sfxWin,
 import { icon } from './icons';
 import { mountFeedbackForm, type FeedbackContext } from './feedback';
 import { BRAND, markSvg } from './logo';
-import { BEGINNER_PRIMER_HTML, TUTORIAL_SCENARIO_IDS, TUTORIAL_TOPICS, getTutorialSteps, isTutorialScenario, nextTutorialScenarioId } from './tutorial';
-import { TOOL_SHORT, TouchGestures, touchCopy, wantsMobileLayout } from './touch';
+import { BEGINNER_PRIMER_HTML, TUTORIAL_SCENARIO_IDS, TUTORIAL_TOPICS, getTutorialSteps, isTutorialScenario, nextTutorialScenarioId, type TutorialStep } from './tutorial';
+import { TOOL_SHORT, TOOL_TIP_PHONE, TouchGestures, splitLead, touchCopy, wantsMobileLayout } from './touch';
 
 type ToolId = 'inspect' | 'dmm' | 'iron' | 'wick' | 'flip180' | 'jumper' | 'knife' | 'replace' | 'freeze' | 'ipa' | 'press' | 'hotair' | 'scope' | 'rosin';
 type PanelTab = 'mission' | 'inspect' | 'studio';
@@ -242,6 +242,11 @@ export class PcbApp {
   private activeProbe: 'red' | 'black' = 'red';
   private activeProbeAuto = false;
   private tutCollapsed = false;
+  private dmmSubFull = false;
+  /** Panel notes (callouts) the player opened on the phone, by heading; they start folded. */
+  private openNotes = new Set<string>();
+  /** Tutorial step (scenario:index) whose explanation is open on the phone card. */
+  private tutWhy = '';
   /** Canvas aspect the board was last fitted to (mobile: refit on first layout and on rotation). */
   private fitAspect = 0;
   private psuExpanded = false;
@@ -1193,7 +1198,7 @@ export class PcbApp {
       : 'Running (S0) — rail names carry no power states: the controller enables everything, check the rails yourself';
     else if (b.failures > 0) { warn = true; txt = `Boot loop: attempt ${b.failures + 1} · stuck in ${b.state}${b.blockedBy.length ? ` · waiting for ${b.blockedBy.slice(0, 2).join(', ')}${b.blockedBy.length > 2 ? '…' : ''}` : ''}`; }
     else txt = b.state === 'G3H' ? 'Standby (G3H) — always-on rails only' : `Powering up: ${b.state}`;
-    st.textContent = txt;
+    st.textContent = this.mobile && !this.psuExpanded && !warn ? txt.split(/ — | \(/)[0] : txt;
     st.classList.toggle('warn', warn);
     this.drawPsuChart(q('#psu-chart') as unknown as HTMLCanvasElement);
   }
@@ -1664,6 +1669,14 @@ export class PcbApp {
     });
     q('#m-flip')?.addEventListener('click', () => this.flipSide());
     q('#m-panel-close')?.addEventListener('click', () => this.setPanel(false));
+    // panel notes fold to their heading; a tap opens / closes one (remembered across re-renders)
+    this.sideBodyEl.addEventListener('click', (e) => {
+      const c = (e.target as HTMLElement).closest<HTMLElement>('.callout');
+      const h = c?.querySelector('.h')?.textContent;
+      if (!c || !h || (e.target as HTMLElement).closest('a, button, input, select, textarea')) return;
+      if (this.openNotes.has(h)) this.openNotes.delete(h); else this.openNotes.add(h);
+      c.classList.toggle('open', this.openNotes.has(h));
+    });
     q('#m-rotate-keep')?.addEventListener('click', () => {
       try { localStorage.setItem('pcbfix_portrait_ok', '1'); } catch { /* storage unavailable */ }
       q('#m-rotate')?.remove();
@@ -1726,7 +1739,7 @@ export class PcbApp {
     if (this.mobile && t !== this.activeTool && !this.toolTipsShown.has(t)) {
       this.toolTipsShown.add(t);
       const tool = TOOLS.find((x) => x.id === t);
-      if (tool && t !== 'inspect') this.toast(`${tool.lbl}: ${tool.tip}`, 'info');
+      if (tool && t !== 'inspect') this.toast(`${tool.lbl}: ${TOOL_TIP_PHONE[t] ?? tool.tip}`, 'info');
     }
     this.activeTool = t;
     if (t !== 'jumper') this.jumperStart = null;
@@ -2304,9 +2317,23 @@ export class PcbApp {
   private toast(msg: string, kind: 'info' | 'success' | 'warn' | 'danger' = 'info') {
     const el = document.createElement('div');
     el.className = `toast ${kind}`;
-    el.textContent = this.txt(msg);
+    const text = this.txt(msg);
+    const { lead, rest } = this.mobile ? splitLead(text) : { lead: text, rest: '' };
+    if (!rest) el.textContent = text;
+    else {
+      // phone: the first sentence; "More" shows the rest and keeps the toast up longer
+      const t = document.createElement('span');
+      t.className = 'toast-txt';
+      t.textContent = lead;
+      const more = document.createElement('button');
+      more.className = 'toast-more';
+      more.textContent = 'More';
+      more.addEventListener('click', () => { t.textContent = text; more.remove(); clearTimeout(timer); timer = setTimeout(() => el.remove(), 9000); });
+      el.classList.add('has-more');
+      el.append(t, more);
+    }
     this.toastEl.appendChild(el);
-    setTimeout(() => el.remove(), 4500);
+    let timer = setTimeout(() => el.remove(), rest ? 6000 : 4500);
   }
 
   private updateTopButtons() {
@@ -2524,7 +2551,7 @@ export class PcbApp {
     }
 
     this.dmmBoxEl.innerHTML = `
-      <div class="dmm-card" style="transform: translate3d(${this.dmmPos[0]}px, ${this.dmmPos[1]}px, 0)">
+      <div class="dmm-card${this.mobile && this.dmmSubFull ? ' full' : ''}" style="transform: translate3d(${this.dmmPos[0]}px, ${this.dmmPos[1]}px, 0)">
         <div class="dmm-head" title="Drag to move window">
           <span>Multimeter</span>
           <div class="row">
@@ -2573,6 +2600,7 @@ export class PcbApp {
     for (const [id, mode] of [['#dmm-cap', 'CAP'], ['#dmm-amp', 'AMP']] as const) {
       this.dmmBoxEl.querySelector(id)!.addEventListener('click', () => { this.dmmMode = mode; this.renderDmm(); this.renderTutorial(); });
     }
+    if (this.mobile) this.dmmBoxEl.querySelector('.dmm-lcd')?.addEventListener('click', () => { this.dmmSubFull = !this.dmmSubFull; this.renderDmm(); });
     for (const [id, which] of [['#probe-red', 'red'], ['#probe-blk', 'black']] as const) {
       this.dmmBoxEl.querySelector(id)?.addEventListener('click', () => {
         this.activeProbe = which;
@@ -2600,6 +2628,39 @@ export class PcbApp {
       b.classList.toggle('active', b.dataset.tab === this.activeTab);
     });
     this.renderSideBody();
+  }
+
+  /**
+   * Tutorial card on a phone: the step title and a short task (`TutorialStep.phone`) first; the
+   * explanation waits behind "Why?" so the card leaves the board visible.
+   */
+  private phoneTutorialHtml(step: TutorialStep, idx: number, total: number, tutIdx: number, done: boolean, pct: number, isLast: boolean, nextPrimary: boolean, nextId: string | null): string {
+    const why = this.tutWhy === `${this.activeScenario.id}:${idx}`;
+    const task = step.phone ?? this.txt(step.task);
+    return `
+      <div class="tut-card m-tut${this.tutCollapsed ? ' collapsed' : ''}">
+        <div class="tut-head" title="Tap to fold / unfold">
+          <span class="tut-step">${icon(this.tutCollapsed ? 'chevronDown' : 'book', 13)}<span>${tutIdx >= 0 ? `Lesson ${tutIdx + 1} · ` : ''}${idx + 1}/${total}${this.tutCollapsed ? ` · ${this.esc(step.title)}` : ''}</span></span>
+          <button class="btn ghost icon sm" id="tut-close" title="Close tutorial">${icon('x', 13)}</button>
+        </div>
+        <div class="tut-prog"><i style="width:${pct}%"></i></div>
+        <div class="tut-body">
+          <div class="tut-title"><span>${this.esc(step.title)}</span><span class="row">${done ? `<span class="badge pass">${icon('check', 11)}<span>Done</span></span>` : ''}<button class="btn sm ghost ${why ? 'active' : ''}" id="tut-why">${icon('help', 12)}<span>${why ? 'Hide' : 'Why?'}</span></button></span></div>
+          ${why ? `<div class="tut-concept">${this.esc(this.txt(step.concept))}</div>` : ''}
+          <div class="tut-goal ${done ? 'done' : ''}"><div class="tut-goal-txt">${this.esc(task)}</div></div>
+          ${step.target || step.quickAction ? `<div class="row wrap">
+            ${step.target ? `<button class="btn sm" id="tut-focus">${icon('target', 12)}<span>Locate</span></button>` : ''}
+            ${step.quickAction ? `<button class="btn sm" id="tut-quick">${this.esc(this.txt(step.quickAction.label))}</button>` : ''}
+          </div>` : ''}
+        </div>
+        <div class="tut-foot">
+          <button class="btn sm ghost" id="tut-prev" ${idx === 0 ? 'disabled' : ''}>${icon('chevronLeft', 13)}<span>Back</span></button>
+          <div class="row">
+            <button class="btn sm ${nextPrimary ? 'primary' : ''}" id="tut-next"><span>${isLast ? (done ? 'Finish' : 'Done') : 'Next'}</span>${isLast ? '' : icon('chevronRight', 13)}</button>
+            ${isLast && done && nextId ? `<button class="btn sm primary" id="tut-next-board"><span>Next lesson</span>${icon('chevronRight', 13)}</button>` : ''}
+          </div>
+        </div>
+      </div>`;
   }
 
   private renderTutorial() {
@@ -2632,7 +2693,7 @@ export class PcbApp {
     const nextId = nextTutorialScenarioId(this.activeScenario.id);
     const nextPrimary = isLast ? !(done && nextId) : done;
 
-    this.tutBoxEl.innerHTML = `
+    this.tutBoxEl.innerHTML = this.mobile ? this.phoneTutorialHtml(step, idx, total, tutIdx, done, pct, isLast, nextPrimary, nextId) : `
       <div class="tut-card${this.mobile && this.tutCollapsed ? ' collapsed' : ''}" style="transform: translate3d(${this.tutPos[0]}px, ${this.tutPos[1]}px, 0)">
         <div class="tut-head" title="${this.mobile ? 'Tap to fold / unfold' : 'Drag to move window'}">
           <span class="tut-step">${icon(this.mobile ? (this.tutCollapsed ? 'chevronDown' : 'book') : 'book', 13)}<span>Tutorial ${tutIdx >= 0 ? `${tutIdx + 1}/${TUTORIAL_SCENARIO_IDS.length} · ` : ''}Step ${idx + 1} / ${total}${this.mobile && this.tutCollapsed ? ` · ${this.esc(step.title)}` : ''}</span></span>
@@ -2673,6 +2734,11 @@ export class PcbApp {
     `;
 
     if (this.mobile) {
+      this.tutBoxEl.querySelector('#tut-why')?.addEventListener('click', () => {
+        const key = `${this.activeScenario.id}:${idx}`;
+        this.tutWhy = this.tutWhy === key ? '' : key;
+        this.renderTutorial();
+      });
       this.tutBoxEl.querySelector('.tut-head')?.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).closest('button')) return;
         this.tutCollapsed = !this.tutCollapsed;
@@ -2754,6 +2820,11 @@ export class PcbApp {
     if (this.activeTab === 'mission') this.renderMissionTab();
     else if (this.activeTab === 'inspect') this.renderInspectTab();
     else this.renderStudioTab();
+    if (this.mobile) {
+      this.sideBodyEl.querySelectorAll<HTMLElement>('.callout').forEach((c) => {
+        c.classList.toggle('open', this.openNotes.has(c.querySelector('.h')?.textContent ?? ''));
+      });
+    }
   }
 
   private renderMissionTab() {
@@ -3532,6 +3603,29 @@ export class PcbApp {
     return 'challenges';
   }
 
+  /** Phone board list: one compact row per board (badge, title, two lines of description, status). */
+  private phoneCatalogSection(title: string, solved: number, items: { s: Scenario; idx: number }[]): string {
+    return `
+      <section class="cat-sec">
+        <div class="cat-sec-head"><h3>${this.esc(title)}</h3><span class="badge info">${solved}/${items.length}</span></div>
+        <div class="m-cat-list">
+          ${items.map(({ s, idx }) => {
+            const isActive = s === this.activeScenario;
+            const isSolved = this.solvedIds.has(s.id);
+            const tutIdx = TUTORIAL_SCENARIO_IDS.indexOf(s.id as (typeof TUTORIAL_SCENARIO_IDS)[number]);
+            const badge = tutIdx >= 0 ? `<span class="br-badge tut">${tutIdx + 1}</span>` : `<span class="br-badge" title="Difficulty ${s.meta.difficulty}/5">L${s.meta.difficulty}</span>`;
+            const state = isSolved ? `<span class="br-state ok">${icon('check', 14)}</span>` : isActive ? `<span class="br-state on">Open</span>` : `<span class="br-state">${icon('chevronRight', 14)}</span>`;
+            return `
+              <button class="board-row ${isActive ? 'active' : ''} ${isSolved ? 'solved' : ''}" data-pick-board="${idx}">
+                ${badge}
+                <span class="br-main"><span class="br-title">${this.esc(s.meta.title)}</span><span class="br-desc">${this.esc(s.meta.description.replace(/^Beginner Tutorial \d+:\s*/, ''))}</span></span>
+                ${state}
+              </button>`;
+          }).join('')}
+        </div>
+      </section>`;
+  }
+
   private renderBoardsModal() {
     type CatKey = 'tutorials' | 'challenges' | 'hardware' | 'mods';
     const counts: Record<CatKey, number> = { tutorials: 0, challenges: 0, hardware: 0, mods: 0 };
@@ -3560,6 +3654,7 @@ export class PcbApp {
             });
           if (!items.length) return '';
           const solvedInSec = items.filter(({ s }) => this.solvedIds.has(s.id)).length;
+          if (this.mobile) return this.phoneCatalogSection(sec.title, solvedInSec, items);
           return `
             <section class="cat-sec">
               <div class="cat-sec-head">
@@ -3624,11 +3719,32 @@ export class PcbApp {
       { id: 'all', label: 'All', count: this.scenarios.length },
       { id: 'tutorials', label: 'Tutorials', count: counts.tutorials },
       { id: 'challenges', label: 'Challenges', count: counts.challenges },
-      { id: 'hardware', label: 'Real Hardware', count: counts.hardware },
+      { id: 'hardware', label: this.mobile ? 'Hardware' : 'Real Hardware', count: counts.hardware },
       ...(counts.mods ? [{ id: 'mods' as const, label: 'Mods', count: counts.mods }] : []),
     ];
 
-    this.modalRootEl.innerHTML = `
+    this.modalRootEl.innerHTML = this.mobile ? `
+      <div class="modal-backdrop" id="modal-close-bg">
+        <div class="modal board-catalog m-cat">
+          <div class="modal-head">
+            <div class="row"><h2>Boards</h2><span class="badge info">${this.solvedIds.size}/${this.scenarios.length} solved</span></div>
+            <button class="btn ghost icon sm" id="modal-close" title="Close">${icon('x', 14)}</button>
+          </div>
+          <div class="cat-toolbar">
+            <div class="m-cat-filters">
+              ${filters.map((f) => `<button class="${this.boardFilter === f.id ? 'on' : ''}" data-cat-filter="${f.id}">${this.esc(f.label)} <span>${f.count}</span></button>`).join('')}
+            </div>
+            <input type="text" id="cat-search" placeholder="Search boards" value="${this.esc(this.boardSearch)}" />
+          </div>
+          <div class="cat-body" id="cat-list">${renderList()}</div>
+          <div class="m-cat-foot">
+            <button class="btn sm" id="cat-new">${icon('plus', 13)}<span>Blank</span></button>
+            <button class="btn sm" id="cat-import">${icon('upload', 13)}<span>Import</span></button>
+            <button class="btn sm" id="cat-mods">${icon('box', 13)}<span>Mods${this.modResult.failed.length ? ' ⚠' : ''}</span></button>
+          </div>
+        </div>
+      </div>
+    ` : `
       <div class="modal-backdrop" id="modal-close-bg">
         <div class="modal board-catalog" style="transform: translate3d(${this.modalPos[0]}px, ${this.modalPos[1]}px, 0)">
           <div class="modal-head" title="Drag to move window">

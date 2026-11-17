@@ -104,3 +104,23 @@ const kinds = (ev: Ev[]) => ev.map((e) => e[0]);
   assert(touchCopy('then click Run tests') === 'then tap Run tests', 'click → tap');
   console.log(`touch: gestures, layout switch, ${n} tutorial texts in touch wording — ok`);
 }
+
+// phone text: every tutorial step has a short task in touch wording; toasts split at sentences
+{
+  const { splitLead, TOOL_TIP_PHONE, TOOL_SHORT } = await import('../src/ui/touch');
+  const mouse = /\bclick|Click|Shift\+|left dock|press Tab|top bar|\d+(?:\.\d+)?, \d+(?:\.\d+)? mm/;
+  const steps = [...TUTORIAL_STEPS, ...Object.values(TUTORIALS_BY_SCENARIO).flat()];
+  for (const s of steps) {
+    assert(s.phone, `tutorial step "${s.title}" has no phone task`);
+    assert(s.phone.length <= 70, `phone task too long (${s.phone.length}): "${s.phone}"`);
+    assert(s.phone.length < s.task.length, `phone task is not shorter: "${s.phone}"`);
+    assert(!mouse.test(s.phone), `mouse wording or coordinates in phone task: "${s.phone}"`);
+  }
+  for (const id of Object.keys(TOOL_SHORT)) if (id !== 'inspect') assert(TOOL_TIP_PHONE[id] && TOOL_TIP_PHONE[id].length <= 80, `phone tip for ${id}`);
+  const v = splitLead('Voltage injection: place the red probe on the shorted rail, then power on. The faulty part heats up.');
+  assert(v.lead === 'Voltage injection: place the red probe on the shorted rail, then power on.' && v.rest === 'The faulty part heats up.', 'lead / rest split');
+  assert(splitLead('Inject 3.3 V onto the rail and watch the part with the thermal camera. 3.3 V is enough for most rails here.').lead === 'Inject 3.3 V onto the rail and watch the part with the thermal camera.', 'no split inside a number');
+  assert(splitLead('Done. Next one.').rest === '', 'no split after a short opener');
+  assert(splitLead('Multimeter: Tap pads to probe. Tap a probe tag on the meter to switch red / black.').rest === '', 'short messages stay whole');
+  console.log(`touch: ${steps.length} phone tasks ≤ 70 chars, tool tips, toast split — ok`);
+}

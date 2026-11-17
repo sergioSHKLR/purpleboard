@@ -136,3 +136,31 @@ export const TOOL_SHORT: Record<string, string> = {
   knife: 'Cutter', replace: 'Parts', freeze: 'Freeze', ipa: 'IPA', hotair: 'Hot air', rosin: 'Rosin',
   scope: 'Scope', press: 'Press',
 };
+
+/** What each tool does, in one short line for the phone (the desktop shows `TOOLS[].tip` on hover). */
+export const TOOL_TIP_PHONE: Record<string, string> = {
+  dmm: 'Tap pads to probe. Tap a probe tag on the meter to switch red / black.',
+  iron: 'Tap a joint to reflow it, or a gap to bridge it.',
+  wick: 'Tap a solder bridge, jumper or part to remove it.',
+  flip180: 'Tap a part to turn it round.',
+  jumper: 'Tap the start, then the end (works across sides).',
+  knife: 'Tap a copper trace to cut it.',
+  replace: 'Tap a part to swap or fit one in the Inspector.',
+  freeze: 'Tap to frost an area: the hot part defrosts first.',
+  ipa: 'Tap to wet an area: the hottest part dries first. Cleans residue.',
+  hotair: 'Tap for 3 s of 400 °C hot air.',
+  rosin: 'Tap to coat with rosin: it melts first on a hot part.',
+  scope: 'Tap a net to clip the scope probe on.',
+  press: 'Tap to press the board and find cracked joints.',
+};
+
+/**
+ * First sentence of a message and the rest (phone toasts show the lead, "More" shows the rest).
+ * Only messages over ~90 characters, and only at a sentence end followed by a capital / digit, after at least 24 characters, so
+ * "3.3 V", "e.g. x" and short openers ("Done.") stay whole.
+ */
+export function splitLead(msg: string): { lead: string; rest: string } {
+  if (msg.length <= 90) return { lead: msg, rest: '' }; // about two lines on a phone: show it all
+  const m = /^(.{24,}?[.!?])\s+(?=[A-Z0-9"“(])([\s\S]+)$/.exec(msg);
+  return m ? { lead: m[1], rest: m[2] } : { lead: msg, rest: '' };
+}
