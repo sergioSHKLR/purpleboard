@@ -633,6 +633,12 @@ export class WebGPURenderer {
     const mx = (x: number, side: Side) => (both && side === 'B' ? board.w * 2 + BOTH_GAP - x : x);
     const mpt = (p: V2, side: Side): V2 => [mx(p[0], side), p[1]];
     const effSide = (side: Side): Side => (both ? 'F' : side);
+    // Both + X-ray: each panel also shows the opposite face's copper, seen through the board
+    // (mirrored as it lies under that face). Faint, just above the panel's own pours (which write
+    // depth and often cover the whole face) and below the inner layers.
+    const ghost = both && xray;
+    const otherSide = (s: Side): Side => (s === 'F' ? 'B' : 'F');
+    const GHOST_Z = ht + 0.0124;
 
     // Determine max battery voltage for heatmap & hot nets for thermal IR
     let maxV = 5;
@@ -767,6 +773,11 @@ export class WebGPURenderer {
         } else {
           this.pushZoneTri(a[0], a[1], b[0], b[1], c[0], c[1], zz, nz, zt[0], zt[1], zt[2], xray ? 0.35 : 0.85);
         }
+        if (ghost) {
+          const o = otherSide(z.layer);
+          const ga = mpt(z.poly[tris[i]], o), gb = mpt(z.poly[tris[i + 1]], o), gc = mpt(z.poly[tris[i + 2]], o);
+          this.pushZoneTri(ga[0], ga[1], gb[0], gb[1], gc[0], gc[1], GHOST_Z, 1, zt[0], zt[1], zt[2], 0.18);
+        }
       }
     }
 
@@ -799,6 +810,11 @@ export class WebGPURenderer {
         tint.rgb[0], tint.rgb[1], tint.rgb[2], xray ? 0.85 : 1,
         isHov ? 0.35 : tint.emissive, 0.65, 0.28, isHov ? -1 : tint.special,
       );
+      if (ghost) {
+        const o = otherSide(tr.layer);
+        pushTraceSeg(mpt(tr.a, o), mpt(tr.b, o), tr.w, GHOST_Z, 0.001,
+          tint.rgb[0] * 0.85, tint.rgb[1] * 0.85, tint.rgb[2] * 0.85, 0.42, tint.emissive * 0.5, 0.3, 0.6, tint.special);
+      }
     }
 
     // 3b. Inner-layer copper (display only). X-ray shows every inner layer at its depth in the
@@ -879,6 +895,10 @@ export class WebGPURenderer {
       const pos = mpt(b.at, b.layer);
       const tint = netTint(net, [0.84, 0.86, 0.90], EMISSIVITY.metal);
       op.dome.pushTRS(pos[0], pos[1], z, b.r * 2, b.r * 2, sz, 0, tint.rgb[0], tint.rgb[1], tint.rgb[2], 1, isHov ? 0.35 : tint.emissive, 0.92, 0.16, isHov ? -1 : tint.special);
+      if (ghost) {
+        const g = mpt(b.at, otherSide(b.layer));
+        al.cyl.pushTRS(g[0], g[1], GHOST_Z, b.r * 2, b.r * 2, 0.001, 0, tint.rgb[0], tint.rgb[1], tint.rgb[2], 0.45, 0, 0.3, 0.6, tint.special);
+      }
     }
 
     // 5b. Frost / isopropyl film on the board surface, one tile per thermal grid cell. Each cell
@@ -1048,6 +1068,14 @@ export class WebGPURenderer {
           if (p.drill && p.drill > 0) {
             op.cyl.pushTRS(op2[0], op2[1], zCenter, p.drill, p.drill, 0.07, 0, 0.03, 0.04, 0.06, 1, 0, 0.1, 0.9);
           }
+        } else if (ghost) {
+          // a single-side (SMD) pad, seen through the board on the other face's panel
+          const other: Side = c.side === 'F' ? 'B' : 'F';
+          const gp = mpt(pw.at, other);
+          (mesh === op.cyl ? al.cyl : al.box).pushTRS(
+            gp[0], gp[1], GHOST_Z, p.size[0], p.size[1], 0.001, other === 'B' ? -pw.rot : pw.rot,
+            tint.rgb[0], tint.rgb[1], tint.rgb[2], 0.4, 0, 0.3, 0.6, tint.special,
+          );
         }
 
         // Solder fillet + clipped lead tip on populated THT pins

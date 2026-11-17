@@ -65,6 +65,9 @@ No reference hardware is available, so realism is validated against *design inte
   - `635c2c5` IR view: the board surface is drawn from the thermal grid (one vertex per cell, colours
     interpolated, near-ambient cells fade out) instead of per-part halo discs; copper pours take
     their net colour in IR / voltage views. Palette is fixed 24–119 °C (no auto-range yet).
+  - Both + X-ray: each panel also shows the opposite face's copper (tracks, pours, single-side
+    pads, blobs) faintly and mirrored, as single-side X-ray shows the far side through the board
+    (`ghost` / `GHOST_Z` in `src/render/webgpu.ts`, just above the panel's own pours).
 - **Linux check (2026-11-17):** production build in the Playwright Linux image (Ubuntu 24.04,
   arm64) under Colima: Chromium on SwiftShader and Firefox 146 on Mesa llvmpipe Vulkan
   (`mesa-vulkan-drivers`, `dom.webgpu.enabled`) render everything with no page errors. Colima only
