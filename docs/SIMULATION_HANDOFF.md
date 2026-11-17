@@ -18,11 +18,13 @@ No reference hardware is available, so realism is validated against *design inte
   `public/examples/starter-kit.zip`); `test/mods.test.ts` (17th suite). Guide: `docs/MODDING.md`,
   rendered into the site page `modding.html` at build time (vite plugin, `marked`).
 
-- **Session 2026-11-17 in one line:** all work is pushed and live (last code commit `b031184`,
-  build stamp `0.1.0+b031184`); GitHub issue #1 closed with a comment; no open issues; feedback
-  form verified end to end (a test mail arrived, alias in use). Late fixes that day: Both-view
-  X-ray (`826a8c0`) and inverted left/right when looking up at the underside (`b031184`).
-  Nothing is waiting on the maintainer.
+- **Session 2026-11-17 in one line:** all work is pushed and live (last code commit `257debd`:
+  mods + the modding guide page `modding.html`, linked from the homepage). Earlier that day: Both-view
+  X-ray (`826a8c0`), inverted left/right when looking up at the underside (`b031184`), issue #1
+  closed, feedback form verified. No open issues.
+- **Possible bug to check first:** on a net nothing drives (night-light challenge from the starter
+  kit, SW1 open, probe R1.1), the multimeter reads exactly `+1.000 V`; a real meter shows about 0 V.
+  Probably how the fast solver reports a floating node. Reproduce, fix, add a test.
 
 - **Released 2026-11-16 as v0.1.0**: public repo https://github.com/tholtman1-del/deadboard
   (Apache-2.0), live site https://tholtman1-del.github.io/deadboard/ (homepage `index.html` +
