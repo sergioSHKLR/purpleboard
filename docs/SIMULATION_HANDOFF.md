@@ -7,9 +7,11 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
-- **Session 2026-11-17 in one line:** all work is pushed and live (last commit `635c2c5`);
-  GitHub issue #1 closed with a comment; no open issues; feedback form verified end to end
-  (a test mail arrived). Nothing is waiting on the maintainer.
+- **Session 2026-11-17 in one line:** all work is pushed and live (last code commit `b031184`,
+  build stamp `0.1.0+b031184`); GitHub issue #1 closed with a comment; no open issues; feedback
+  form verified end to end (a test mail arrived, alias in use). Late fixes that day: Both-view
+  X-ray (`826a8c0`) and inverted left/right when looking up at the underside (`b031184`).
+  Nothing is waiting on the maintainer.
 
 - **Released 2026-11-16 as v0.1.0**: public repo https://github.com/tholtman1-del/deadboard
   (Apache-2.0), live site https://tholtman1-del.github.io/deadboard/ (homepage `index.html` +
