@@ -283,6 +283,10 @@ export class PcbApp {
     const ua = navigator.userAgent;
     const ff = /Firefox\/(\d+)/.exec(ua);
     const general = 'DEADBOARD renders the bench with WebGPU: use Chrome or Edge 113+, Safari 26+, or Firefox 141+ (Windows) / 145+ (Mac with Apple silicon).';
+    // Chromium on Linux still enables WebGPU only for some GPU / driver combinations
+    if (!ff && /Linux/.test(ua) && !/Android|CrOS/.test(ua)) {
+      return 'On Linux, Chrome and Edge turn WebGPU on only for some graphics drivers. Open chrome://flags, enable "Unsafe WebGPU Support" and "Vulkan", and restart the browser; or use Firefox with dom.webgpu.enabled set to true in about:config. Make sure your Vulkan driver is installed (vulkaninfo should list your GPU).';
+    }
     if (!ff) return general;
     const ver = Number(ff[1]);
     if (!('gpu' in navigator)) {
