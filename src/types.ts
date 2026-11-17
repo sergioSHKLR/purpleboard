@@ -120,6 +120,17 @@ export interface Board {
    * plane joins them. Outer-layer copper of these nets still connects by geometry.
    */
   hiddenCopperNets?: string[];
+  /**
+   * Inner-layer copper of a multilayer board, for display only (X-ray, selected-net overlay).
+   * Electrically it is represented by hiddenCopperNets; tools never act on it.
+   */
+  inner?: InnerCopper;
+}
+
+/** `layer` is the inner layer number: 1 for In1.Cu, 2 for In2.Cu, … */
+export interface InnerCopper {
+  traces: { layer: number; a: V2; b: V2; w: number; net?: string }[];
+  zones: { layer: number; net?: string; poly: V2[] }[];
 }
 
 export type SwitchMap = Record<string, boolean>;

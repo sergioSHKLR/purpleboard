@@ -1,4 +1,4 @@
-import type { Board, Body, Component, ComponentKind, Pad, PadLayers, PadShape, Scenario, Side, V2 } from '../types';
+import type { Board, Body, Component, ComponentKind, InnerCopper, Pad, PadLayers, PadShape, Scenario, Side, V2 } from '../types';
 import { parseValue } from '../model';
 import { parseScenario } from './format';
 import { emptyBoard } from '../scenarios/builder';
@@ -55,6 +55,33 @@ const flt = (x: SExpr | undefined, idx = 1, d = 0): number => {
   const v = Array.isArray(x) && typeof x[idx] === 'string' ? parseFloat(x[idx]) : NaN;
   return Number.isFinite(v) ? v : d;
 };
+
+/** Douglas–Peucker on a closed ring (tolerance in mm); coordinates rounded to 0.01 mm. */
+export function simplifyRing(ring: V2[], tol: number): V2[] {
+  const n = ring.length;
+  if (n < 4) return ring;
+  const keep = new Uint8Array(n);
+  // split at the vertex farthest from the first so the closed ring becomes two open chains
+  let far = 0, fd = -1;
+  for (let i = 1; i < n; i++) { const d = (ring[i][0] - ring[0][0]) ** 2 + (ring[i][1] - ring[0][1]) ** 2; if (d > fd) { fd = d; far = i; } }
+  keep[0] = keep[far] = 1;
+  const stack: [number, number][] = [[0, far], [far, n]];
+  while (stack.length) {
+    const [i0, i1] = stack.pop()!;
+    const a = ring[i0], b = ring[i1 % n];
+    const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
+    let best = -1, bd = tol;
+    for (let i = i0 + 1; i < i1; i++) {
+      const p = ring[i];
+      const d = len > 1e-9 ? Math.abs((p[0] - a[0]) * dy - (p[1] - a[1]) * dx) / len : Math.hypot(p[0] - a[0], p[1] - a[1]);
+      if (d > bd) { bd = d; best = i; }
+    }
+    if (best >= 0) { keep[best] = 1; stack.push([i0, best], [best, i1]); }
+  }
+  const out: V2[] = [];
+  for (let i = 0; i < n; i++) if (keep[i]) out.push([Math.round(ring[i][0] * 100) / 100, Math.round(ring[i][1] * 100) / 100]);
+  return out;
+}
 
 function mapLayer(name: string): Side | null {
   if (name === 'F.Cu' || name === 'F.SilkS' || name === 'F.Silkscreen') return 'F';
@@ -199,9 +226,12 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
 
   const board = emptyBoard(w, h);
   let next = 1;
-  // copper on inner layers is not drawn; its nets are joined by design (Board.hiddenCopperNets)
+  // copper on inner layers is kept for display only (Board.inner); electrically its nets are
+  // joined by design (Board.hiddenCopperNets)
   const hidden = new Set<string>();
   const isInner = (l: string) => /^In\d+\.Cu$/.test(l);
+  const innerNo = (l: string) => parseInt(l.slice(2), 10);
+  const inner: InnerCopper = { traces: [], zones: [] };
   const netOf = (node: SExpr | undefined) => {
     const n = kid(node, 'net');
     if (!n) return undefined;
@@ -210,7 +240,13 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
   };
   const pushTrack = (layerName: string, pts: V2[], width: number, net: string | undefined) => {
     const layer = mapLayer(layerName);
-    if (!layer) { if (isInner(layerName) && net) hidden.add(net); return; }
+    if (!layer) {
+      if (!isInner(layerName)) return;
+      if (net) hidden.add(net);
+      const r2 = (p: V2): V2 => [Math.round(p[0] * 100) / 100, Math.round(p[1] * 100) / 100];
+      for (let i = 1; i < pts.length; i++) inner.traces.push({ layer: innerNo(layerName), a: r2(pts[i - 1]), b: r2(pts[i]), w: width, net });
+      return;
+    }
     for (let i = 1; i < pts.length; i++) board.traces.push({ id: 't' + (next++).toString(36), layer, a: pts[i - 1], b: pts[i], w: width, net });
   };
 
@@ -271,10 +307,19 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
     };
     const addZone = (layerName: string, poly: V2[]) => {
       const layer = mapLayer(layerName);
-      if (!layer) { if (isInner(layerName) && net) hidden.add(net); return; }
+      if (!layer) {
+        if (!isInner(layerName)) return;
+        if (net) hidden.add(net);
+        // only real fills: a bare zone outline on an inner layer would paint copper that isn't there
+        // display-only, so simplified: plane fills carry thousands of antipad-arc vertices
+        const simple = simplifyRing(poly, 0.05);
+        if (simple.length >= 3 && filled) inner.zones.push({ layer: innerNo(layerName), net, poly: simple });
+        return;
+      }
       if (poly.length >= 3) board.zones.push({ id: 'z' + (next++).toString(36), layer, net, poly });
     };
     const fills = kids(z, 'filled_polygon');
+    const filled = fills.length > 0;
     if (fills.length) for (const fp of fills) addZone(str(kid(fp, 'layer')) || single, polyPts(fp));
     else for (const l of zoneLayers) addZone(l, polyPts(kid(z, 'polygon')));
     // keepout / rule areas carry no net and no copper
@@ -405,6 +450,7 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
 
   board.nextId = next + 1000;
   if (hidden.size) board.hiddenCopperNets = [...hidden].sort();
+  if (inner.traces.length || inner.zones.length) board.inner = inner;
   const titleNode = kid(kid(root, 'title_block'), 'title');
   const title = str(titleNode, 1, 'Imported KiCad PCB');
   return { board, title };

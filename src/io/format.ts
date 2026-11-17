@@ -7,6 +7,12 @@ export function normalizeBoard(b: Partial<Board>): Board {
     traces: arr(b.traces), vias: arr(b.vias), blobs: arr(b.blobs), jumpers: arr(b.jumpers),
     zones: arr(b.zones), silk: arr(b.silk), texts: arr(b.texts), nextId: num(b.nextId, 1),
     ...(Array.isArray(b.hiddenCopperNets) && { hiddenCopperNets: b.hiddenCopperNets.filter((n) => typeof n === 'string') }),
+    ...(b.inner && typeof b.inner === 'object' && {
+      inner: {
+        traces: arr(b.inner.traces).filter((t) => t && Number.isInteger(t.layer) && isPt(t.a) && isPt(t.b) && typeof t.w === 'number'),
+        zones: arr(b.inner.zones).filter((z) => z && Number.isInteger(z.layer) && Array.isArray(z.poly) && z.poly.length >= 3 && z.poly.every(isPt)),
+      },
+    }),
   };
   // Make sure freshly generated ids never collide with existing ones.
   board.nextId = Math.max(board.nextId, 1 + board.traces.length + board.blobs.length + board.jumpers.length + board.components.length) + 1000;
@@ -42,6 +48,7 @@ function normalizeComponent(c: Component): Component {
 
 const num = (v: unknown, d: number) => (typeof v === 'number' && isFinite(v) ? v : d);
 function arr<T>(v: T[] | undefined): T[] { return Array.isArray(v) ? v : []; }
+const isPt = (p: unknown) => Array.isArray(p) && p.length === 2 && typeof p[0] === 'number' && typeof p[1] === 'number';
 
 export function parseScenario(text: string): Scenario {
   const raw = JSON.parse(text) as Partial<Scenario>;

@@ -55,6 +55,11 @@ interface Particle {
 
 type MeshKind = 'box' | 'cyl' | 'dome' | 'sphere';
 
+/** X-ray tint per inner copper layer (In1, In2, …): distinct from outer copper green and selection cyan. */
+const INNER_RGB: [number, number, number][] = [
+  [0.88, 0.55, 0.22], [0.60, 0.45, 0.92], [0.92, 0.40, 0.62], [0.86, 0.80, 0.30], [0.38, 0.50, 0.96], [0.92, 0.36, 0.30],
+];
+
 const INSTANCE_FLOATS = 24;
 const GLOW_FLOATS = 8;
 
@@ -722,6 +727,51 @@ export class WebGPURenderer {
         tint.rgb[0], tint.rgb[1], tint.rgb[2], xray ? 0.85 : 1,
         isHov ? 0.35 : tint.emissive, 0.65, 0.28, isHov ? -1 : tint.special,
       );
+    }
+
+    // 3b. Inner-layer copper (display only). X-ray shows every inner layer at its depth in the
+    // core; otherwise the selected net's inner copper is overlaid on the viewed face, so a rail
+    // that lives on a plane or inner tracks reads as one connected shape instead of stubs.
+    if (board.inner) {
+      const nIn = this.innerLayerCount(board);
+      const selName = selectedNet >= 0 ? conn.netNames[selectedNet] : undefined;
+      const netIdx = this.netIndexOf(conn);
+      const layerRgb = (l: number): [number, number, number] => INNER_RGB[(l - 1) % INNER_RGB.length];
+      // each pass: which copper, at what height, how opaque
+      const passes: { z: (layer: number, track: boolean) => number; nz: number; side: Side; only?: string; alpha: number; thick: number }[] = [];
+      if (xray) {
+        // a thin stack over the outer pours (which write depth and usually cover the whole face)
+        // and under the outer tracks: inner pours, then inner tracks (planes like GND would
+        // otherwise blanket the tracks of deeper layers), nearest layer on top within each
+        for (const s of (both ? ['F', 'B'] : [camera.side]) as Side[]) {
+          const top = effSide(s) === 'F';
+          const zOf = (l: number, track: boolean) => { const d = 0.013 + (track ? 0.006 : 0) + 0.0008 * (top ? nIn + 1 - l : l); return top ? ht + d : -ht - d; };
+          passes.push({ z: zOf, nz: top ? 1 : -1, side: s, alpha: 0.28, thick: 0.001 });
+        }
+      } else if (selName !== undefined && board.hiddenCopperNets?.includes(selName)) {
+        const face = (s: Side) => (effSide(s) === 'F' ? ht + 0.07 : -ht - 0.07);
+        const sides: Side[] = both ? ['F', 'B'] : [camera.side];
+        for (const s of sides) passes.push({ z: () => face(s), nz: effSide(s) === 'F' ? 1 : -1, side: s, only: selName, alpha: 0.5, thick: 0.03 });
+      }
+      for (const ps of passes) {
+        for (const z of board.inner.zones) {
+          if (ps.only !== undefined && z.net !== ps.only) continue;
+          let tris = this.zoneTris.get(z.poly);
+          if (!tris) this.zoneTris.set(z.poly, (tris = triangulate(z.poly)));
+          const tint = netTint(z.net !== undefined ? netIdx.get(z.net) ?? -1 : -1, layerRgb(z.layer));
+          const zz = ps.z(z.layer, false);
+          for (let i = 0; i + 2 < tris.length; i += 3) {
+            const a = mpt(z.poly[tris[i]], ps.side), b = mpt(z.poly[tris[i + 1]], ps.side), c = mpt(z.poly[tris[i + 2]], ps.side);
+            this.pushZoneTri(a[0], a[1], b[0], b[1], c[0], c[1], zz, ps.nz, tint.rgb[0], tint.rgb[1], tint.rgb[2], ps.alpha);
+          }
+        }
+        for (const t of board.inner.traces) {
+          if (ps.only !== undefined && t.net !== ps.only) continue;
+          const tint = netTint(t.net !== undefined ? netIdx.get(t.net) ?? -1 : -1, layerRgb(t.layer));
+          pushTraceSeg(mpt(t.a, ps.side), mpt(t.b, ps.side), t.w, ps.z(t.layer, true), ps.thick,
+            tint.rgb[0], tint.rgb[1], tint.rgb[2], Math.min(0.9, ps.alpha + 0.4), tint.emissive, 0.5, 0.35, tint.special);
+        }
+      }
     }
 
     // 4. Vias & ICT test points
@@ -1423,6 +1473,27 @@ export class WebGPURenderer {
 
   /** Copper-pour triangulations, keyed by the polygon (a pour can have ~50 000 points). */
   private zoneTris = new WeakMap<V2[], number[]>();
+  private netIdxCache = new WeakMap<Conn, Map<string, number>>();
+  private netIndexOf(conn: Conn): Map<string, number> {
+    let m = this.netIdxCache.get(conn);
+    if (!m) {
+      m = new Map();
+      conn.netNames.forEach((n, i) => { if (n && !m!.has(n)) m!.set(n, i); });
+      this.netIdxCache.set(conn, m);
+    }
+    return m;
+  }
+  private innerCount = new WeakMap<Board, number>();
+  private innerLayerCount(board: Board): number {
+    let n = this.innerCount.get(board);
+    if (n === undefined) {
+      n = 0;
+      for (const t of board.inner?.traces ?? []) n = Math.max(n, t.layer);
+      for (const z of board.inner?.zones ?? []) n = Math.max(n, z.layer);
+      this.innerCount.set(board, n);
+    }
+    return n;
+  }
 
   render(camera: Camera, scene: RenderSceneState) {
     this.curThermal = scene.thermal ?? null;

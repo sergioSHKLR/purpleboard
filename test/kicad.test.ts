@@ -1,6 +1,7 @@
 // KiCad import of real-world multilayer boards: rotation, inner planes, thermal reliefs, DNP,
 // protection diodes, library-style values, rail names and the bench supply. Synthetic files.
 import { importScenarioOrPcb } from '../src/io/kicad';
+import { parseScenario } from '../src/io/format';
 import { buildConnectivity, pinNet } from '../src/connectivity';
 import { netRole, railVoltage } from '../src/spice/powertree';
 import type { Board } from '../src/types';
@@ -48,6 +49,24 @@ function run() {
     const conn = buildConnectivity(b);
     assert(pinNet(conn, get(b, 'C1'), '1') === pinNet(conn, get(b, 'C2'), '1'), 'pads joined through the hidden plane (via → plane → via)');
     assert(Math.abs(get(b, 'C1').value - 100e-9) < 1e-15 && !get(b, 'C1').valueGuessed, 'library-style value "C_100n_0402" parsed as 100 nF');
+    // the inner copper is kept for display (X-ray / selected net) and survives a save
+    assert(b.inner?.traces.length === 1 && b.inner.traces[0].layer === 1 && b.inner.traces[0].net === 'PLANE', 'inner track kept for display');
+    const saved = parseScenario(JSON.stringify({ format: 'pcbfix/1', id: 't', meta: { title: 't' }, board: b, objectives: [] })).board;
+    assert(saved.inner?.traces.length === 1, 'inner copper survives serialization');
+  }
+
+  // ---- inner pour: only the fill is drawn, simplified within tolerance ----
+  {
+    // a 40-segment arc (radius 5) plus a rectangle: the arc keeps its shape, collinear points go
+    const arc = Array.from({ length: 41 }, (_, i) => { const t = (Math.PI * i) / 40; return `(xy ${(30 + 5 * Math.cos(t)).toFixed(4)} ${(20 - 5 * Math.sin(t)).toFixed(4)})`; }).join(' ');
+    const pts = `(xy 20 20) (xy 22 20) (xy 24 20) ${arc.replace(/\(xy 35\.0000 20\.0000\) /, '')} (xy 40 20) (xy 40 30) (xy 20 30)`;
+    const b = board(`(zone (net 7) (net_name "+5V") (layer "In2.Cu") (polygon (pts (xy 0 0) (xy 60 0) (xy 60 40) (xy 0 40)))
+        (filled_polygon (layer "In2.Cu") (pts ${pts})))
+      (zone (net 2) (net_name "GND") (layer "In1.Cu") (polygon (pts (xy 0 0) (xy 60 0) (xy 60 40) (xy 0 40))))`);
+    assert(b.inner?.zones.length === 1 && b.inner.zones[0].layer === 2 && b.inner.zones[0].net === '+5V', 'one filled inner pour (an unfilled outline is not copper)');
+    const poly = b.inner.zones[0].poly;
+    assert(poly.length < 30 && poly.length > 8, `pour simplified but the arc kept (${poly.length} vertices)`);
+    assert(b.hiddenCopperNets?.includes('GND') && b.hiddenCopperNets.includes('+5V'), 'both inner nets still joined by design');
   }
 
   // ---- thermal relief: the pour clears the pad and joins it through a spoke ----
