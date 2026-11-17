@@ -36,6 +36,11 @@ export interface RenderSceneState {
     partSurface(id: string): { frost: number; wet: number; rosin?: number; melted?: number };
     tempAt(xmm: number, ymm: number): number;
     forEachFilm?(cb: (xmm: number, ymm: number, sizeMm: number, frost: number, wet: number) => void): void;
+    /** The board-surface temperature grid (°C per cell, row-major, cell size dx in metres). */
+    readonly nx?: number;
+    readonly ny?: number;
+    readonly dx?: number;
+    readonly T?: Float64Array;
   } | null;
 }
 
@@ -55,6 +60,9 @@ interface Particle {
 }
 
 type MeshKind = 'box' | 'cyl' | 'dome' | 'sphere';
+
+/** Outer copper pour colour in the realistic view. */
+const ZONE_RGB: [number, number, number] = [0.12, 0.45, 0.24];
 
 /** X-ray tint per inner copper layer (In1, In2, …): distinct from outer copper green and selection cyan. */
 const INNER_RGB: [number, number, number][] = [
@@ -534,6 +542,62 @@ export class WebGPURenderer {
     }
   }
 
+  private pushZoneVert(x: number, y: number, z: number, nz: number, r: number, g: number, b: number, a: number) {
+    if ((this.zoneVertCount + 1) * 10 > this.zoneData.length) {
+      const next = new Float32Array(this.zoneData.length * 2);
+      next.set(this.zoneData);
+      this.zoneData = next;
+    }
+    const o = this.zoneVertCount * 10, d = this.zoneData;
+    d[o] = x; d[o + 1] = y; d[o + 2] = z; d[o + 3] = 0; d[o + 4] = 0; d[o + 5] = nz;
+    d[o + 6] = r; d[o + 7] = g; d[o + 8] = b; d[o + 9] = a;
+    this.zoneVertCount++;
+  }
+
+  /**
+   * IR view of the board surface: the thermal grid as a mesh with one vertex per cell centre,
+   * coloured by the temperature an IR camera reads off the mask, interpolated between cells.
+   * Cells within a few tenths of a kelvin of ambient are left out (the mask is drawn at ambient)
+   * and fade in, so only heat (or evaporative / frost cooling) shows.
+   */
+  private pushThermalSurface(grid: { nx: number; ny: number; dx: number; T: Float64Array }, faces: { z: number; nz: number; map: (x: number, y: number) => V2 }[]) {
+    const { nx, ny, T } = grid;
+    const s = grid.dx * 1e3;
+    const n = nx * ny;
+    if (!this.irCells || this.irCells.length !== n) { this.irCells = new Float32Array(n); this.irAlpha = new Float32Array(n); }
+    const tc = this.irCells, al = this.irAlpha!;
+    let any = false;
+    for (let k = 0; k < n; k++) {
+      const t = T[k];
+      if (Math.abs(t - 25) < 0.3) { tc[k] = 25; al[k] = 0; continue; }
+      const v = apparentTemp(t, EMISSIVITY.mask);
+      tc[k] = v;
+      al[k] = Math.min(1, Math.max(0, (Math.abs(v - 25.5) - 0.3) / 4)) * 0.92;
+      if (al[k] > 0) any = true;
+    }
+    if (!any) return;
+    // the pour shader lights a face-on triangle by ~0.85; undo it so the palette reads true
+    const LIFT = 1.18;
+    const vert = (k: number, x: number, y: number, f: { z: number; nz: number; map: (x: number, y: number) => V2 }) => {
+      const c = thermalColor(tc[k]);
+      const p = f.map(x, y);
+      this.pushZoneVert(p[0], p[1], f.z, f.nz, Math.min(1, c[0] * LIFT), Math.min(1, c[1] * LIFT), Math.min(1, c[2] * LIFT), al[k]);
+    };
+    for (let j = 0; j + 1 < ny; j++) {
+      for (let i = 0; i + 1 < nx; i++) {
+        const k00 = j * nx + i, k10 = k00 + 1, k01 = k00 + nx, k11 = k01 + 1;
+        if (al[k00] === 0 && al[k10] === 0 && al[k01] === 0 && al[k11] === 0) continue;
+        const x0 = (i + 0.5) * s, x1 = x0 + s, y0 = (j + 0.5) * s, y1 = y0 + s;
+        for (const f of faces) {
+          vert(k00, x0, y0, f); vert(k10, x1, y0, f); vert(k11, x1, y1, f);
+          vert(k00, x0, y0, f); vert(k11, x1, y1, f); vert(k01, x0, y1, f);
+        }
+      }
+    }
+  }
+  private irCells: Float32Array | null = null;
+  private irAlpha: Float32Array | null = null;
+
   private getBoardOutline(board: Board): { poly: V2[]; tris: number[] } | null {
     let cached = this.outlineCache.get(board);
     if (!cached) {
@@ -691,14 +755,17 @@ export class WebGPURenderer {
       const dSide = effSide(z.layer);
       const zz = dSide === 'F' ? ht + 0.012 : -ht - 0.012;
       const nz = dSide === 'F' ? 1 : -1;
+      // pours take their net's colour in the IR / voltage views, like tracks
+      const zt = thermal || vizMode === 'heatmap' || selectedNet >= 0
+        ? netTint(z.net !== undefined ? this.netIndexOf(conn).get(z.net) ?? -1 : -1, ZONE_RGB).rgb : ZONE_RGB;
       for (let i = 0; i + 2 < tris.length; i += 3) {
         const a = mpt(z.poly[tris[i]], z.layer);
         const b = mpt(z.poly[tris[i + 1]], z.layer);
         const c = mpt(z.poly[tris[i + 2]], z.layer);
         if (both && z.layer === 'B') {
-          this.pushZoneTri(a[0], a[1], c[0], c[1], b[0], b[1], zz, nz, 0.12, 0.45, 0.24, xray ? 0.35 : 0.85);
+          this.pushZoneTri(a[0], a[1], c[0], c[1], b[0], b[1], zz, nz, zt[0], zt[1], zt[2], xray ? 0.35 : 0.85);
         } else {
-          this.pushZoneTri(a[0], a[1], b[0], b[1], c[0], c[1], zz, nz, 0.12, 0.45, 0.24, xray ? 0.35 : 0.85);
+          this.pushZoneTri(a[0], a[1], b[0], b[1], c[0], c[1], zz, nz, zt[0], zt[1], zt[2], xray ? 0.35 : 0.85);
         }
       }
     }
@@ -827,6 +894,17 @@ export class WebGPURenderer {
           else if (wet > 0.02) al.box.pushTRS(p[0], p[1], z, s, s, 0.02, 0, 0.74, 0.86, 0.97, 0.07 + 0.2 * wet, 0.04, 0.0, 0.04);
         }
       });
+    }
+
+    // 5c. IR view: board surface temperature from the thermal grid (replaces per-part halo discs)
+    const th = this.curThermal;
+    if (thermal && th && th.T && th.nx && th.ny && th.dx) {
+      const faces = (both ? ['F', 'B'] : [camera.side] as Side[]).map((f) => ({
+        z: effSide(f as Side) === 'F' ? ht + 0.075 : -ht - 0.075,
+        nz: effSide(f as Side) === 'F' ? 1 : -1,
+        map: (x: number, y: number) => mpt([x, y], f as Side),
+      }));
+      this.pushThermalSurface({ nx: th.nx, ny: th.ny, dx: th.dx, T: th.T }, faces);
     }
 
     // 6. Jumper Wires
@@ -1220,23 +1298,6 @@ export class WebGPURenderer {
     const thermEm = thermal && compTemp > 40 ? Math.min(0.75, (compTemp - 40) / 80) : 0;
     // Bare tin terminations / leads: low emissivity, so an IR camera reads them near ambient
     const thermMetal = thermal ? thermalColor(apparentTemp(compTemp, EMISSIVITY.metal)) : null;
-    // IR halo: heat soaking from a hot part into the board around it, sampled from the thermal
-    // model (the mask itself is drawn at ambient). Concentric discs, outermost first.
-    if (thermal && this.curThermal && c.state.populated && compTemp > 32) {
-      const r0 = Math.max(0.6, Math.hypot(c.body.w, c.body.h) / 2);
-      const [hx, hy] = displayAt;
-      for (let k = 4; k >= 1; k--) {
-        const r = r0 * (0.6 + k * 0.7);
-        let t = 0;
-        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) t += this.curThermal.tempAt(hx + dx * r * 0.8, hy + dy * r * 0.8);
-        const tc = apparentTemp(t / 4, EMISSIVITY.mask);
-        if (tc < 27) continue;
-        const col = thermalColor(tc);
-        const z0 = baseZ + sgn * (0.01 + (5 - k) * 0.004);
-        al.cyl.pushSeg3D([hx, hy, z0], [hx, hy, z0 + sgn * 0.004], r * 2, r * 2, col[0], col[1], col[2], 0.5, Math.min(0.4, (tc - 27) / 120), 0, 0.9, 0);
-      }
-    }
-
     // Ghost outline when unpopulated
     if (!c.state.populated) {
       const p = toW(0, 0, Math.min(0.8, c.body.z * 0.3));

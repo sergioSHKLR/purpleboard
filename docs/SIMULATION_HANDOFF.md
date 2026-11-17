@@ -1,4 +1,4 @@
-# DEADBOARD — handoff (updated 2026-11-16, after the v0.1.0 release + first bug-fix round)
+# DEADBOARD — handoff (updated 2026-11-17, after the second bug-fix round + feedback form)
 
 Goal: make DEADBOARD (formerly PCB//FIX) a realistic board-repair trainer, as close to a real bench as possible,
 **universal** (any board, not just the MacBook), with honest provenance for every value.
@@ -38,6 +38,30 @@ No reference hardware is available, so realism is validated against *design inte
     (mirrored on the back, with drill). Before, pins and mounting holes of top-side parts were
     missing from the back panel, which read as "vias invisible". Vias themselves were fine; at
     the Both fit zoom they are just half the size of the Bottom view.
+- **Second round (2026-11-17, live):**
+  - `1e90dbe` Bottom-side domes (solder blobs, joint fillets, bottom LED lenses) were invisible:
+    a negative Z scale mirrors the mesh, flips winding, and back-face culling dropped the outside.
+    `InstanceBucket.pushTRS` now also mirrors Y when `sz < 0` (a rotation; all unit meshes are
+    Y-symmetric). Closed GitHub issue #1.
+  - `f389b74` Inner-layer copper of imported KiCad boards is kept as display-only `Board.inner`
+    (tracks + filled pours, pours simplified to 0.05 mm): X-ray draws every inner layer (one tint
+    each, pours under tracks, above the outer pours), and a selected net with hidden copper is
+    overlaid on the viewed face. Connectivity / flags unchanged; demos rebuilt (+~1 MB each).
+  - `d8fe40c` Frost / IPA film drawn per thermal cell on the board (`ThermalModel.forEachFilm`),
+    so the wet patch visibly dries from hot spots outward (physics was already per cell).
+  - `3e1ac56` No-WebGPU card: Chrome/Edge-on-Linux advice (flags + Vulkan driver).
+  - `03b8f9a` In-app **Feedback** (speech bubble in the top bar, help modal, homepage footer
+    `app.html?feedback`, no-WebGPU card): bug / idea + optional contact + optional diagnostics,
+    sent by FormSubmit to the address in the build setting `VITE_FEEDBACK_TO` (repository
+    variable `FEEDBACK_TO`; activated). Never put the address in source. Unset → prefilled GitHub
+    issue (`.github/ISSUE_TEMPLATE/{bug_report,suggestion}.yml`), also offered as secondary route.
+  - IR view: the board surface is drawn from the thermal grid (one vertex per cell, colours
+    interpolated, near-ambient cells fade out) instead of per-part halo discs; copper pours take
+    their net colour in IR / voltage views. Palette is fixed 24–119 °C (no auto-range yet).
+- **Linux check (2026-11-17):** production build in the Playwright Linux image (Ubuntu 24.04,
+  arm64) under Colima: Chromium on SwiftShader and Firefox 146 on Mesa llvmpipe Vulkan
+  (`mesa-vulkan-drivers`, `dom.webgpu.enabled`) render everything with no page errors. Colima only
+  mounts `$HOME`, so pipe scripts in via stdin and `docker cp` results out. Real GPU drivers untested.
 - **Testing in stock Firefox** (Playwright's `moz-firefox` channel can't start inside the Claude
   Code sandbox): launch through Launch Services so Firefox runs outside the sandbox, then drive it
   over WebDriver BiDi with a raw WebSocket client (`session.new` → `browsingContext.create` →
@@ -54,8 +78,8 @@ No reference hardware is available, so realism is validated against *design inte
 1. Walkthrough videos for the 5 beginner lessons (`scripts/videos/scenes.ts`, `npm run videos -- --dry` first).
 2. Full-board regression tests on the open demo boards, replacing the private MacBook coverage.
 3. Real bench data: `npm run calibrate` with measurements from one known-good board.
-4. Thermal view: board heat around a hot part is drawn as sampled halo discs; a per-pixel
-   temperature texture would be more faithful. Two-layer thermal model still open (below).
+4. Thermal view: optional auto-range palette (real IR cameras rescale to the scene). Two-layer
+   thermal model still open (below).
 5. Browser support: Firefox 160 on macOS verified 2026-11-16 (render, 3D orbit, wheel zoom).
    Firefox without WebGPU (older versions, Linux, Intel Macs, blocklisted GPUs) gets a tailored
    how-to on the error card; a WebGL2 fallback renderer would make it work there out of the box.
@@ -143,8 +167,8 @@ intermittents (`!I`, even dormant), like `!X` for burnt — a fault the objectiv
 0. MacBook S4 load switch U3210 (PP3V3RHV_S4_TBTAPWR) never powers (input rail unmodelled);
    PP3V3_S0SW_LCD_UF buck is low-confidence (unmodelled). Scenario load (first solve) still blocks ~0.5 s.
 
-1. Visual polish: frost reads grey; Thermal view shows bare board at ambient except halo discs
-   around hot parts (2026-11-16); chip terminations now read at their IR-apparent temperature.
+1. Visual polish: frost reads grey; cold spots (IPA / frost cooling) are clamped by the IR palette
+   floor (24 °C) and barely show.
 2. Missing chip models: IC-internal LDOs (PCH/SMC), setpoints for VID rails (CPU VR),
    charger and backlight boost targets.
 3. Two-layer thermal model (surface vs planes) to drop the hot-air coefficient compensation.
