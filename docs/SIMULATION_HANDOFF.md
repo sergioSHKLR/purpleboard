@@ -7,6 +7,19 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
+- **Repo security (2026-11-17).** A user's suggestion led to a ruleset **`protect-main`** (id 27471441):
+  active on the default branch, *restrict deletions* + *block force pushes*, **no bypass**.
+  Normal pushes to `main` are unchanged. **A history rewrite (like the 2026-11-16 Apple-image
+  purge) now needs the ruleset disabled first** (Settings → Rules → Rulesets), then re-enabled.
+  Deliberately skipped: *require pull request* (solo maintainer, pushes straight to main) and
+  *require status checks* (no PR CI exists; `pages.yml` runs only on push to main; add a PR
+  workflow running `npm test`, then turn it on). Already in place: secret scanning + push
+  protection, read-only default workflow token, Actions can't approve PRs, fork-PR approval for
+  first-time contributors, `github-pages` environment limited to `main`. **Open:** Dependabot
+  alerts are off (offered, not done); account 2FA unchecked; actions are pinned by tag, not SHA.
+  Open issue **#2** (Biga73): BRD2 `.brd` support (BRDOUT / NETS / PARTS / PINS), waiting on the
+  reporter's sample files.
+
 - **Mobile / touch (2026-11-17, live; commits `01257be` + `a11a4b3`).** Goal: playable on phones in
   the browser first (this stage), App Store release later. The user said **leave the desktop
   version unchanged**: every mobile change is gated, and the desktop DOM was checked identical
