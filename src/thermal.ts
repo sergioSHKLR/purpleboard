@@ -333,6 +333,20 @@ export class ThermalModel {
     return { frost: Math.min(1, f), wet: Math.min(1, w), rosin: n.rosin * (1 - n.rosinMelt), melted: n.rosin * n.rosinMelt };
   }
 
+  /**
+   * Board-surface coatings for rendering: every grid cell still carrying frost or an IPA film,
+   * as its centre (mm), cell size (mm) and coverage 0..1. The film evaporates per cell at that
+   * cell's temperature, so a hot spot dries out first and shows as a hole in the wet patch.
+   */
+  forEachFilm(cb: (xmm: number, ymm: number, sizeMm: number, frost: number, wet: number) => void) {
+    const s = this.dx * 1e3;
+    for (let k = 0; k < this.T.length; k++) {
+      const f = this.frost[k], w = this.ipa[k];
+      if (f < 2e-6 && w < 4e-7) continue;
+      cb(((k % this.nx) + 0.5) * s, (Math.floor(k / this.nx) + 0.5) * s, s, Math.min(1, f / 1e-4), Math.min(1, w / 2e-5));
+    }
+  }
+
   reset() {
     this.T.fill(this.k.ambient); this.frost.fill(0); this.ipa.fill(0);
     for (const n of this.parts) { n.T = this.k.ambient; n.frost = 0; n.ipa = 0; n.rosin = 0; n.rosinMelt = 0; }

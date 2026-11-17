@@ -35,6 +35,7 @@ export interface RenderSceneState {
     partTemp(id: string): number | undefined;
     partSurface(id: string): { frost: number; wet: number; rosin?: number; melted?: number };
     tempAt(xmm: number, ymm: number): number;
+    forEachFilm?(cb: (xmm: number, ymm: number, sizeMm: number, frost: number, wet: number) => void): void;
   } | null;
 }
 
@@ -807,6 +808,21 @@ export class WebGPURenderer {
       const pos = mpt(b.at, b.layer);
       const tint = netTint(net, [0.84, 0.86, 0.90], EMISSIVITY.metal);
       op.dome.pushTRS(pos[0], pos[1], z, b.r * 2, b.r * 2, sz, 0, tint.rgb[0], tint.rgb[1], tint.rgb[2], 1, isHov ? 0.35 : tint.emissive, 0.92, 0.16, isHov ? -1 : tint.special);
+    }
+
+    // 5b. Frost / isopropyl film on the board surface, one tile per thermal grid cell. Each cell
+    // evaporates at its own temperature, so the patch dries from the hot spots outward. (The IR
+    // view shows the same thing as temperature, so the film is left out there.)
+    if (!thermal && this.curThermal?.forEachFilm) {
+      const faces: Side[] = both ? ['F', 'B'] : [camera.side];
+      this.curThermal.forEachFilm((x, y, s, frost, wet) => {
+        for (const f of faces) {
+          const p = mpt([x, y], f);
+          const z = effSide(f) === 'F' ? ht + 0.09 : -ht - 0.09;
+          if (frost > 0.02) al.box.pushTRS(p[0], p[1], z, s, s, 0.04, 0, 0.93, 0.96, 1.0, 0.3 + 0.5 * frost, 0.2, 0.0, 0.9);
+          else if (wet > 0.02) al.box.pushTRS(p[0], p[1], z, s, s, 0.02, 0, 0.74, 0.86, 0.97, 0.07 + 0.2 * wet, 0.04, 0.0, 0.04);
+        }
+      });
     }
 
     // 6. Jumper Wires
