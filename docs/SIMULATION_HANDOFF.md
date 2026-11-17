@@ -1,4 +1,4 @@
-# DEADBOARD — handoff (updated 2026-11-17, after the second bug-fix round + feedback form)
+# DEADBOARD — handoff (updated 2026-11-17, after the mobile / touch release)
 
 Goal: make DEADBOARD (formerly PCB//FIX) a realistic board-repair trainer, as close to a real bench as possible,
 **universal** (any board, not just the MacBook), with honest provenance for every value.
@@ -7,32 +7,58 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
-- **Mobile / touch (2026-11-17, pushed to main):** phone layout + touch controls for a first
-  test in mobile browsers (later: App Store). `src/ui/touch.ts` (layout switch, `TouchGestures`,
-  `touchCopy`), `test/touch.test.ts` (18th suite). Mobile layout only on touch-only devices
-  (`(pointer: coarse)` and no fine pointer) or `?mobile=1` (`?mobile=0` forces desktop); the
-  desktop DOM is byte-identical to before apart from whitespace (checked against a HEAD build). Phone:
-  compact top bar (board · power · run tests · panel · More ⋯), tool strip with labels (bottom in
-  portrait, left in landscape), panel = bottom sheet / right drawer, More sheet holds view /
-  display / bench / board / app controls (moved from the top bar), floating Fit · 2D/3D · side
-  buttons, instruments stacked above the strip (supply folds to one line), foldable tutorial card,
-  full-screen modals. Phones in portrait (≤ 600 px wide) get a "Turn your phone sideways" overlay
-  (`#m-rotate`, CSS media query, so rotating hides it; "Keep portrait" → localStorage
-  `pcbfix_portrait_ok`). Phone text is shorter, not smaller: each tutorial step has a
-  hand-written `phone` task (≤ 70 chars, no coordinates, tested), the explanation sits behind
-  "Why?"; tool tips have phone versions (`TOOL_TIP_PHONE`); toasts over ~90 chars show the first
-  sentence + More (`splitLead`); meter / scope / supply explanations are one line (tap for all);
-  Inspector notes fold to their heading. Board list on the phone (`phoneCatalogSection`): one
-  compact row per board (lesson / difficulty badge, title, 2-line description without the
-  "Beginner Tutorial N:" prefix, status), filters on one scrolling line, Blank / Import / Mods in
-  a bottom bar (header in landscape, 2 columns). Touch (any layout): tap = tool, 1 finger pans (orbits in 3D), pinch zooms
-  + pans; meter probe tags pick red / black (two-probe modes auto-advance red → black).
-  Tutorial / hints / toasts in touch wording on mobile. Web manifest + icons (`public/icons/`)
-  injected only on mobile (no desktop install prompt). Tested in headless Chrome with iPhone
-  emulation (`isMobile`, `hasTouch`, CDP touch events); **no real phone yet**. WebGPU needs a
-  secure context: a phone on `http://<LAN-IP>` gets no `navigator.gpu`, so test on the Pages
-  site or over HTTPS. Open: landscape phones are tight (tutorial card + instruments cover much of
-  the board); iOS Safari 26 untested on hardware.
+- **Mobile / touch (2026-11-17, live; commits `01257be` + `a11a4b3`).** Goal: playable on phones in
+  the browser first (this stage), App Store release later. The user said **leave the desktop
+  version unchanged**: every mobile change is gated, and the desktop DOM was checked identical
+  to the previous build (whitespace aside) with the meter, probes and board list in use.
+  - **Switch** (`wantsMobileLayout`, `src/ui/touch.ts`): mobile layout on touch-only devices
+    (`(pointer: coarse)` and no `(any-pointer: fine)`); `?mobile=1` / `?mobile=0` force it.
+    `PcbApp.mobile`; `body.is-mobile` + `.layout.mobile` scope all mobile CSS (end of
+    `src/ui/styles.css`); mobile-only markup comes from conditionals in `buildDom` /
+    `mobileDockHtml` / `mobileMoreHtml` / `rotateHintHtml` (desktop markup untouched).
+  - **Touch input (any layout)**: `TouchGestures` — tap = active tool (`touchTap`), 1 finger
+    pans (orbits in 3D), 2-finger pinch zooms + pans, a leftover finger after a pinch does
+    nothing, `pointercancel` ends without a tap. Mouse code path unchanged. Page zoom is blocked
+    on mobile (`touch-action: pan-x pan-y`, iOS `gesturestart`), the board has its own pinch.
+  - **Phone layout**: top bar = logo · board picker · power · Run tests (▶) · panel (flag) ·
+    More (⋯). More sheet holds view / display / bench / board / app controls (the desktop
+    top-bar elements are *moved* into it, listeners intact; icon buttons are proxied via
+    `data-proxy`). Tool strip with labels (bottom in portrait, left in landscape; undo/redo
+    pinned, reset in More). Panel = bottom sheet (portrait) / right drawer (landscape); opens on
+    Select-tap of a part, Run tests, and on loading a non-tutorial board. Floating Fit · 2D/3D ·
+    side buttons. Instruments stacked in `.m-hud` (scope, supply folded to one line — tap for
+    chart — and meter). Board refits when the canvas shape changes (`refitOnShapeChange`).
+    Phones in portrait (≤ 600 px) get a "Turn your phone sideways" overlay (CSS only; "Keep
+    portrait" → localStorage `pcbfix_portrait_ok`). Modals full screen.
+  - **Meter on touch**: probe tags on the meter pick which probe the next tap places
+    (`activeProbe`); in two-probe modes red auto-advances to black and back.
+  - **Text: shorter, not smaller** (user asked explicitly not to just shrink the font):
+    tutorial steps have a hand-written `phone` task in `src/ui/tutorial.ts` (≤ 70 chars, no
+    coordinates, no mouse words — tested), explanation behind "Why?"; `touchCopy` rewrites other
+    copy (click → tap, right-click → black probe, shortcut keys removed); `TOOL_TIP_PHONE`;
+    toasts > ~90 chars show the first sentence + More (`splitLead`); meter / scope / supply
+    explanations on one line (tap for all); Inspector notes (`.callout`) fold to their heading.
+    **New tutorial steps need a `phone` text** or `test/touch.test.ts` fails.
+  - **Board list on phones** (`phoneCatalogSection`): one row per board (lesson / difficulty
+    badge, title, 2-line description without the "Beginner Tutorial N:" prefix, status),
+    filters on one scrolling line, Blank / Import / Mods in a bottom bar (header + 2 columns in
+    landscape).
+  - **Install**: `public/app.webmanifest` + `public/icons/icon-{180,192,512}.png` (from
+    `desktop/icon.png`); manifest link injected only on mobile (no desktop install prompt);
+    apple-touch-icon / web-app metas and `viewport-fit=cover` in `app.html`, safe-area insets in CSS.
+  - **Testing**: only headless Chrome with phone emulation so far (`isMobile`, `hasTouch`,
+    CDP `Input.dispatchTouchEvent` for pinch; 390×844, 844×390, 360×740, 820×1180 tablet).
+    **No real phone yet.** WebGPU needs a secure context, so a phone on `http://<LAN-IP>` gets no
+    `navigator.gpu`: test on the Pages site (or an HTTPS tunnel). Needs iOS 26+ (any iOS browser)
+    or Chrome 121+ on Android 12+; the WebGPU error card has phone-specific advice. Desktop
+    check recipe: build HEAD in a `git worktree` (symlink `node_modules`), serve both builds with
+    `vite preview`, compare `#app.innerHTML` with whitespace collapsed after the same actions.
+  - **Open (mobile)**: (1) real-device test on iPhone + Android, collect the user's screenshots;
+    (2) landscape phones are still tight (tutorial card + instruments cover part of the board);
+    (3) Overview / Inspector / Author panel content itself is not yet condensed for phones;
+    (4) performance on phones unmeasured (DPR capped at 2; big demo boards may be slow);
+    (5) App Store: wrap the web build (e.g. Capacitor / WKWebView on iOS 26+, which has WebGPU),
+    decide offline bundling, icons / splash, store listing — not started.
 
 - **Mods (2026-11-17):** `deadboard-mod/1`, data-only packages (folder or .zip with `mod.json`)
   of boards (.kicad_pcb / .brd / .pcbfix.json) + optional BOM CSV (R/C values, DNP via
@@ -145,6 +171,9 @@ No reference hardware is available, so realism is validated against *design inte
 
 ### Next steps (proposed)
 
+- **Mobile first** (the user's current focus): test on a real phone via the live site, fix what
+  the screenshots show, then the open mobile items above (landscape, panel content, performance),
+  then the App Store wrapper.
 0. Thermal view polish (user said "not for now" on 2026-11-17, so ask first): auto-range IR
    palette (real cameras rescale to the scene; a 45 °C spot is faint on the fixed 24–119 °C
    scale), and show sub-ambient cold spots from IPA / freeze spray (palette floor is 24 °C).
@@ -166,7 +195,7 @@ No reference hardware is available, so realism is validated against *design inte
 ## How to run
 
 ```bash
-npm test                 # 16 suites, all passing (private-fixture parts skip when absent)
+npm test                 # 18 suites, all passing (private-fixture parts skip when absent)
 npm run showcase         # re-record the showcase video (needs a running site; see Status)
 npm run videos           # re-render walkthrough videos (needs the dev server; docs/VIDEOS.md)
 npm run demos -- --fetch # rebuild the open-hardware demo boards (docs/DEMOS.md)
