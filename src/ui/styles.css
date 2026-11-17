@@ -928,3 +928,47 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); }
 .fb-foot a, .fb-status a { color: var(--accent); }
 .webgpu-err { flex-direction: column; gap: 12px; overflow-y: auto; }
 .webgpu-err .card { width: min(460px, 100%); }
+
+/* ---------- mods ---------- */
+.mod-card { display: grid; gap: 8px; }
+.mod-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.mod-name { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.mod-name .mono { font-size: 11px; font-weight: 400; margin-left: 4px; }
+.mod-head a { color: var(--accent); }
+.mod-boards { display: flex; flex-wrap: wrap; gap: 6px; }
+.mod-warn { font-size: 12px; color: var(--text-2); }
+.mod-warn summary { cursor: pointer; color: var(--warn); }
+.mod-warn ul { margin: 6px 0 0; padding-left: 18px; }
+.mod-failed { border-color: var(--danger); }
+
+/* schematic viewer: floating over the bench, movable (header) and resizable (corner) */
+.schem-win {
+  position: fixed;
+  left: 84px;
+  top: 72px;
+  z-index: 90;
+  width: min(760px, calc(100vw - 32px));
+  height: min(560px, calc(100vh - 96px));
+  min-width: 280px;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  resize: both;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+.schem-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--border);
+  font-size: 13px; color: var(--text-2); cursor: grab; user-select: none; touch-action: none;
+}
+.schem-head > span { display: inline-flex; align-items: center; gap: 6px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.schem-win.dragging .schem-head { cursor: grabbing; }
+.schem-win.dragging iframe { pointer-events: none; }
+.schem-body { flex: 1; overflow: auto; background: #fff; }
+.schem-body iframe { display: block; width: 100%; height: 100%; border: 0; }
+.schem-body img { display: block; max-width: 100%; margin: 0 auto; cursor: zoom-in; }
+.schem-body img.zoom { max-width: none; cursor: zoom-out; }

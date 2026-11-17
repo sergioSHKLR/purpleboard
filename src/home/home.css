@@ -217,3 +217,67 @@ figcaption { margin-top: 12px; font: 13px/1.5 var(--mono); color: var(--muted); 
   .foot a { margin-left: 0; }
   .term { font-size: 12px; padding: 16px 14px; }
 }
+
+/* ---------- modding guide (modding.html: docs/MODDING.md rendered at build time) ---------- */
+.nav nav a[aria-current='page'] { color: var(--accent); }
+.doc-wrap {
+  display: grid;
+  gap: 32px;
+  padding: 48px max(16px, calc((100vw - var(--wrap)) / 2)) 96px;
+}
+.doc-cta {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  justify-items: start;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.doc-cta p { margin: 0; color: var(--text-2); font-size: 15px; }
+.doc-cta .eyebrow { margin: 0; }
+.doc { min-width: 0; max-width: 780px; color: var(--text-2); }
+.doc h1 { font-size: clamp(32px, 4.6vw, 48px); color: var(--text); margin-bottom: 24px; }
+.doc h2 { font-size: clamp(22px, 2.6vw, 28px); color: var(--text); margin: 56px 0 16px; scroll-margin-top: 80px; }
+.doc h3 { font: 700 18px/1.3 var(--mono); color: var(--text); margin: 32px 0 12px; scroll-margin-top: 80px; }
+.doc .anchor { color: var(--border-strong); text-decoration: none; font-weight: 400; opacity: 0; }
+.doc h2:hover .anchor, .doc h3:hover .anchor, .doc .anchor:focus-visible { opacity: 1; }
+.doc p, .doc li { line-height: 1.7; }
+.doc strong { color: var(--text); }
+.doc a { color: var(--accent); }
+.doc ul, .doc ol { padding-left: 22px; }
+.doc li { margin: 4px 0; }
+.doc code {
+  font: 0.88em var(--mono);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--text);
+}
+.doc pre {
+  margin: 16px 0;
+  padding: 16px 18px;
+  background: #050806;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  overflow-x: auto;
+}
+.doc pre code { background: none; border: 0; padding: 0; font-size: 13px; line-height: 1.6; color: #b9f5cf; }
+.doc table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 14px;
+}
+.doc th, .doc td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.doc th { color: var(--text); font-weight: 600; white-space: nowrap; }
+.doc td:first-child { white-space: nowrap; }
+.doc blockquote { margin: 16px 0; padding: 4px 16px; border-left: 3px solid var(--accent); }
+@media (min-width: 980px) {
+  .doc-wrap { grid-template-columns: minmax(0, 1fr) 260px; align-items: start; }
+  .doc-cta { position: sticky; top: 88px; grid-column: 2; grid-row: 1; }
+  .doc { grid-column: 1; grid-row: 1; }
+}

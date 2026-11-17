@@ -108,3 +108,41 @@ export function parseBomCsv(text: string): Schematic {
   }
   return { parts, bom: { defs: new Map(), tableParts: [], alternates: new Map(), products: [] }, unknownRefs: [] };
 }
+
+export interface BomApplyReport {
+  /** Board parts found in the BOM. */
+  matched: number;
+  /** Resistor / capacitor values set from the BOM (replacing importer defaults). */
+  values: number;
+  /** Parts the BOM marks as not fitted (DNP), now unpopulated. */
+  dnp: number;
+  /** BOM designators with no part on the board. */
+  missing: string[];
+}
+
+/**
+ * Applies a BOM (or extracted schematic) to a board: R / C values, DNP → unpopulated, value text as
+ * the part label when the board had none. Only fills what the BOM states; everything else is untouched.
+ */
+export function applyBom(board: import('../types').Board, sch: Schematic): BomApplyReport {
+  const byRef = new Map([...sch.parts].map(([k, v]) => [k.toUpperCase(), v]));
+  const seen = new Set<string>();
+  const rep: BomApplyReport = { matched: 0, values: 0, dnp: 0, missing: [] };
+  for (const c of board.components) {
+    const p = byRef.get(c.ref.toUpperCase());
+    if (!p) continue;
+    seen.add(c.ref.toUpperCase());
+    rep.matched++;
+    if (p.bomOption && !isStuffedPart(p)) { c.state.populated = false; rep.dnp++; continue; }
+    const v = p.value;
+    if (v !== undefined && Number.isFinite(v)) {
+      if (c.kind === 'resistor' && p.valueKind === 'R' && v >= 0) { c.value = v; c.valueGuessed = undefined; rep.values++; }
+      else if (c.kind === 'capacitor' && p.valueKind === 'C' && v > 0) { c.value = v; c.valueGuessed = undefined; rep.values++; }
+    }
+    if (!c.label && p.valueText) c.label = p.valueText.slice(0, 60);
+  }
+  for (const k of byRef.keys()) if (!seen.has(k)) rep.missing.push(k);
+  return rep;
+}
+
+const isStuffedPart = (p: SchematicPart) => !/^(NO ?STUFF|NO_STUFF|OMIT)$/.test(p.bomOption ?? '');

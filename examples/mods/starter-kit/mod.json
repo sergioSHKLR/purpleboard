@@ -1,0 +1,30 @@
+{
+  "format": "deadboard-mod/1",
+  "id": "starter-kit",
+  "name": "Starter kit",
+  "version": "1.0.0",
+  "author": "DEADBOARD",
+  "description": "An example mod to copy: one KiCad board with its BOM and schematic, and the same board as a repair challenge.",
+  "license": "CC0-1.0",
+  "homepage": "https://github.com/tholtman1-del/deadboard/tree/main/examples/mods/starter-kit",
+  "boards": [
+    {
+      "id": "night-light",
+      "file": "boards/night-light.kicad_pcb",
+      "title": "Night light (sandbox)",
+      "description": "A two-AA night light: push SW1 and D1 lights. The KiCad file has no resistor values; the BOM sets R1 to 68 Ω and leaves R2 unfitted. Probe it, then plant your own faults in the Author tab.",
+      "difficulty": 1,
+      "bom": "boards/night-light-bom.csv",
+      "schematic": "boards/night-light-schematic.svg",
+      "objectives": [
+        { "type": "led", "ref": "D1", "on": true, "switches": { "SW1": true } },
+        { "type": "led", "ref": "D1", "on": false, "switches": { "SW1": false } }
+      ]
+    },
+    {
+      "id": "night-light-repair",
+      "file": "boards/night-light-repair.pcbfix.json",
+      "schematic": "boards/night-light-schematic.svg"
+    }
+  ]
+}

@@ -7,6 +7,17 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
+- **Mods (2026-11-17):** `deadboard-mod/1`, data-only packages (folder or .zip with `mod.json`)
+  of boards (.kicad_pcb / .brd / .pcbfix.json) + optional BOM CSV (R/C values, DNP via
+  `applyBom` in `src/io/bom.ts`) + optional schematic (PDF / image, floating viewer). Loader in
+  `src/mods/` (own zip reader/writer with size caps, manifest validation listing every error).
+  In the app: Boards → **Mods** window (install .zip into IndexedDB, remove, warnings), "Community
+  Mods" section, **Export as mod** (Author tab; a built-in board gets its own id). A
+  `.pcbfix.json` keeps its id (flag lock); imported boards get `mod-<mod>-<board>`. Example mod
+  `examples/mods/starter-kit/` (`npm run example-mod` rebuilds its challenge +
+  `public/examples/starter-kit.zip`); `test/mods.test.ts` (17th suite). Guide: `docs/MODDING.md`,
+  rendered into the site page `modding.html` at build time (vite plugin, `marked`).
+
 - **Session 2026-11-17 in one line:** all work is pushed and live (last code commit `b031184`,
   build stamp `0.1.0+b031184`); GitHub issue #1 closed with a comment; no open issues; feedback
   form verified end to end (a test mail arrived, alias in use). Late fixes that day: Both-view

@@ -1,0 +1,6 @@
+Reference,Value,Footprint,DNP
+BT1,3V,BatteryHolder_2xAA,
+SW1,PUSH,SW_PUSH_6mm,
+R1,68R,R_Axial_DIN0207,
+R2,22R,R_Axial_DIN0207,DNP
+D1,Red,LED_D5.0mm,

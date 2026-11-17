@@ -14,6 +14,9 @@ import { runSolver, verifyScenario, type Solver, type VerifyResult } from '../ve
 import { lockFlag, packText, topology, unpackText } from '../crypto';
 import { serializeScenario } from '../io/format';
 import { importScenarioOrPcb } from '../io/kicad';
+import { MOD_FORMAT, type ModBoard } from '../mods/mods';
+import { desktop, installMod, loadAllMods, modsFolderPath, removeInstalled, type ModLoadResult } from '../mods/sources';
+import { writeZip } from '../mods/zip';
 import { builtinScenarios } from '../scenarios/builtin';
 import { Builder } from '../scenarios/builder';
 import { BOTH_GAP, Camera } from '../render/camera';
@@ -177,7 +180,14 @@ export class PcbApp {
   private showHelp = false;
   private showFeedback = false;
   private showBoards = false;
-  private boardFilter: 'all' | 'tutorials' | 'challenges' | 'hardware' = 'all';
+  private boardFilter: 'all' | 'tutorials' | 'challenges' | 'hardware' | 'mods' = 'all';
+  private showMods = false;
+  /** Ids of the boards that ship with DEADBOARD (built-ins + demos): an author's copy needs its own id. */
+  private bundledIds = new Set<string>();
+  /** Mod boards in the list (stub before first open, full scenario after) → their mod. */
+  private modBoards = new Map<Scenario, ModBoard>();
+  private modResult: ModLoadResult = { mods: [], failed: [] };
+  private schematicUrls = new Map<ModBoard, string>();
   private boardSearch = '';
   private lastBeepKey = '';
   private tutorialOpen = localStorage.getItem('pcbfix_tut_dismissed') !== '1';
@@ -232,6 +242,8 @@ export class PcbApp {
   async init() {
     this.scenarios = await builtinScenarios();
     await this.addDemoStubs();
+    this.bundledIds = new Set(this.scenarios.map((s) => s.id));
+    await this.loadMods();
     this.buildDom();
 
     try {
@@ -286,6 +298,11 @@ export class PcbApp {
     const ua = navigator.userAgent;
     const ff = /Firefox\/(\d+)/.exec(ua);
     const general = 'DEADBOARD renders the bench with WebGPU: use Chrome or Edge 113+, Safari 26+, or Firefox 141+ (Windows) / 145+ (Mac with Apple silicon).';
+    // desktop build: the browser is built in, so only the GPU driver can be the problem
+    if (/Electron\//.test(ua)) {
+      if (/Linux/.test(ua)) return 'The desktop app renders with WebGPU on Vulkan. Install or update the Vulkan driver for your graphics card (vulkaninfo should list it), then restart DEADBOARD.';
+      return 'The desktop app renders with WebGPU, which needs a graphics card and driver that support DirectX 12 (Windows) or Metal (macOS). Update the graphics driver and restart DEADBOARD.';
+    }
     // Chromium on Linux still enables WebGPU only for some GPU / driver combinations
     if (!ff && /Linux/.test(ua) && !/Android|CrOS/.test(ua)) {
       return 'On Linux, Chrome and Edge turn WebGPU on only for some graphics drivers. Open chrome://flags, enable "Unsafe WebGPU Support" and "Vulkan", and restart the browser; or use Firefox with dom.webgpu.enabled set to true in about:config. Make sure your Vulkan driver is installed (vulkaninfo should list your GPU).';
@@ -319,7 +336,7 @@ export class PcbApp {
 
   private openFeedback(open = true) {
     this.showFeedback = open;
-    if (open) { this.showHelp = false; this.showBoards = false; }
+    if (open) { this.showHelp = false; this.showBoards = false; this.showMods = false; }
     this.modalPos = [0, 0];
     this.renderModal();
   }
@@ -372,8 +389,8 @@ export class PcbApp {
             </button>
             <select id="sc-select" title="Scenario" hidden></select>
             <button class="btn ghost icon" id="btn-new-board" title="New blank board">${icon('plus')}</button>
-            <button class="btn ghost icon" id="btn-import" title="Import .brd, .kicad_pcb, or .pcbfix.json">${icon('upload')}</button>
-            <input type="file" id="file-input" accept=".brd,.json,.pcbfix.json,.kicad_pcb" hidden />
+            <button class="btn ghost icon" id="btn-import" title="Import .brd, .kicad_pcb, .pcbfix.json, or a mod .zip">${icon('upload')}</button>
+            <input type="file" id="file-input" accept=".brd,.json,.pcbfix.json,.kicad_pcb,.zip" hidden />
           </div>
           <div class="topbar-group">
             <div class="seg" id="seg-view" title="Camera (Tab)">
@@ -481,7 +498,7 @@ export class PcbApp {
         </footer>
       </div>
       <div id="modal-root"></div>
-      <div class="drop-overlay" id="drop-overlay" style="display:none">Drop a .brd, .kicad_pcb, or .pcbfix.json file to import</div>
+      <div class="drop-overlay" id="drop-overlay" style="display:none">Drop a .brd, .kicad_pcb, .pcbfix.json, or mod .zip to import</div>
     `;
 
     this.layoutEl = this.mount.querySelector('#layout')!;
@@ -530,6 +547,57 @@ export class PcbApp {
     box.addEventListener('click', (e) => { if (e.target === box || (e.target as HTMLElement).closest('[data-close]')) close(); });
     window.addEventListener('keydown', onKey, true);
     document.body.appendChild(box);
+  }
+
+  /**
+   * A mod board's schematic in a floating, movable, resizable window over the bench, so it can be read
+   * while probing. PDFs use the browser's own viewer (zoom, search); images scroll and zoom on click.
+   */
+  private async openSchematic(s: Scenario) {
+    const mb = this.modBoards.get(s);
+    if (!mb?.schematic) return;
+    document.querySelector('.schem-win')?.remove();
+    let url = this.schematicUrls.get(mb);
+    if (!url) {
+      try {
+        url = URL.createObjectURL(new Blob([(await mb.schematic.read()) as BlobPart], { type: mb.schematic.mime }));
+        this.schematicUrls.set(mb, url);
+      } catch (e) {
+        this.toast(`Could not open the schematic: ${e instanceof Error ? e.message : e}`, 'danger');
+        return;
+      }
+    }
+    const pdf = mb.schematic.mime === 'application/pdf';
+    const win = document.createElement('div');
+    win.className = 'schem-win';
+    win.setAttribute('role', 'dialog');
+    win.innerHTML = `
+      <div class="schem-head" title="Drag to move">
+        <span>${icon('book', 13)} ${this.esc(s.meta.title)} · schematic</span>
+        <button class="btn ghost icon sm" data-close title="Close">${icon('x', 14)}</button>
+      </div>
+      <div class="schem-body">${pdf
+        ? `<iframe src="${url}" title="Schematic"></iframe>`
+        : `<img src="${url}" alt="Schematic of ${this.esc(s.meta.title)}" title="Click to zoom" draggable="false" />`}</div>`;
+    document.body.appendChild(win);
+    win.querySelector('[data-close]')!.addEventListener('click', () => win.remove());
+    const img = win.querySelector('img');
+    img?.addEventListener('click', () => img.classList.toggle('zoom'));
+    const head = win.querySelector<HTMLElement>('.schem-head')!;
+    head.addEventListener('pointerdown', (e) => {
+      if ((e.target as HTMLElement).closest('button')) return;
+      const r = win.getBoundingClientRect();
+      const dx = e.clientX - r.left, dy = e.clientY - r.top;
+      win.classList.add('dragging');
+      head.setPointerCapture(e.pointerId);
+      const move = (ev: PointerEvent) => {
+        win.style.left = `${Math.min(window.innerWidth - 80, Math.max(0, ev.clientX - dx))}px`;
+        win.style.top = `${Math.min(window.innerHeight - 40, Math.max(0, ev.clientY - dy))}px`;
+      };
+      const up = () => { win.classList.remove('dragging'); head.removeEventListener('pointermove', move); head.removeEventListener('pointerup', up); };
+      head.addEventListener('pointermove', move);
+      head.addEventListener('pointerup', up);
+    });
   }
 
   /** Test / recording hook (only with ?automation): board geometry ↔ screen, camera control. */
@@ -581,9 +649,65 @@ export class PcbApp {
     } catch { /* demos are optional */ }
   }
 
+  /** Loads mods (desktop mods folder + installed .zips) and lists their boards. Never fails startup. */
+  private async loadMods() {
+    // drop the boards of a previous load (after install / remove), keeping any that is open
+    const active = this.activeScenario;
+    this.scenarios = this.scenarios.filter((s) => !this.modBoards.has(s) || s === active);
+    for (const s of [...this.modBoards.keys()]) if (s !== active) this.modBoards.delete(s);
+    for (const url of this.schematicUrls.values()) URL.revokeObjectURL(url);
+    this.schematicUrls.clear();
+    try {
+      const builtin = new Set(this.scenarios.filter((s) => !this.modBoards.has(s)).map((s) => s.id));
+      this.modResult = await loadAllMods((id) => builtin.has(id));
+    } catch (e) {
+      this.modResult = { mods: [], failed: [{ name: 'mods', origin: '', error: e instanceof Error ? e.message : String(e) }] };
+    }
+    for (const mod of this.modResult.mods) {
+      for (const b of mod.boards) {
+        if (active && this.modBoards.has(active) && active.id === b.stub.id) { this.modBoards.set(active, b); continue; }
+        this.modBoards.set(b.stub, b);
+        this.scenarios.push(b.stub);
+      }
+    }
+  }
+
+  /** Installs a mod .zip (web: kept in browser storage; desktop: in the app's storage too). */
+  /** Returns the number of warnings, or -1 when the mod was not installed. */
+  private async installModFile(f: File): Promise<number> {
+    try {
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      const builtin = new Set(this.scenarios.filter((s) => !this.modBoards.has(s)).map((s) => s.id));
+      const mod = await installMod(bytes, f.name, (id) => builtin.has(id));
+      await this.loadMods();
+      this.refreshScenarioSelect();
+      const warn = mod.warnings.length ? ` (${mod.warnings.length} warning${mod.warnings.length > 1 ? 's' : ''}: see Mods)` : '';
+      this.toast(`Installed mod "${mod.manifest.name}" v${mod.manifest.version}: ${mod.boards.length} board${mod.boards.length > 1 ? 's' : ''}${warn}`, mod.warnings.length ? 'info' : 'success');
+      const first = this.scenarios.findIndex((s) => this.modBoards.get(s)?.mod.id === mod.manifest.id);
+      if (first >= 0) await this.openScenario(first);
+      return mod.warnings.length;
+    } catch (err) {
+      this.toast(`Mod not installed: ${err instanceof Error ? err.message : String(err)}`, 'danger');
+      return -1;
+    }
+  }
+
   /** Opens a scenario, fetching a demo board on first use. */
   private async openScenario(idx: number) {
     let sc = this.scenarios[idx];
+    const mb = this.modBoards.get(sc);
+    if (mb && sc === mb.stub && !mb.stub.board.components.length) {
+      this.toast(`Loading ${sc.meta.title}…`, 'info');
+      try {
+        const full = await mb.load();
+        this.modBoards.delete(sc);
+        this.modBoards.set(full, mb);
+        this.scenarios[idx] = sc = full;
+      } catch (err) {
+        this.toast(`Could not load ${sc.meta.title} (mod "${mb.mod.name}"): ${err instanceof Error ? err.message : err}`, 'danger');
+        return;
+      }
+    }
     const url = this.demoUrls.get(sc);
     if (url) {
       this.toast(`Loading ${sc.meta.title}…`, 'info');
@@ -1363,6 +1487,7 @@ export class PcbApp {
   }
 
   private async handleFile(f: File) {
+    if (/\.zip$/i.test(f.name)) { await this.installModFile(f); return; }
     try {
       const bytes = new Uint8Array(await f.arrayBuffer());
       const sc = importScenarioOrPcb(f.name, bytes);
@@ -1563,10 +1688,11 @@ export class PcbApp {
   }
 
   private onKeyDown(e: KeyboardEvent) {
-    if (e.key === 'Escape' && (this.showBoards || this.showHelp || this.showFeedback)) {
+    if (e.key === 'Escape' && (this.showBoards || this.showHelp || this.showFeedback || this.showMods)) {
       this.showBoards = false;
       this.showHelp = false;
       this.showFeedback = false;
+      this.showMods = false;
       this.renderModal();
       return;
     }
@@ -2363,6 +2489,12 @@ export class PcbApp {
             <span class="mono">${s.meta.license ? `Licence: ${this.esc(s.meta.license)}` : ''}${s.meta.source ? ` · <a href="${this.esc(s.meta.source.split(' @ ')[0])}" target="_blank" rel="noopener">source${s.meta.source.includes(' @ ') ? ` @ ${this.esc(s.meta.source.split(' @ ')[1])}` : ''}</a>` : ''}</span>
           </div>
         ` : ''}
+        ${this.modBoards.get(s)?.schematic ? `
+          <div class="row wrap" style="margin-top:8px">
+            <button class="btn sm" id="open-schematic">${icon('book', 12)}<span>Schematic</span></button>
+            <span class="muted">from the mod "${this.esc(this.modBoards.get(s)!.mod.name)}"</span>
+          </div>
+        ` : ''}
         ${this.videos[s.id] ? `
           <div class="walkthrough">
             <span class="walk-title">Walkthrough</span>
@@ -2471,6 +2603,7 @@ export class PcbApp {
         if (this.scenarios[idx]) void this.openScenario(idx);
       });
     });
+    this.sideBodyEl.querySelector('#open-schematic')?.addEventListener('click', () => void this.openSchematic(s));
     this.sideBodyEl.querySelector('#vid-approach')?.addEventListener('click', () => this.playVideo(s.id, 'approach'));
     const sol = this.sideBodyEl.querySelector<HTMLButtonElement>('#vid-solution');
     sol?.addEventListener('click', () => {
@@ -2979,6 +3112,7 @@ export class PcbApp {
         <div class="grid-2">
           <button class="btn sm primary" id="st-export-json">${icon('download', 13)}<span>Export JSON</span></button>
           <button class="btn sm" id="st-share-url">${icon('link', 13)}<span>Copy link</span></button>
+          <button class="btn sm" id="st-export-mod" style="grid-column:span 2" title="A .zip others can install from Boards → Mods">${icon('box', 13)}<span>Export as mod (.zip)</span></button>
         </div>
       </div>
     `;
@@ -3026,6 +3160,9 @@ export class PcbApp {
       const flag = (this.sideBodyEl.querySelector('#st-flag') as HTMLInputElement).value.trim();
       if (!flag) { this.toast('Enter a CTF flag first', 'danger'); return; }
       this.studioFlagInput = flag;
+      // a built-in board locked with a new flag becomes the author's own challenge: give it its own id
+      // (the flag lock is derived from the id, and a copy with a built-in id would clash when shared)
+      if (this.bundledIds.has(s.id)) s.id = `custom-${s.meta.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30)}-${Date.now().toString(36)}`;
       const conn = buildConnectivity(this.board);
       const topo = topology(this.board, conn, s.id);
       s.lock = await lockFlag(flag, topo);
@@ -3065,6 +3202,8 @@ export class PcbApp {
       this.toast('Exported .pcbfix.json challenge!', 'success');
     });
 
+    this.sideBodyEl.querySelector('#st-export-mod')?.addEventListener('click', () => { syncMeta(); void this.exportBoardAsMod(); });
+
     this.sideBodyEl.querySelector('#st-share-url')?.addEventListener('click', async () => {
       syncMeta();
       const out: Scenario = { ...s, board: cloneBoard(this.board) };
@@ -3094,7 +3233,8 @@ export class PcbApp {
     this.renderModal();
   }
 
-  private classifyScenario(s: Scenario): 'tutorials' | 'challenges' | 'hardware' {
+  private classifyScenario(s: Scenario): 'tutorials' | 'challenges' | 'hardware' | 'mods' {
+    if (this.modBoards.has(s)) return 'mods';
     if (isTutorialScenario(s.id)) return 'tutorials';
     if (s.solver === 'spice-power' || this.demoUrls.has(s) || s.board.components.length > 50) {
       return 'hardware';
@@ -3103,14 +3243,15 @@ export class PcbApp {
   }
 
   private renderBoardsModal() {
-    type CatKey = 'tutorials' | 'challenges' | 'hardware';
-    const counts: Record<CatKey, number> = { tutorials: 0, challenges: 0, hardware: 0 };
+    type CatKey = 'tutorials' | 'challenges' | 'hardware' | 'mods';
+    const counts: Record<CatKey, number> = { tutorials: 0, challenges: 0, hardware: 0, mods: 0 };
     for (const s of this.scenarios) counts[this.classifyScenario(s)]++;
 
     const sections: { key: CatKey; title: string; sub: string }[] = [
       { key: 'tutorials', title: 'Beginner Tutorials', sub: 'Guided step-by-step boards covering the core fundamentals' },
       { key: 'challenges', title: 'Repair Challenges', sub: 'Standalone fault-finding & multi-fault diagnostic puzzles' },
       { key: 'hardware', title: 'Real Hardware & Open Source', sub: 'Full multi-hundred-part schematics & boardviews on SPICE + PWR' },
+      { key: 'mods', title: 'Community Mods', sub: 'Boards from mods you installed. Manage them with the Mods button' },
     ];
 
     const renderList = () => {
@@ -3124,7 +3265,8 @@ export class PcbApp {
             .filter(({ s }) => {
               if (!q) return true;
               const topics = TUTORIAL_TOPICS[s.id]?.join(' ') ?? '';
-              return `${s.meta.title} ${s.meta.description} ${s.meta.author} ${topics}`.toLowerCase().includes(q);
+              const mod = this.modBoards.get(s)?.mod.name ?? '';
+              return `${s.meta.title} ${s.meta.description} ${s.meta.author} ${topics} ${mod}`.toLowerCase().includes(q);
             });
           if (!items.length) return '';
           const solvedInSec = items.filter(({ s }) => this.solvedIds.has(s.id)).length;
@@ -3144,7 +3286,12 @@ export class PcbApp {
                   const tutIdx = TUTORIAL_SCENARIO_IDS.indexOf(s.id as (typeof TUTORIAL_SCENARIO_IDS)[number]);
                   const topics = TUTORIAL_TOPICS[s.id];
                   const chips: string[] = [];
-                  if (topics) {
+                  const mb = this.modBoards.get(s);
+                  if (mb) {
+                    chips.push(mb.mod.name, `by ${mb.mod.author}`);
+                    if (mb.schematic) chips.push('Schematic');
+                    if (s.meta.license) chips.push(s.meta.license);
+                  } else if (topics) {
                     chips.push(...topics);
                   } else {
                     if (s.board.components.length > 1) chips.push(`${s.board.components.length} parts`);
@@ -3188,6 +3335,7 @@ export class PcbApp {
       { id: 'tutorials', label: 'Tutorials', count: counts.tutorials },
       { id: 'challenges', label: 'Challenges', count: counts.challenges },
       { id: 'hardware', label: 'Real Hardware', count: counts.hardware },
+      ...(counts.mods ? [{ id: 'mods' as const, label: 'Mods', count: counts.mods }] : []),
     ];
 
     this.modalRootEl.innerHTML = `
@@ -3201,6 +3349,7 @@ export class PcbApp {
             <div class="row">
               <button class="btn sm" id="cat-new">${icon('plus', 13)}<span>Blank board</span></button>
               <button class="btn sm" id="cat-import">${icon('upload', 13)}<span>Import</span></button>
+              <button class="btn sm" id="cat-mods" title="Install, remove and make mods">${icon('box', 13)}<span>Mods${this.modResult.failed.length ? ' ⚠' : ''}</span></button>
               <button class="btn ghost icon sm" id="modal-close" title="Close (Esc)">${icon('x', 14)}</button>
             </div>
           </div>
@@ -3239,6 +3388,11 @@ export class PcbApp {
       if ((e.target as HTMLElement).id === 'modal-close-bg') closeModal();
     });
     this.modalRootEl.querySelector('#cat-new')?.addEventListener('click', () => this.createBlankBoard());
+    this.modalRootEl.querySelector('#cat-mods')?.addEventListener('click', () => {
+      this.showBoards = false;
+      this.showMods = true;
+      this.renderModal();
+    });
     this.modalRootEl.querySelector('#cat-import')?.addEventListener('click', () => {
       closeModal();
       this.fileInputEl.click();
@@ -3260,11 +3414,160 @@ export class PcbApp {
     });
   }
 
+  /** Modding guide: on the website next to the bench; the desktop app opens the site in the browser. */
+  private get moddingUrl() {
+    return desktop ? `${BRAND.site}modding.html` : './modding.html';
+  }
+
+  private renderModsModal() {
+    const { mods, failed } = this.modResult;
+    const boardIdx = (b: ModBoard) => this.scenarios.findIndex((s) => this.modBoards.get(s) === b);
+    const modCards = mods.map((m) => {
+      const mf = m.manifest;
+      return `
+        <div class="card mod-card">
+          <div class="mod-head">
+            <div>
+              <div class="mod-name">${this.esc(mf.name)} <span class="muted mono">v${this.esc(mf.version)}</span></div>
+              <div class="muted">by ${this.esc(mf.author)} · ${this.esc(mf.license)} · ${this.esc(m.source.origin)}${mf.homepage ? ` · <a href="${this.esc(mf.homepage)}" target="_blank" rel="noopener">homepage</a>` : ''}</div>
+            </div>
+            ${m.source.origin === 'Installed' ? `<button class="btn sm ghost" data-mod-remove="${this.esc(mf.id)}" title="Remove this mod">${icon('x', 12)}<span>Remove</span></button>` : ''}
+          </div>
+          ${mf.description ? `<p class="text-2" style="margin:0">${this.esc(mf.description)}</p>` : ''}
+          <div class="mod-boards">
+            ${m.boards.map((b) => `<button class="btn sm" data-mod-open="${boardIdx(b)}">${icon('play', 11)}<span>${this.esc(b.stub.meta.title)}</span>${b.schematic ? `<span class="muted">· schematic</span>` : ''}</button>`).join('')}
+          </div>
+          ${m.warnings.length ? `<details class="mod-warn"><summary>${m.warnings.length} warning${m.warnings.length > 1 ? 's' : ''}</summary><ul>${m.warnings.map((w) => `<li>${this.esc(w)}</li>`).join('')}</ul></details>` : ''}
+        </div>`;
+    }).join('');
+    const failedCards = failed.map((f) => `
+      <div class="card mod-card mod-failed">
+        <div class="card-title" style="margin:0">${icon('x', 13)} ${this.esc(f.name)} <span class="muted">${this.esc(f.origin)}</span></div>
+        <p class="text-2 mono" style="margin:0;overflow-wrap:anywhere">${this.esc(f.error)}</p>
+      </div>`).join('');
+
+    this.modalRootEl.innerHTML = `
+      <div class="modal-backdrop" id="mods-close-bg">
+        <div class="modal board-catalog" style="transform: translate3d(${this.modalPos[0]}px, ${this.modalPos[1]}px, 0)">
+          <div class="modal-head" title="Drag to move window">
+            <div class="row">
+              <h2>Mods</h2>
+              <span class="badge info">${mods.length} loaded</span>
+            </div>
+            <div class="row">
+              <button class="btn sm primary" id="mods-install">${icon('upload', 13)}<span>Install mod (.zip)</span></button>
+              ${desktop ? `<button class="btn sm" id="mods-folder" title="${this.esc(modsFolderPath ?? '')}">${icon('box', 13)}<span>Open mods folder</span></button>` : ''}
+              <button class="btn sm" id="mods-back">${icon('grid', 13)}<span>Boards</span></button>
+              <button class="btn ghost icon sm" id="mods-close" title="Close (Esc)">${icon('x', 14)}</button>
+            </div>
+          </div>
+          <div class="cat-body">
+            <div class="card">
+              <p class="text-2" style="margin:0">
+                Mods add boards made by other people: KiCad or boardview files, repair challenges from the Author tab,
+                with their BOM and schematic. Mods are data only, they can't run code.
+                ${desktop ? 'Install a .zip here, or put mod folders / .zip files into the mods folder and reload (Ctrl/Cmd+R).' : 'Install a .zip here or drop it on the bench; it stays in this browser.'}
+              </p>
+              <div class="row wrap">
+                <a class="btn sm" href="${this.moddingUrl}" target="_blank" rel="noopener">${icon('book', 13)}<span>How to make a mod</span></a>
+                <button class="btn sm ghost" id="mods-export">${icon('download', 13)}<span>Current board as a mod</span></button>
+              </div>
+            </div>
+            ${failedCards}
+            ${modCards || `<div class="muted" style="padding:24px;text-align:center">No mods yet. Install a mod .zip, or make one from any board with "Current board as a mod".</div>`}
+          </div>
+          <input type="file" id="mods-file" accept=".zip,application/zip" hidden />
+        </div>
+      </div>`;
+
+    const close = () => { this.showMods = false; this.renderModal(); };
+    const root = this.modalRootEl;
+    root.querySelector('#mods-close')?.addEventListener('click', close);
+    root.querySelector('#mods-close-bg')?.addEventListener('click', (e) => {
+      if (this.suppressModalBgClose) { this.suppressModalBgClose = false; return; }
+      if ((e.target as HTMLElement).id === 'mods-close-bg') close();
+    });
+    root.querySelector('#mods-back')?.addEventListener('click', () => { this.showMods = false; this.showBoards = true; this.renderModal(); });
+    const fileEl = root.querySelector<HTMLInputElement>('#mods-file')!;
+    root.querySelector('#mods-install')?.addEventListener('click', () => fileEl.click());
+    fileEl.addEventListener('change', async () => {
+      const f = fileEl.files?.[0];
+      if (!f) return;
+      // installed cleanly: show its first board; otherwise stay here to show the error / warnings
+      const warnings = await this.installModFile(f);
+      if (warnings === 0) close();
+      else if (this.showMods) this.renderModsModal();
+    });
+    root.querySelector('#mods-folder')?.addEventListener('click', () => void desktop?.openModsFolder());
+    root.querySelector('#mods-export')?.addEventListener('click', () => void this.exportBoardAsMod());
+    root.querySelectorAll<HTMLButtonElement>('[data-mod-open]').forEach((b) => b.addEventListener('click', () => {
+      const i = Number(b.dataset.modOpen);
+      close();
+      if (this.scenarios[i]) void this.openScenario(i);
+    }));
+    root.querySelectorAll<HTMLButtonElement>('[data-mod-remove]').forEach((b) => b.addEventListener('click', async () => {
+      const id = b.dataset.modRemove!;
+      const name = mods.find((m) => m.manifest.id === id)?.manifest.name ?? id;
+      if (!confirm(`Remove the mod "${name}"? Its boards disappear from the list (your progress on them is kept).`)) return;
+      try {
+        await removeInstalled(id);
+        await this.loadMods();
+        this.refreshScenarioSelect();
+        this.toast(`Removed mod "${name}"`, 'success');
+      } catch (e) {
+        this.toast(`Could not remove the mod: ${e instanceof Error ? e.message : e}`, 'danger');
+      }
+      this.renderModsModal();
+    }));
+  }
+
+  /** Packs the open board (with its current faults, objectives and flag lock) as a ready-to-share mod. */
+  private async exportBoardAsMod() {
+    const s = this.activeScenario;
+    const slug = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'board';
+    const boardId = slug(s.meta.title);
+    const author = s.meta.author && s.meta.author !== 'anonymous' ? s.meta.author : 'your-name';
+    const manifest = {
+      format: MOD_FORMAT,
+      id: `${slug(author)}-${boardId}`.slice(0, 64),
+      name: s.meta.title,
+      version: '1.0.0',
+      author,
+      description: s.meta.description.slice(0, 300),
+      license: s.meta.license ?? 'CC-BY-4.0',
+      boards: [{ id: boardId, file: `boards/${boardId}.pcbfix.json` }],
+    };
+    const out: Scenario = { ...s, board: cloneBoard(this.board) };
+    // a built-in board keeps the built-in's id and flag: give the copy its own id; the old lock can't
+    // follow (it is derived from the id), so the author locks a flag of their own first
+    let lockNote = '';
+    if (this.bundledIds.has(s.id)) {
+      out.id = `${manifest.id}-${boardId}`.slice(0, 80);
+      if (out.lock) { delete out.lock; lockNote = ' It has no flag: lock your own in the Author tab first if you want one.'; }
+    }
+    const te = new TextEncoder();
+    const zip = await writeZip([
+      ['mod.json', te.encode(JSON.stringify(manifest, null, 2) + '\n')],
+      [`boards/${boardId}.pcbfix.json`, te.encode(serializeScenario(out))],
+    ]);
+    const url = URL.createObjectURL(new Blob([zip as BlobPart], { type: 'application/zip' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${manifest.id}.zip`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    this.toast(`Saved ${manifest.id}.zip: check the name, author and licence in mod.json before sharing.${lockNote}`, lockNote ? 'info' : 'success');
+  }
+
   private renderModal() {
     this.mount.querySelector('#btn-boards')?.classList.toggle('active', this.showBoards);
     this.mount.querySelector('#btn-feedback')?.classList.toggle('active', this.showFeedback);
     if (this.showBoards) {
       this.renderBoardsModal();
+      return;
+    }
+    if (this.showMods) {
+      this.renderModsModal();
       return;
     }
     if (this.showFeedback) {
@@ -3308,8 +3611,9 @@ export class PcbApp {
           <div class="card">
             <div class="card-title">Importing &amp; authoring</div>
             <p class="text-2" style="margin:0">
-              Drag and drop a KiCad <code>.kicad_pcb</code> or <code>.pcbfix.json</code> file into the workspace.
-              In the <b>Author</b> tab, lock a working reference topology with your flag, inject faults, and export JSON or a shareable link.
+              Drag and drop a KiCad <code>.kicad_pcb</code>, boardview <code>.brd</code> or <code>.pcbfix.json</code> file into the workspace.
+              In the <b>Author</b> tab, lock a working reference topology with your flag, inject faults, and export JSON, a shareable link, or a mod.
+              <b>Mods</b> (Boards → Mods) bundle boards with their BOM and schematic for others to install: <a href="${this.moddingUrl}" target="_blank" rel="noopener">how to make a mod</a>.
             </p>
           </div>
         </div>
