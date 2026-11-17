@@ -11,7 +11,12 @@ try { commit = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe'
 // GitHub-style heading anchors, so links like #where-mods-live work on the site as on GitHub
 const slug = (s: string) => s.toLowerCase().replace(/<[^>]+>/g, '').replace(/&[a-z#0-9]+;/g, '').replace(/[^\w\- ]/g, '').trim().replace(/ /g, '-');
 
-/** modding.html is docs/MODDING.md rendered into the homepage design: one source for repo and site. */
+/** Site pages rendered from Markdown into the homepage design (one source for repo and site):
+ *  modding.html ← docs/MODDING.md, privacy.html ← docs/PRIVACY.md. */
+const docPages: Record<string, { md: string; slot: string }> = {
+  'modding.html': { md: 'docs/MODDING.md', slot: '<!--MODDING-->' },
+  'privacy.html': { md: 'docs/PRIVACY.md', slot: '<!--PRIVACY-->' },
+};
 function moddingGuide(): Plugin {
   const md = new Marked({ gfm: true });
   md.use({
@@ -26,14 +31,15 @@ function moddingGuide(): Plugin {
   return {
     name: 'modding-guide',
     transformIndexHtml(html, ctx) {
-      if (!ctx.filename.endsWith('modding.html')) return html;
+      const page = Object.keys(docPages).find((p) => ctx.filename.endsWith(p));
+      if (!page) return html;
       // site-relative links: the download sits next to the page
-      const src = readFileSync('docs/MODDING.md', 'utf8').replaceAll('https://tholtman1-del.github.io/deadboard/', './');
-      return html.replace('<!--MODDING-->', md.parse(src) as string);
+      const src = readFileSync(docPages[page].md, 'utf8').replaceAll('https://tholtman1-del.github.io/deadboard/', './');
+      return html.replace(docPages[page].slot, md.parse(src) as string);
     },
     configureServer(server) {
-      server.watcher.add('docs/MODDING.md');
-      server.watcher.on('change', (f) => { if (f.endsWith('MODDING.md')) server.ws.send({ type: 'full-reload' }); });
+      for (const { md: f } of Object.values(docPages)) server.watcher.add(f);
+      server.watcher.on('change', (f) => { if (Object.values(docPages).some((d) => f.endsWith(d.md))) server.ws.send({ type: 'full-reload' }); });
     },
   };
 }
@@ -46,7 +52,7 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: false,
     cssMinify: true,
-    // homepage at /, the bench app at /app.html, the modding guide at /modding.html
-    rollupOptions: { input: { home: 'index.html', app: 'app.html', modding: 'modding.html' } },
+    // homepage at /, the bench app at /app.html, the modding guide at /modding.html, privacy policy at /privacy.html
+    rollupOptions: { input: { home: 'index.html', app: 'app.html', modding: 'modding.html', privacy: 'privacy.html' } },
   },
 });
