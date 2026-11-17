@@ -92,10 +92,18 @@ export class Camera {
   orbit(dx: number, dy: number) {
     if (this.mode === '2d') this.setMode('3d');
     const s = this.invertOrbit ? 1 : -1;
-    this.targetYaw += s * dx * 0.45;
+    // A negative pitch is the positive-pitch view turned 180° on screen (the near edge is at the
+    // top), which is where the camera lands after orbiting over the edge to look up at the
+    // underside. Yaw would then read mirrored, so it turns the other way there; the dead zone
+    // around face-on keeps the direction from flickering. (Pitch needs no such care: it always
+    // moves the eye along the camera's own up axis.)
+    if (this.targetPitch > 5) this.yawSign = 1;
+    else if (this.targetPitch < -5) this.yawSign = -1;
+    this.targetYaw += s * this.yawSign * dx * 0.45;
     this.targetPitch += s * dy * 0.4;
     this.rebaseSide();
   }
+  private yawSign = 1;
 
   /**
    * Once the orbit passes edge-on, re-express the same pose in the other side's frame

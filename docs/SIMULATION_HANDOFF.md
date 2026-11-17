@@ -68,6 +68,11 @@ No reference hardware is available, so realism is validated against *design inte
   - Both + X-ray: each panel also shows the opposite face's copper (tracks, pours, single-side
     pads, blobs) faintly and mirrored, as single-side X-ray shows the far side through the board
     (`ghost` / `GHOST_Z` in `src/render/webgpu.ts`, just above the panel's own pours).
+  - 3D orbit, left/right while looking up at the underside: after orbiting over the edge the
+    camera sits at negative pitch in the back frame (= the positive-pitch view turned 180° on
+    screen), so yaw read mirrored. `Camera.orbit` flips the yaw sign at negative pitch (±5°
+    dead zone); same for tilting past face-on. `test/camera.test.ts` (16th suite) checks the
+    board's near edge follows the drag in every pose, and with the invert toggle.
 - **Linux check (2026-11-17):** production build in the Playwright Linux image (Ubuntu 24.04,
   arm64) under Colima: Chromium on SwiftShader and Firefox 146 on Mesa llvmpipe Vulkan
   (`mesa-vulkan-drivers`, `dom.webgpu.enabled`) render everything with no page errors. Colima only
@@ -119,7 +124,7 @@ No reference hardware is available, so realism is validated against *design inte
 ## How to run
 
 ```bash
-npm test                 # 15 suites, all passing (private-fixture parts skip when absent)
+npm test                 # 16 suites, all passing (private-fixture parts skip when absent)
 npm run showcase         # re-record the showcase video (needs a running site; see Status)
 npm run videos           # re-render walkthrough videos (needs the dev server; docs/VIDEOS.md)
 npm run demos -- --fetch # rebuild the open-hardware demo boards (docs/DEMOS.md)
