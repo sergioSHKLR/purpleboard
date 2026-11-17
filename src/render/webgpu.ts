@@ -102,6 +102,10 @@ class InstanceBucket {
   ) {
     const rad = rotZDeg * DEG;
     const c = Math.cos(rad), s = Math.sin(rad);
+    // A negative sz (bottom-side domes, fillets, blobs) alone is a mirror: it flips triangle winding
+    // and back-face culling then discards the outside of the mesh. Mirroring local Y as well makes it
+    // a 180° rotation about X instead; every unit mesh is symmetric in Y, so the shape is unchanged.
+    if (sz < 0) sy = -sy;
     this.pushMat(
       c * sx, s * sx, 0, 0,
       -s * sy, c * sy, 0, 0,
