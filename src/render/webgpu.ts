@@ -1,4 +1,5 @@
 import type { Board, Component, Side, V2 } from '../types';
+import { tk } from '../i18n';
 import { DEG, triangulate, type V3 } from '../geom';
 import { BAND_RGB, GOLD_RGB, LED_INFO, padWorld, resistorBands } from '../model';
 import type { Conn } from '../connectivity';
@@ -307,12 +308,12 @@ export class WebGPURenderer {
   private constructor(private canvas: HTMLCanvasElement) {}
 
   static async create(canvas: HTMLCanvasElement): Promise<WebGPURenderer> {
-    if (!navigator.gpu) throw new Error('WebGPU is not supported in this browser.');
+    if (!navigator.gpu) throw new Error(tk('WebGPU is not supported in this browser.'));
     const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
-    if (!adapter) throw new Error('Could not acquire a WebGPU adapter.');
+    if (!adapter) throw new Error(tk('Could not acquire a WebGPU adapter.'));
     const device = await adapter.requestDevice();
     const ctx = canvas.getContext('webgpu');
-    if (!ctx) throw new Error('Could not create a WebGPU canvas context.');
+    if (!ctx) throw new Error(tk('Could not create a WebGPU canvas context.'));
 
     const r = new WebGPURenderer(canvas);
     const info = adapter.info;

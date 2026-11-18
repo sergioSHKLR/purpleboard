@@ -940,7 +940,8 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); }
 .fb-actions a.btn { text-decoration: none; }
 .fb-foot { margin: 0; }
 .fb-foot a, .fb-status a { color: var(--accent); }
-.webgpu-err { flex-direction: column; gap: 12px; overflow-y: auto; }
+.webgpu-err { flex-direction: column; gap: 12px; overflow-y: auto; justify-content: safe center; } /* taller than a phone: scroll from the top */
+.webgpu-err a.btn { text-decoration: none; }
 .webgpu-err .card { width: min(460px, 100%); }
 
 /* ---------- mods ---------- */

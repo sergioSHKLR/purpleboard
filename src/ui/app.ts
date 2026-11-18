@@ -31,6 +31,7 @@ import { HOTAIR_H, IRON_G, PREHEAT_H, ReworkMonitor, type ReworkEvent } from '..
 import { WebGPURenderer, type VizMode } from '../render/webgpu';
 import { setSoundEnabled, sfxBeep, sfxBlow, sfxClick, sfxCut, sfxSolder, sfxWin, soundEnabled } from './audio';
 import { icon } from './icons';
+import { chromeIntentUrl, inAppBrowser } from './inapp';
 import { LANGUAGES, lang, saveLanguage, t, t as translate, tk } from '../i18n';
 import { APP_BUILD, mountFeedbackForm, type FeedbackContext } from './feedback';
 import { boardDiff, encodeSnapshot, type BenchSnapshot } from '../snapshot';
@@ -377,20 +378,40 @@ export class PcbApp {
   }
 
   private showWebGpuError(msg: string) {
+    const app = inAppBrowser(navigator.userAgent);
+    const android = /Android/.test(navigator.userAgent);
+    // a social app's built-in browser: the fix is another browser, so say that first and offer it
+    const inApp = app === null ? '' : `
+        <div class="card">
+          <div class="card-title lg">${t('Open DEADBOARD in your browser')}</div>
+          <p class="text-2" style="margin:0">${app ? t('You opened this page inside the {app} app. Its built-in browser has no WebGPU, so the 3D bench cannot start here.', { app }) : t('You opened this page inside an app. Its built-in browser has no WebGPU, so the 3D bench cannot start here.')}</p>
+          <p class="muted" style="margin:0">${android ? t('Tap «Open in Chrome», or use the app\'s menu (⋮) → «Open in browser».') : t('Use the app\'s menu (⋯ or the share button) → «Open in browser» / «Open in Safari», or copy the link into your browser.')}</p>
+          <div class="row wrap">
+            ${android ? `<a class="btn primary" id="open-chrome" href="${this.esc(chromeIntentUrl(location.href))}">${icon('link', 14)}<span>${t('Open in Chrome')}</span></a>` : ''}
+            <button class="btn" id="copy-link">${icon('copy', 14)}<span>${t('Copy link')}</span></button>
+          </div>
+        </div>`;
     this.mount.innerHTML = `
-      <div class="webgpu-err">
+      <div class="webgpu-err">${inApp}
         <div class="card">
           <div class="card-title lg">${t('WebGPU is not available')}</div>
-          <p class="text-2" style="margin:0">${this.esc(msg)}</p>
-          <p class="muted" style="margin:0">${this.webGpuHelp()}</p>
+          <p class="text-2" style="margin:0">${this.esc(t(msg))}</p>
+          ${app === null ? `<p class="muted" style="margin:0">${this.webGpuHelp()}</p>` : ''}
         </div>
         <div class="card">
           <div class="card-title">${t('Still stuck? Tell us')}</div>
           <div id="fb-host"></div>
         </div>
       </div>`;
+    this.mount.querySelector('#copy-link')?.addEventListener('click', async (e) => {
+      const b = e.currentTarget as HTMLButtonElement;
+      try { await navigator.clipboard.writeText(location.href); b.querySelector('span')!.textContent = t('Link copied'); }
+      catch { prompt(t('Copy this link:'), location.href); }
+    });
     const host = this.mount.querySelector<HTMLElement>('#fb-host');
-    if (host) mountFeedbackForm(host, () => ({ error: msg }), { kind: 'bug' });
+    // no bench to snapshot here: the report says what this browser offers instead
+    const gpu = `navigator.gpu: ${'gpu' in navigator ? 'yes' : 'no'}${app === null ? '' : `; in-app browser: ${app || 'Android WebView'}`}`;
+    if (host) mountFeedbackForm(host, () => ({ error: msg, gpu, view: 'WebGPU error screen (no bench, no snapshot)' }), { kind: 'bug' });
   }
 
   private openFeedback(open = true) {

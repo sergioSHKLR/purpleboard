@@ -891,6 +891,18 @@ const ru: Catalog = {
   "On": "Вкл.",
   "Off": "Выкл.",
   "Board powered": "Плата запитана",
+  // ---- WebGPU error screen: in-app browsers
+  "Open DEADBOARD in your browser": "Откройте DEADBOARD в браузере",
+  "You opened this page inside the {app} app. Its built-in browser has no WebGPU, so the 3D bench cannot start here.": "Вы открыли страницу внутри приложения {app}. Во встроенном браузере нет WebGPU, поэтому 3D-стенд здесь не запустится.",
+  "You opened this page inside an app. Its built-in browser has no WebGPU, so the 3D bench cannot start here.": "Вы открыли страницу внутри приложения. Во встроенном браузере нет WebGPU, поэтому 3D-стенд здесь не запустится.",
+  "Tap «Open in Chrome», or use the app's menu (⋮) → «Open in browser».": "Нажмите «Открыть в Chrome» или откройте меню приложения (⋮) → «Открыть в браузере».",
+  "Use the app's menu (⋯ or the share button) → «Open in browser» / «Open in Safari», or copy the link into your browser.": "Откройте меню приложения (⋯ или кнопка «Поделиться») → «Открыть в браузере» / «Открыть в Safari» или скопируйте ссылку в браузер.",
+  "Open in Chrome": "Открыть в Chrome",
+  "Link copied": "Ссылка скопирована",
+  "Copy this link:": "Скопируйте ссылку:",
+  "WebGPU is not supported in this browser.": "Этот браузер не поддерживает WebGPU.",
+  "Could not acquire a WebGPU adapter.": "Не удалось получить адаптер WebGPU.",
+  "Could not create a WebGPU canvas context.": "Не удалось создать контекст WebGPU для холста.",
 };
 
 export default ru;

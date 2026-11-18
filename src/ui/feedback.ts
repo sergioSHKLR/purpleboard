@@ -137,7 +137,7 @@ export function mountFeedbackForm(host: HTMLElement, context: () => FeedbackCont
   const refresh = () => {
     host.querySelectorAll<HTMLButtonElement>('.fb-kind button').forEach((b) => b.classList.toggle('on', b.dataset.kind === draft.kind));
     $('.fb-msg-label')!.textContent = draft.kind === 'idea' ? t('What would make DEADBOARD better?')
-      : include.checked ? t('What went wrong? (optional: your bench is attached)') : t('What went wrong? What did you do just before?');
+      : include.checked && context().snapshot ? t('What went wrong? (optional: your bench is attached)') : t('What went wrong? What did you do just before?');
     msg.placeholder = draft.kind === 'bug'
       ? t("e.g. On Bridge Troll, flipped to the bottom in 3D: the solder blob between D2's legs is not visible.")
       : t('e.g. Split the board into squares for IPA, so each square dries at its own temperature.');
@@ -152,14 +152,15 @@ export function mountFeedbackForm(host: HTMLElement, context: () => FeedbackCont
   host.addEventListener('keydown', (e) => { if (e.key !== 'Escape') e.stopPropagation(); });
 
   send?.addEventListener('click', async () => {
-    // a bug report with technical details can be sent as is: the snapshot shows what happened
+    // a bug report with technical details can be sent as is: the snapshot (or, on the WebGPU
+    // error screen, the browser details) shows what happened
     const bare = draft.kind === 'bug' && include.checked;
     if (!bare && msg.value.trim().length < 5) { status.textContent = t('Please write a few words first.'); msg.focus(); return; }
     send.disabled = true;
     status.textContent = t('Sending…');
     try {
       const snapshot = include.checked ? await context().snapshot?.().catch(() => undefined) : undefined;
-      await sendFeedback({ kind: draft.kind, message: msg.value.trim() || '(no description: see the snapshot)', contact: contact?.value ?? '', details: details(), snapshot });
+      await sendFeedback({ kind: draft.kind, message: msg.value.trim() || (snapshot ? '(no description: see the snapshot)' : '(no description)'), contact: contact?.value ?? '', details: details(), snapshot });
       draft.message = ''; msg.value = '';
       status.textContent = t('Thank you! Your message was sent.');
       updateGh();

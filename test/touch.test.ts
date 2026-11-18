@@ -1,6 +1,7 @@
 // Touch support: the gesture recogniser (tap / drag / pinch), the mobile-layout switch, and the
 // touch wording of every tutorial step (no clicks, right-clicks or keyboard shortcuts left).
 import { TouchGestures, touchCopy, wantsMobileLayout, type GestureSink } from '../src/ui/touch';
+import { chromeIntentUrl, inAppBrowser } from '../src/ui/inapp';
 import { beginnerPrimerHtml, TUTORIALS_BY_SCENARIO, TUTORIAL_STEPS } from '../src/ui/tutorial';
 
 function assert(c: unknown, m: string): asserts c { if (!c) throw new Error(m); }
@@ -122,5 +123,13 @@ const kinds = (ev: Ev[]) => ev.map((e) => e[0]);
   assert(splitLead('Inject 3.3 V onto the rail and watch the part with the thermal camera. 3.3 V is enough for most rails here.').lead === 'Inject 3.3 V onto the rail and watch the part with the thermal camera.', 'no split inside a number');
   assert(splitLead('Done. Next one.').rest === '', 'no split after a short opener');
   assert(splitLead('Multimeter: Tap pads to probe. Tap a probe tag on the meter to switch red / black.').rest === '', 'short messages stay whole');
-  console.log(`touch: ${steps.length} phone tasks ≤ 70 chars, tool tips, toast split — ok`);
+  // in-app browsers (no WebGPU): the user agent of a real report from the Threads app on Android
+  const threads = 'Mozilla/5.0 (Linux; Android 10; K; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/157.0.0.0 Mobile Safari/537.36 Barcelona 455.0.0.55.72 Android (37/17; 450dpi; 1080x2340; samsung; SM-S721B; r12s; s5e9945; ru_RU; 1111150350)';
+  assert(inAppBrowser(threads) === 'Threads', `Threads in-app browser: ${inAppBrowser(threads)}`);
+  assert(inAppBrowser('Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 390.0.0.0') === 'Instagram', 'Instagram on iPhone');
+  assert(inAppBrowser('Mozilla/5.0 (Linux; Android 14; Pixel 8; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/150.0 Mobile Safari/537.36') === '', 'unnamed Android WebView');
+  assert(inAppBrowser('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0 Mobile Safari/537.36') === null, 'Chrome itself is no in-app browser');
+  assert(inAppBrowser('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15') === null, 'Safari is no in-app browser');
+  assert(chromeIntentUrl('https://example.org/deadboard/app.html?lang=ru#s=abc') === 'intent://example.org/deadboard/app.html?lang=ru#s=abc#Intent;scheme=https;package=com.android.chrome;end', 'Chrome intent keeps path, query and hash');
+  console.log(`touch: ${steps.length} phone tasks ≤ 70 chars, tool tips, toast split, in-app browsers — ok`);
 }
