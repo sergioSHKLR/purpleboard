@@ -1,6 +1,7 @@
 // Rework process outcomes from thermal history. The thermal model supplies temperatures under
 // real heat sources (iron, hot air, preheater); this monitor turns them into what happens to the
 // solder joints, pads and parts. Limits are typical process-window values (estimates, as data).
+import { t } from './i18n';
 import type { Board, Component } from './types';
 import type { ThermalModel } from './thermal';
 import { rng, seedOf, sampleSeverity } from './faults';
@@ -110,13 +111,13 @@ export class ReworkMonitor {
             if (ok) {
               c.state.cold = c.state.cold.filter((x) => x !== pi);
               if (c.state.coldOhms) { delete c.state.coldOhms[pi]; if (!Object.keys(c.state.coldOhms).length) c.state.coldOhms = undefined; }
-              ev.push({ kind: 'reflowed', ref: c.ref, pad: pi, detail: `${c.ref} pad ${p.name} reflowed${ps.flux > 0 ? ' with flux' : ''}` });
-            } else ev.push({ kind: 'dull-joint', ref: c.ref, pad: pi, detail: `${c.ref} pad ${p.name}: no flux — oxidised, still dull` });
+              ev.push({ kind: 'reflowed', ref: c.ref, pad: pi, detail: ps.flux > 0 ? t('{ref} pad {pad} reflowed with flux', { ref: c.ref, pad: p.name }) : t('{ref} pad {pad} reflowed', { ref: c.ref, pad: p.name }) });
+            } else ev.push({ kind: 'dull-joint', ref: c.ref, pad: pi, detail: t('{ref} pad {pad}: no flux — oxidised, still dull', { ref: c.ref, pad: p.name }) });
           }
           if (!lifted && c.state.intermittent?.some((f) => f.pad === pi)) {
             c.state.intermittent = c.state.intermittent.filter((f) => f.pad !== pi);
             if (!c.state.intermittent.length) c.state.intermittent = undefined;
-            ev.push({ kind: 'reflowed', ref: c.ref, pad: pi, detail: `${c.ref} pad ${p.name}: cracked joint reflowed` });
+            ev.push({ kind: 'reflowed', ref: c.ref, pad: pi, detail: t('{ref} pad {pad}: cracked joint reflowed', { ref: c.ref, pad: p.name }) });
           }
         }
         // pad delamination from prolonged overheating
@@ -124,16 +125,16 @@ export class ReworkMonitor {
         if (js.hot >= L.padLiftSeconds && !c.state.lifted?.includes(pi)) {
           c.state.lifted = [...(c.state.lifted ?? []), pi];
           if (!c.state.cold.includes(pi)) c.state.cold = [...c.state.cold, pi].sort((a, b) => a - b);
-          ev.push({ kind: 'pad-lifted', ref: c.ref, pad: pi, detail: `${c.ref} pad ${p.name} lifted (overheated ${js.hot.toFixed(1)} s above ${L.padLiftTemp} °C) — needs a jumper wire` });
+          ev.push({ kind: 'pad-lifted', ref: c.ref, pad: pi, detail: t('{ref} pad {pad} lifted (overheated {s} s above {temp} °C) — needs a jumper wire', { ref: c.ref, pad: p.name, s: js.hot.toFixed(1), temp: L.padLiftTemp }) });
         }
       });
-      if (allMolten && !ps.molten) ev.push({ kind: 'molten', ref: c.ref, detail: `${c.ref}: all joints molten — can be lifted` });
+      if (allMolten && !ps.molten) ev.push({ kind: 'molten', ref: c.ref, detail: t('{ref}: all joints molten — can be lifted', { ref: c.ref }) });
       ps.molten = allMolten;
       // part body overheating
       if (T >= L.partMaxTemp) ps.overheat += dt;
       if (ps.overheat >= L.partMaxSeconds && !c.state.burnt && c.kind !== 'testpoint') {
         c.state.burnt = true;
-        ev.push({ kind: 'part-overheated', ref: c.ref, detail: `${c.ref} overheated (${ps.overheat.toFixed(1)} s above ${L.partMaxTemp} °C)` });
+        ev.push({ kind: 'part-overheated', ref: c.ref, detail: t('{ref} overheated ({s} s above {temp} °C)', { ref: c.ref, s: ps.overheat.toFixed(1), temp: L.partMaxTemp }) });
       }
       // MLCC thermal shock
       // thermal-shock cracking is a large-ceramic problem (0805 and up); small MLCCs survive iron contact
@@ -144,7 +145,7 @@ export class ReworkMonitor {
         ps.cracked = true;
         const ohms = sampleSeverity('cap-partial-short', rng(seedOf(`crack|${c.ref}`)));
         c.state.leak = { ohms };
-        ev.push({ kind: 'mlcc-cracked', ref: c.ref, detail: `${c.ref} cracked by thermal shock (${ps.rate.toFixed(0)} K/s) — now leaks ${ohms} Ω; preheat the board first` });
+        ev.push({ kind: 'mlcc-cracked', ref: c.ref, detail: t('{ref} cracked by thermal shock ({rate} K/s) — now leaks {r} Ω; preheat the board first', { ref: c.ref, rate: ps.rate.toFixed(0), r: ohms }) });
       }
       // small molten part under strong airflow is blown off its pads (tombstone / skew)
       if (allMolten && !ps.displaced && c.body.w * c.body.h <= L.smallPartArea) {
@@ -152,7 +153,7 @@ export class ReworkMonitor {
         if (strong) {
           ps.displaced = true;
           if (!c.state.cold.includes(0)) c.state.cold = [...c.state.cold, 0].sort((a, b) => a - b);
-          ev.push({ kind: 'part-displaced', ref: c.ref, detail: `${c.ref} blown off one pad by the airflow (tombstoned) — re-seat and reflow` });
+          ev.push({ kind: 'part-displaced', ref: c.ref, detail: t('{ref} blown off one pad by the airflow (tombstoned) — re-seat and reflow', { ref: c.ref }) });
         }
       }
     }

@@ -130,7 +130,7 @@ export function touchCopy(s: string): string {
     .replace(/\bClick(ed|ing|s)?\b/g, (_m, sfx: string | undefined) => 'Tap' + (sfx === 'ed' ? 'ped' : sfx === 'ing' ? 'ping' : sfx ?? ''));
 }
 
-/** Short labels under the tool icons in the mobile tool strip. */
+/** Short labels under the tool icons in the mobile tool strip (English keys, translated where shown). */
 export const TOOL_SHORT: Record<string, string> = {
   inspect: 'Select', dmm: 'Meter', iron: 'Iron', wick: 'Wick', flip180: 'Rotate', jumper: 'Jumper',
   knife: 'Cutter', replace: 'Parts', freeze: 'Freeze', ipa: 'IPA', hotair: 'Hot air', rosin: 'Rosin',
@@ -161,6 +161,6 @@ export const TOOL_TIP_PHONE: Record<string, string> = {
  */
 export function splitLead(msg: string): { lead: string; rest: string } {
   if (msg.length <= 90) return { lead: msg, rest: '' }; // about two lines on a phone: show it all
-  const m = /^(.{24,}?[.!?])\s+(?=[A-Z0-9"“(])([\s\S]+)$/.exec(msg);
+  const m = /^(.{24,}?[.!?])\s+(?=[\p{Lu}0-9"“«(])([\s\S]+)$/u.exec(msg);
   return m ? { lead: m[1], rest: m[2] } : { lead: msg, rest: '' };
 }

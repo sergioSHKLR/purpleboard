@@ -1,6 +1,10 @@
 import type { Board, Side, V2 } from '../types';
 import type { Conn } from '../connectivity';
 import type { VizMode } from '../render/webgpu';
+import { t } from '../i18n';
+
+// Step texts and topics are English keys, translated where they are shown (app.ts); the i18n
+// test collects them from these tables.
 
 export interface TutorialCheckState {
   scenarioId: string;
@@ -428,14 +432,17 @@ export function nextTutorialScenarioId(scenarioId: string): string | null {
   return idx >= 0 && idx + 1 < TUTORIAL_SCENARIO_IDS.length ? TUTORIAL_SCENARIO_IDS[idx + 1] : null;
 }
 
-export const BEGINNER_PRIMER_HTML = `
+/** "PCB basics" card of the help window (translated when shown). */
+export function beginnerPrimerHtml(): string {
+  return `
   <div class="card">
-    <div class="card-title">PCB basics (start here)</div>
+    <div class="card-title">${t('PCB basics (start here)')}</div>
     <ul>
-      <li><b>Substrate &amp; silkscreen</b> — The rigid green (FR-4) plate insulates everything; white printed labels (<code>R1</code>, <code>D1</code>, <code>K</code>, <code>+</code>) are silkscreen markings telling you where parts belong.</li>
-      <li><b>Copper traces, pads &amp; vias</b> — Flat metal tracks carry signals on the <b>Top</b> and <b>Bottom</b> sides. Gold-plated rings with holes are <b>pads</b> where part leads are soldered; tiny holes called <b>vias</b> pass signals between Top and Bottom.</li>
-      <li><b>Common components</b> — <b>Batteries/Headers</b> supply DC voltage; <b>Resistors</b> limit current (colored bands encode ohms); <b>LEDs &amp; Diodes</b> conduct one way only (notch/band marks Cathode <code>K</code>); <b>Fuses</b> melt open to stop short circuits.</li>
-      <li><b>Three-step troubleshooting rule</b> — (1) Visually inspect both Top and Bottom (<code>F</code> key) for cuts, burnt parts, dull cold solder joints, or unwanted solder blobs. (2) With <b>Power on</b>, probe pads in <b>V⎓</b> or use <b>Voltage map / Thermal</b>. (3) Turn <b>Power off</b> before checking continuity (<b>Ω</b>) or LED polarity (<b>Diode</b>).</li>
+      <li>${t('<b>Substrate &amp; silkscreen</b> — The rigid green (FR-4) plate insulates everything; white printed labels (<code>R1</code>, <code>D1</code>, <code>K</code>, <code>+</code>) are silkscreen markings telling you where parts belong.')}</li>
+      <li>${t('<b>Copper traces, pads &amp; vias</b> — Flat metal tracks carry signals on the <b>Top</b> and <b>Bottom</b> sides. Gold-plated rings with holes are <b>pads</b> where part leads are soldered; tiny holes called <b>vias</b> pass signals between Top and Bottom.')}</li>
+      <li>${t('<b>Common components</b> — <b>Batteries/Headers</b> supply DC voltage; <b>Resistors</b> limit current (colored bands encode ohms); <b>LEDs &amp; Diodes</b> conduct one way only (notch/band marks Cathode <code>K</code>); <b>Fuses</b> melt open to stop short circuits.')}</li>
+      <li>${t('<b>Three-step troubleshooting rule</b> — (1) Visually inspect both Top and Bottom (<code>F</code> key) for cuts, burnt parts, dull cold solder joints, or unwanted solder blobs. (2) With <b>Power on</b>, probe pads in <b>V⎓</b> or use <b>Voltage map / Thermal</b>. (3) Turn <b>Power off</b> before checking continuity (<b>Ω</b>) or LED polarity (<b>Diode</b>).')}</li>
     </ul>
   </div>
 `;
+}

@@ -1,5 +1,6 @@
 // DC operating-point solver: nodal analysis with Norton-equivalent sources and
 // piecewise-linear diodes (iterated until the on/off states are consistent).
+import { t } from './i18n';
 import type { Board, Component, SwitchMap } from './types';
 import { pinNet, type Conn } from './connectivity';
 import { LED_INFO, MODELED, batteryRint, twoRoles } from './model';
@@ -252,13 +253,13 @@ export function simulate(board: Board, conn: Conn, opt: SimOpts = {}): Sim {
     if (c.kind === 'led') {
       r.on = i >= LED_ON_I;
       r.bright = i > 3e-4 ? Math.min(1, Math.max(0.12, i / 0.015)) : 0;
-      if (i > LED_MAX_I) { r.over = true; r.overMsg = `burned out — ${(i * 1000).toFixed(0)} mA through an LED rated ${LED_MAX_I * 1000} mA`; }
+      if (i > LED_MAX_I) { r.over = true; r.overMsg = t('burned out — {mA} mA through an LED rated {max} mA', { mA: (i * 1000).toFixed(0), max: LED_MAX_I * 1000 }); }
     } else if (c.kind === 'diode' && Math.abs(i) > 1) {
-      r.over = true; r.overMsg = `overheated at ${i.toFixed(2)} A`;
+      r.over = true; r.overMsg = t('overheated at {amps} A', { amps: i.toFixed(2) });
     } else if (c.kind === 'resistor' && r.p > (c.rating ?? 0.5)) {
-      r.over = true; r.overMsg = `went up in smoke dissipating ${r.p.toFixed(2)} W (rated ${c.rating ?? 0.5} W)`;
+      r.over = true; r.overMsg = t('went up in smoke dissipating {w} W (rated {rated} W)', { w: r.p.toFixed(2), rated: c.rating ?? 0.5 });
     } else if (c.kind === 'fuse' && Math.abs(i) > c.value) {
-      r.over = true; r.overMsg = `blew at ${Math.abs(i).toFixed(2)} A (rated ${c.value} A)`;
+      r.over = true; r.overMsg = t('blew at {amps} A (rated {rated} A)', { amps: Math.abs(i).toFixed(2), rated: c.value });
     }
     comps.set(c.id, r);
   }

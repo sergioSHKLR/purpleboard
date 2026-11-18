@@ -1,4 +1,5 @@
 import type { Blob, Board, Component, Jumper, Side, Trace, V2, Via } from './types';
+import { t } from './i18n';
 import { dist, pointSegDist, shapePointDist } from './geom';
 import { padShape, padWorld } from './model';
 import { sideMask, type Conn } from './connectivity';
@@ -153,7 +154,7 @@ export function netAt(board: Board, conn: Conn, pt: V2, side: Side, xray = false
     const idx = conn.viaItem.get(hit.via);
     if (idx === undefined) return null;
     const net = conn.net[idx];
-    return { net, label: `Via (${conn.netNames[net]})`, snap: hit.via.at };
+    return { net, label: `${t('Via')} (${conn.netNames[net]})`, snap: hit.via.at };
   }
   if (hit.kind === 'blob') {
     const idx = conn.blobItem.get(hit.blob);
@@ -165,7 +166,7 @@ export function netAt(board: Board, conn: Conn, pt: V2, side: Side, xray = false
     const idx = conn.items.findIndex((it) => it.jumper === hit.jumper);
     if (idx < 0) return null;
     const net = conn.net[idx];
-    return { net, label: `Jumper (${conn.netNames[net]})`, snap: hit.pos };
+    return { net, label: `${t('Jumper')} (${conn.netNames[net]})`, snap: hit.pos };
   }
   return null;
 }

@@ -1,4 +1,5 @@
 import type { Component, ComponentKind, LedColor, Pad, V2 } from './types';
+import { t, tk } from './i18n';
 import { DEG, makeShape, rot, type Shape } from './geom';
 
 /** Kinds with an electrical model in the simulator. */
@@ -110,7 +111,7 @@ export const BAND_RGB: [number, number, number][] = [
   [0.07, 0.07, 0.07], [0.45, 0.25, 0.1], [0.85, 0.1, 0.1], [1, 0.5, 0], [1, 0.85, 0],
   [0.1, 0.65, 0.2], [0.1, 0.25, 0.9], [0.5, 0.15, 0.8], [0.5, 0.5, 0.5], [0.95, 0.95, 0.95],
 ];
-export const BAND_NAMES = ['black', 'brown', 'red', 'orange', 'yellow', 'green', 'blue', 'violet', 'grey', 'white'];
+export const BAND_NAMES = [tk('black'), tk('brown'), tk('red'), tk('orange'), tk('yellow'), tk('green'), tk('blue'), tk('violet'), tk('grey'), tk('white')];
 export const GOLD_RGB: [number, number, number] = [0.83, 0.66, 0.22];
 
 /** 4-band code: [digit1, digit2, multiplierExp] — exp -1 = gold multiplier. */
@@ -125,24 +126,25 @@ export function resistorBands(v: number): [number, number, number] {
 
 export function bandText(v: number): string {
   const [a, b, e] = resistorBands(v);
-  return `${BAND_NAMES[a]}-${BAND_NAMES[b]}-${e < 0 ? 'gold' : BAND_NAMES[e]}-gold`;
+  const gold = t('gold');
+  return `${t(BAND_NAMES[a])}-${t(BAND_NAMES[b])}-${e < 0 ? gold : t(BAND_NAMES[e])}-${gold}`;
 }
 
 export const KIND_NAMES: Record<ComponentKind, string> = {
-  resistor: 'Resistor', capacitor: 'Capacitor', led: 'LED', diode: 'Diode', battery: 'Power source',
-  switch: 'Switch', fuse: 'Fuse', testpoint: 'Test point', ic: 'IC', connector: 'Connector', generic: 'Part',
+  resistor: tk('Resistor'), capacitor: tk('Capacitor'), led: tk('LED'), diode: tk('Diode'), battery: tk('Power source'),
+  switch: tk('Switch'), fuse: tk('Fuse'), testpoint: tk('Test point'), ic: tk('IC'), connector: tk('Connector'), generic: tk('Part'),
 };
 
 export function marking(c: Component): string {
-  if (!c.state.populated) return 'empty footprint';
-  if (c.state.burnt) return c.kind === 'fuse' ? 'blackened glass — blown' : 'charred, unreadable';
+  if (!c.state.populated) return t('empty footprint');
+  if (c.state.burnt) return c.kind === 'fuse' ? t('blackened glass — blown') : t('charred, unreadable');
   switch (c.kind) {
     case 'resistor': return `${fmtOhm(c.value)} (${bandText(c.value)})`;
     case 'capacitor': return fmtSI(c.value, 'F');
-    case 'led': return `${c.color ?? 'red'} LED`;
+    case 'led': return t('{color} LED', { color: t(c.color ?? 'red') });
     case 'battery': return `${c.label ? c.label + ' · ' : ''}${fmtSI(c.value, 'V')}`;
-    case 'fuse': return `${fmtSI(c.value, 'A')} fuse`;
-    case 'switch': return c.state.closed ? 'pressed / closed' : 'released / open';
+    case 'fuse': return t('{rating} fuse', { rating: fmtSI(c.value, 'A') });
+    case 'switch': return c.state.closed ? t('pressed / closed') : t('released / open');
     default: return c.label ?? c.footprint ?? '';
   }
 }

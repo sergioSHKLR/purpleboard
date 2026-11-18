@@ -10,7 +10,7 @@ import { AMMETER_SHUNT, GENERIC_DMM, contactResistance, displayAmps, displayVolt
 import { boardToCircuit } from '../spice/board';
 import { writeSpice } from '../spice/netlist';
 import { netAt, pickAt, type PickHit } from '../pick';
-import { runSolver, verifyScenario, type Solver, type VerifyResult } from '../verify';
+import { objectiveLabel, runSolver, verifyScenario, type Solver, type VerifyResult } from '../verify';
 import { lockFlag, packText, topology, unpackText } from '../crypto';
 import { serializeScenario } from '../io/format';
 import { importScenarioOrPcb } from '../io/kicad';
@@ -31,10 +31,11 @@ import { HOTAIR_H, IRON_G, PREHEAT_H, ReworkMonitor, type ReworkEvent } from '..
 import { WebGPURenderer, type VizMode } from '../render/webgpu';
 import { setSoundEnabled, sfxBeep, sfxBlow, sfxClick, sfxCut, sfxSolder, sfxWin, soundEnabled } from './audio';
 import { icon } from './icons';
+import { LANGUAGES, lang, saveLanguage, t, t as translate, tk } from '../i18n';
 import { APP_BUILD, mountFeedbackForm, type FeedbackContext } from './feedback';
 import { boardDiff, encodeSnapshot, type BenchSnapshot } from '../snapshot';
 import { BRAND, markSvg } from './logo';
-import { BEGINNER_PRIMER_HTML, TUTORIAL_SCENARIO_IDS, TUTORIAL_TOPICS, getTutorialSteps, isTutorialScenario, nextTutorialScenarioId, type TutorialStep } from './tutorial';
+import { beginnerPrimerHtml, TUTORIAL_SCENARIO_IDS, TUTORIAL_TOPICS, getTutorialSteps, isTutorialScenario, nextTutorialScenarioId, type TutorialStep } from './tutorial';
 import { TOOL_SHORT, TOOL_TIP_PHONE, TouchGestures, splitLead, touchCopy, wantsMobileLayout } from './touch';
 
 type ToolId = 'inspect' | 'dmm' | 'iron' | 'wick' | 'flip180' | 'jumper' | 'knife' | 'replace' | 'freeze' | 'ipa' | 'press' | 'hotair' | 'scope' | 'rosin';
@@ -49,21 +50,25 @@ interface ProbePin {
 }
 
 const TOOLS: { id: ToolId; key: string; ico: string; lbl: string; tip: string }[] = [
-  { id: 'inspect', key: '1', ico: 'pointer', lbl: 'Select', tip: 'Select parts and nets, press switches' },
-  { id: 'dmm', key: '2', ico: 'meter', lbl: 'Multimeter', tip: 'Left-click places red probe, right-click or Shift+click places black probe' },
-  { id: 'iron', key: '3', ico: 'iron', lbl: 'Soldering iron', tip: 'Reflow joints, bridge gaps, solder parts' },
-  { id: 'wick', key: '4', ico: 'eraser', lbl: 'Desolder wick', tip: 'Remove solder bridges, jumpers or parts' },
-  { id: 'flip180', key: '5', ico: 'rotate', lbl: 'Rotate 180°', tip: 'Reverse part orientation' },
-  { id: 'jumper', key: '6', ico: 'wire', lbl: 'Jumper wire', tip: 'Click start then end point; works across sides' },
-  { id: 'knife', key: '7', ico: 'scissors', lbl: 'Trace cutter', tip: 'Cut a copper trace' },
-  { id: 'replace', key: '8', ico: 'box', lbl: 'Parts bin', tip: 'Replace or change a component' },
-  { id: 'freeze', key: '9', ico: 'snow', lbl: 'Freeze spray', tip: 'Frost an area: on a powered board the hot part defrosts first (Thermal view shows temperatures)' },
-  { id: 'ipa', key: '0', ico: 'drop', lbl: 'Isopropyl', tip: 'Wet / scrub an area with IPA: evaporates first on the hottest part; dissolves liquid-damage residue' },
-  { id: 'hotair', key: 'h', ico: 'wind', lbl: 'Hot air', tip: 'Realistic rework: 3 s of hot air (400 °C) over the spot; melt every joint of a part before lifting it with the wick' },
-  { id: 'rosin', key: 'r', ico: 'rosin', lbl: 'Rosin', tip: 'Rosin method: coat an area white with rosin; on a powered board it melts clear first on the hottest part' },
-  { id: 'scope', key: 'o', ico: 'scope', lbl: 'Oscilloscope', tip: 'Clip the scope probe (CH1) on a net: rail ramps and boot loops (Roll), switching nodes, ripple and clocks (Auto)' },
-  { id: 'press', key: 'b', ico: 'hand', lbl: 'Press / flex', tip: 'Press on the board for 2.5 s: reveals cracked joints that open or close under flex' },
+  { id: 'inspect', key: '1', ico: 'pointer', lbl: tk('Select'), tip: tk('Select parts and nets, press switches') },
+  { id: 'dmm', key: '2', ico: 'meter', lbl: tk('Multimeter'), tip: tk('Left-click places red probe, right-click or Shift+click places black probe') },
+  { id: 'iron', key: '3', ico: 'iron', lbl: tk('Soldering iron'), tip: tk('Reflow joints, bridge gaps, solder parts') },
+  { id: 'wick', key: '4', ico: 'eraser', lbl: tk('Desolder wick'), tip: tk('Remove solder bridges, jumpers or parts') },
+  { id: 'flip180', key: '5', ico: 'rotate', lbl: tk('Rotate 180°'), tip: tk('Reverse part orientation') },
+  { id: 'jumper', key: '6', ico: 'wire', lbl: tk('Jumper wire'), tip: tk('Click start then end point; works across sides') },
+  { id: 'knife', key: '7', ico: 'scissors', lbl: tk('Trace cutter'), tip: tk('Cut a copper trace') },
+  { id: 'replace', key: '8', ico: 'box', lbl: tk('Parts bin'), tip: tk('Replace or change a component') },
+  { id: 'freeze', key: '9', ico: 'snow', lbl: tk('Freeze spray'), tip: tk('Frost an area: on a powered board the hot part defrosts first (Thermal view shows temperatures)') },
+  { id: 'ipa', key: '0', ico: 'drop', lbl: tk('Isopropyl'), tip: tk('Wet / scrub an area with IPA: evaporates first on the hottest part; dissolves liquid-damage residue') },
+  { id: 'hotair', key: 'h', ico: 'wind', lbl: tk('Hot air'), tip: tk('Realistic rework: 3 s of hot air (400 °C) over the spot; melt every joint of a part before lifting it with the wick') },
+  { id: 'rosin', key: 'r', ico: 'rosin', lbl: tk('Rosin'), tip: tk('Rosin method: coat an area white with rosin; on a powered board it melts clear first on the hottest part') },
+  { id: 'scope', key: 'o', ico: 'scope', lbl: tk('Oscilloscope'), tip: tk('Clip the scope probe (CH1) on a net: rail ramps and boot loops (Roll), switching nodes, ripple and clocks (Auto)') },
+  { id: 'press', key: 'b', ico: 'hand', lbl: tk('Press / flex'), tip: tk('Press on the board for 2.5 s: reveals cracked joints that open or close under flex') },
 ];
+
+const LED_COLOR_NAMES: Record<LedColor, string> = {
+  red: tk('red'), orange: tk('orange'), yellow: tk('yellow'), green: tk('green'), blue: tk('blue'), white: tk('white'),
+};
 
 const fmtDur = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 
@@ -84,10 +89,10 @@ function makeStarterBoard(): Scenario {
     format: 'pcbfix/1',
     id: 'custom-' + Date.now().toString(36),
     meta: {
-      title: 'Custom Sandbox Board',
-      author: 'You',
+      title: tk('Custom Sandbox Board'),
+      author: tk('You'),
       difficulty: 1,
-      description: 'A clean, working board. In the Author tab: lock a flag, break the board, then export or share the challenge.',
+      description: tk('A clean, working board. In the Author tab: lock a flag, break the board, then export or share the challenge.'),
       hints: [],
       par: 1,
     },
@@ -303,7 +308,15 @@ export class PcbApp {
     // Load from URL hash if present (#s=...)
     const loadedHash = await this.tryLoadFromHash();
     if (!loadedHash) {
+      // after a language switch: the board that was open (when it ships with the app)
+      let reopen = -1;
+      try {
+        const id = sessionStorage.getItem('deadboard_reopen');
+        sessionStorage.removeItem('deadboard_reopen');
+        reopen = id ? this.scenarios.findIndex((s) => s.id === id) : -1;
+      } catch { /* storage unavailable */ }
       this.loadScenario(this.scenarios[0]);
+      if (reopen > 0) await this.openScenario(reopen);
     }
 
     this.bindEvents();
@@ -322,10 +335,10 @@ export class PcbApp {
       this.scenarios.push(sc);
       this.refreshScenarioSelect();
       this.loadScenario(sc);
-      this.toast(`Loaded shared puzzle: ${sc.meta.title}`, 'success');
+      this.toast(t('Loaded shared puzzle: {title}', { title: t(sc.meta.title) }), 'success');
       return true;
     } catch (e) {
-      this.toast(`Failed to decode shared URL: ${e instanceof Error ? e.message : String(e)}`, 'danger');
+      this.toast(t('Failed to decode shared URL: {error}', { error: e instanceof Error ? e.message : String(e) }), 'danger');
       return false;
     }
   }
@@ -334,45 +347,45 @@ export class PcbApp {
   private webGpuHelp(): string {
     const ua = navigator.userAgent;
     const ff = /Firefox\/(\d+)/.exec(ua);
-    const general = 'DEADBOARD renders the bench with WebGPU: use Chrome or Edge 113+, Safari 26+, or Firefox 141+ (Windows) / 145+ (Mac with Apple silicon).';
+    const general = t('DEADBOARD renders the bench with WebGPU: use Chrome or Edge 113+, Safari 26+, or Firefox 141+ (Windows) / 145+ (Mac with Apple silicon).');
     // desktop build: the browser is built in, so only the GPU driver can be the problem
     if (/Electron\//.test(ua)) {
-      if (/Linux/.test(ua)) return 'The desktop app renders with WebGPU on Vulkan. Install or update the Vulkan driver for your graphics card (vulkaninfo should list it), then restart DEADBOARD.';
-      return 'The desktop app renders with WebGPU, which needs a graphics card and driver that support DirectX 12 (Windows) or Metal (macOS). Update the graphics driver and restart DEADBOARD.';
+      if (/Linux/.test(ua)) return t('The desktop app renders with WebGPU on Vulkan. Install or update the Vulkan driver for your graphics card (vulkaninfo should list it), then restart DEADBOARD.');
+      return t('The desktop app renders with WebGPU, which needs a graphics card and driver that support DirectX 12 (Windows) or Metal (macOS). Update the graphics driver and restart DEADBOARD.');
     }
     // phones and tablets
     if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) {
-      return 'On iPhone and iPad, WebGPU needs iOS / iPadOS 26 or later (Safari, and every other browser there). Update in Settings → General → Software Update. On iOS 18 it can be switched on in Settings → Apps → Safari → Advanced → Feature Flags → WebGPU.';
+      return t('On iPhone and iPad, WebGPU needs iOS / iPadOS 26 or later (Safari, and every other browser there). Update in Settings → General → Software Update. On iOS 18 it can be switched on in Settings → Apps → Safari → Advanced → Feature Flags → WebGPU.');
     }
     if (/Android/.test(ua)) {
       return ff
-        ? 'Firefox for Android has no WebGPU yet: open DEADBOARD in Chrome instead.'
-        : 'On Android, WebGPU needs Chrome 121 or later on Android 12+ with a supported GPU (most Qualcomm Adreno and ARM Mali phones). Update Chrome from the Play Store and try again.';
+        ? t('Firefox for Android has no WebGPU yet: open DEADBOARD in Chrome instead.')
+        : t('On Android, WebGPU needs Chrome 121 or later on Android 12+ with a supported GPU (most Qualcomm Adreno and ARM Mali phones). Update Chrome from the Play Store and try again.');
     }
     // Chromium on Linux still enables WebGPU only for some GPU / driver combinations
     if (!ff && /Linux/.test(ua) && !/Android|CrOS/.test(ua)) {
-      return 'On Linux, Chrome and Edge turn WebGPU on only for some graphics drivers. Open chrome://flags, enable "Unsafe WebGPU Support" and "Vulkan", and restart the browser; or use Firefox with dom.webgpu.enabled set to true in about:config. Make sure your Vulkan driver is installed (vulkaninfo should list your GPU).';
+      return t('On Linux, Chrome and Edge turn WebGPU on only for some graphics drivers. Open chrome://flags, enable "Unsafe WebGPU Support" and "Vulkan", and restart the browser; or use Firefox with dom.webgpu.enabled set to true in about:config. Make sure your Vulkan driver is installed (vulkaninfo should list your GPU).');
     }
     if (!ff) return general;
     const ver = Number(ff[1]);
     if (!('gpu' in navigator)) {
-      if (/Windows/.test(ua) && ver < 141) return `Firefox ${ver} has no WebGPU yet: update Firefox (141+ enables it on Windows), or use Chrome / Edge.`;
-      if (/Mac OS X/.test(ua) && ver < 145) return `Firefox ${ver} has no WebGPU yet on macOS: update Firefox (145+ enables it on Apple-silicon Macs), or use Chrome / Safari.`;
-      return `Firefox ${ver} ships WebGPU switched off on this system (Linux and Intel Macs, for now). Use Chrome, or turn it on: open about:config, set dom.webgpu.enabled to true, and reload.`;
+      if (/Windows/.test(ua) && ver < 141) return t('Firefox {ver} has no WebGPU yet: update Firefox (141+ enables it on Windows), or use Chrome / Edge.', { ver });
+      if (/Mac OS X/.test(ua) && ver < 145) return t('Firefox {ver} has no WebGPU yet on macOS: update Firefox (145+ enables it on Apple-silicon Macs), or use Chrome / Safari.', { ver });
+      return t('Firefox {ver} ships WebGPU switched off on this system (Linux and Intel Macs, for now). Use Chrome, or turn it on: open about:config, set dom.webgpu.enabled to true, and reload.', { ver });
     }
-    return 'Firefox has WebGPU, but did not offer it for this graphics card or driver. Update the graphics driver and make sure hardware acceleration is on (Settings → Performance), or use Chrome. about:support → WebGPU shows the reason.';
+    return t('Firefox has WebGPU, but did not offer it for this graphics card or driver. Update the graphics driver and make sure hardware acceleration is on (Settings → Performance), or use Chrome. about:support → WebGPU shows the reason.');
   }
 
   private showWebGpuError(msg: string) {
     this.mount.innerHTML = `
       <div class="webgpu-err">
         <div class="card">
-          <div class="card-title lg">WebGPU is not available</div>
+          <div class="card-title lg">${t('WebGPU is not available')}</div>
           <p class="text-2" style="margin:0">${this.esc(msg)}</p>
           <p class="muted" style="margin:0">${this.webGpuHelp()}</p>
         </div>
         <div class="card">
-          <div class="card-title">Still stuck? Tell us</div>
+          <div class="card-title">${t('Still stuck? Tell us')}</div>
           <div id="fb-host"></div>
         </div>
       </div>`;
@@ -399,8 +412,8 @@ export class PcbApp {
       gpu: this.renderer?.adapterDescription,
       error: this.recentErrors[this.recentErrors.length - 1],
       snapshotNote: this.bundledIds.has(sc?.id ?? '')
-        ? `Bench snapshot: your changes to this board (${this.moves} move${this.moves === 1 ? '' : 's'}), readings, last messages`
-        : 'Bench snapshot: readings and last messages (your imported board itself is not sent)',
+        ? t('Bench snapshot: your changes to this board ({n} move), readings, last messages|Bench snapshot: your changes to this board ({n} moves), readings, last messages', { n: this.moves })
+        : t('Bench snapshot: readings and last messages (your imported board itself is not sent)'),
       snapshot: () => this.benchSnapshot(),
     };
   }
@@ -450,9 +463,9 @@ export class PcbApp {
     this.modalRootEl.innerHTML = `
       <div class="modal-backdrop" id="fb-close-bg">
         <div class="modal" style="transform: translate3d(${this.modalPos[0]}px, ${this.modalPos[1]}px, 0)">
-          <div class="modal-head" title="Drag to move window">
-            <h2>Feedback</h2>
-            <button class="btn ghost icon sm" id="fb-close" title="Close">${icon('x', 14)}</button>
+          <div class="modal-head" title="${t('Drag to move window')}">
+            <h2>${t('Feedback')}</h2>
+            <button class="btn ghost icon sm" id="fb-close" title="${t('Close')}">${icon('x', 14)}</button>
           </div>
           <div class="card"><div id="fb-host"></div></div>
         </div>
@@ -467,6 +480,7 @@ export class PcbApp {
 
   private buildDom() {
     const m = this.mobile;
+    document.title = t('DEADBOARD — board-level repair trainer');
     if (m) {
       document.body.classList.add('is-mobile');
       this.panelOpen = false;
@@ -482,96 +496,102 @@ export class PcbApp {
       <div class="layout${m ? ' mobile panel-collapsed' : ''}" id="layout">
         <header class="topbar">
           <div class="topbar-group">
-            <a class="brand" href="./" title="${BRAND.name} — home">${markSvg(22)}</a>
-            <span class="brand-name" title="${BRAND.descriptor}">${BRAND.name}</span>
+            <a class="brand" href="./" title="${t('{name} — home', { name: BRAND.name })}">${markSvg(22)}</a>
+            <span class="brand-name" title="${t(BRAND.descriptor)}">${BRAND.name}</span>
             <span class="topbar-divider"></span>
-            <button class="board-picker-btn" id="btn-boards" title="Browse all boards & tutorials">
+            <button class="board-picker-btn" id="btn-boards" title="${t('Browse all boards & tutorials')}">
               ${icon('grid', 14)}
               <span class="bp-badge" id="bp-badge"></span>
               <span class="bp-title" id="bp-title"></span>
               <span class="bp-check" id="bp-check" hidden>${icon('check', 12)}</span>
               ${icon('chevronDown', 13)}
             </button>
-            <select id="sc-select" title="Scenario" hidden></select>
-            <button class="btn ghost icon" id="btn-new-board" title="New blank board">${icon('plus')}</button>
-            <button class="btn ghost icon" id="btn-import" title="Import .brd, .tvw, .kicad_pcb, .pcbfix.json, or a mod .zip">${icon('upload')}</button>
+            <select id="sc-select" title="${t('Scenario')}" hidden></select>
+            <button class="btn ghost icon" id="btn-new-board" title="${t('New blank board')}" hidden>${icon('plus')}</button>
+            <button class="btn ghost icon" id="btn-import" title="${t('Import .brd, .tvw, .kicad_pcb, .pcbfix.json, or a mod .zip')}" hidden>${icon('upload')}</button>
             <input type="file" id="file-input" accept=".brd,.tvw,.json,.pcbfix.json,.kicad_pcb,.zip" hidden />
           </div>
           <div class="topbar-group">
-            <div class="seg" id="seg-view" title="Camera (Tab)">
+            <div class="seg" id="seg-view" title="${t('Camera (Tab)')}">
               <button data-view="2d">2D</button>
               <button data-view="3d">3D</button>
             </div>
-            <button class="btn ghost icon" id="btn-invert-orbit">${icon('rotate')}</button>
-            <div class="seg" id="seg-side" title="Board side (F)">
-              <button data-side="F">Top</button>
-              <button data-side="both">Both</button>
-              <button data-side="B">Bottom</button>
+            <div class="seg" id="seg-side" title="${t('Board side (F)')}">
+              <button data-side="F">${t('Top')}</button>
+              <button data-side="both">${t('Both')}</button>
+              <button data-side="B">${t('Bottom')}</button>
             </div>
-            <button class="btn ghost icon" id="btn-fit" title="Fit to view (C)">${icon('fit')}</button>
+            <button class="btn ghost icon" id="btn-fit" title="${t('Fit to view (C)')}">${icon('fit')}</button>
             <span class="topbar-divider"></span>
-            <select id="viz-select" title="Display mode">
-              <option value="realistic">Realistic</option>
-              <option value="heatmap">Voltage map</option>
-              <option value="thermal">Thermal</option>
-              <option value="xray">X-ray</option>
+            <select id="viz-select" title="${t('Display mode')}">
+              <option value="realistic">${t('Realistic')}</option>
+              <option value="heatmap">${t('Voltage map')}</option>
+              <option value="thermal">${t('Thermal')}</option>
+              <option value="xray">${t('X-ray')}</option>
             </select>
             <div class="bench-wrap">
-              <button class="btn ghost" id="btn-bench" title="Bench setup: solver, supply, rework">${icon('meter', 14)}<span>Bench</span></button>
+              <button class="btn ghost" id="btn-bench" title="${t('Bench setup: solver, supply, rework')}">${icon('meter', 14)}<span>${t('Bench')}</span></button>
               <div class="bench-pop" id="bench-pop" hidden>
-            <label class="bench-row"><span>Rework</span><select id="rework-mode" title="Rework: instant (puzzle) or physical process">
-              <option value="instant">Rework: instant</option>
-              <option value="r350f">Iron 350 °C + flux</option>
-              <option value="r350">Iron 350 °C, dry</option>
-              <option value="r400f">Iron 400 °C + flux</option>
+            <label class="bench-row"><span>${t('Rework')}</span><select id="rework-mode" title="${t('Rework: instant (puzzle) or physical process')}">
+              <option value="instant">${t('Rework: instant')}</option>
+              <option value="r350f">${t('Iron 350 °C + flux')}</option>
+              <option value="r350">${t('Iron 350 °C, dry')}</option>
+              <option value="r400f">${t('Iron 400 °C + flux')}</option>
             </select></label>
-            <label class="bench-row"><span>Preheater</span><select id="preheat" title="Bottom preheater">
-              <option value="0">No preheat</option>
-              <option value="120">Preheat 120°</option>
-              <option value="150">Preheat 150°</option>
+            <label class="bench-row"><span>${t('Preheater')}</span><select id="preheat" title="${t('Bottom preheater')}">
+              <option value="0">${t('No preheat')}</option>
+              <option value="120">${t('Preheat {deg}°', { deg: 120 })}</option>
+              <option value="150">${t('Preheat {deg}°', { deg: 150 })}</option>
             </select></label>
-            <label class="bench-row"><span>Supply</span><select id="psu-mode" title="Bench supply: board supply, or voltage injection onto the red probe's net (board supply removed)">
-              <option value="board">Board PSU</option>
-              <option value="inject1">Inject 1 V·3 A</option>
-              <option value="inject3">Inject 3.3 V·1 A</option>
+            <label class="bench-row"><span>${t('Supply')}</span><select id="psu-mode" title="${t('Bench supply: board supply, or voltage injection onto the red probe\'s net (board supply removed)')}">
+              <option value="board">${t('Board PSU')}</option>
+              <option value="inject1">${t('Inject {v}·{a}', { v: '1 V', a: '3 A' })}</option>
+              <option value="inject3">${t('Inject {v}·{a}', { v: '3.3 V', a: '1 A' })}</option>
             </select></label>
-            <label class="bench-row"><span>Current limit</span><select id="ocp-select" title="Bench supply current limit (OCP)">
-              <option value="0">No limit</option>
+            <label class="bench-row"><span>${t('Current limit')}</span><select id="ocp-select" title="${t('Bench supply current limit (OCP)')}">
+              <option value="0">${t('No limit')}</option>
               <option value="0.1">100 mA</option>
               <option value="0.5">500 mA</option>
             </select></label>
-            <label class="bench-row"><span>Solver</span><select id="solver-select" title="Circuit solver: fast piecewise-linear DC · SPICE (real device physics, realistic meter) · SPICE + PWR (adds the board's regulators from its power tree)">
-              <option value="fast">Fast DC</option>
+            <label class="bench-row"><span>${t('Solver')}</span><select id="solver-select" title="${t('Circuit solver: fast piecewise-linear DC · SPICE (real device physics, realistic meter) · SPICE + PWR (adds the board\'s regulators from its power tree)')}">
+              <option value="fast">${t('Fast DC')}</option>
               <option value="spice">SPICE</option>
               <option value="spice-power">SPICE + PWR</option>
             </select></label>
-            <button class="btn sm" id="btn-spice-export" title="Export SPICE netlist (.cir, ngspice compatible)">${icon('download', 13)}<span>Export SPICE netlist (.cir)</span></button>
+            <button class="btn sm" id="btn-spice-export" title="${t('Export SPICE netlist (.cir, ngspice compatible)')}">${icon('download', 13)}<span>${t('Export SPICE netlist (.cir)')}</span></button>
               </div>
             </div>
-            <button class="power" id="btn-power" title="Bench supply (P)"><span class="dot"></span>${m ? icon('power', 15) : ''}<span class="lbl">Power</span></button>
+            <button class="power" id="btn-power" title="${t('Bench supply (P)')}"><span class="dot"></span>${m ? icon('power', 15) : ''}<span class="lbl">${t('Power')}</span></button>
             <span class="topbar-divider"></span>
-            <button class="btn primary" id="btn-verify" title="Run test bench">${icon('play', 14)}<span>Run tests</span></button>
-            <button class="btn ghost" id="btn-tutorial" title="Interactive beginner tutorial">${icon('book', 14)}<span>Tutorial</span></button>
-            <button class="btn ghost icon" id="btn-sound" title="Sound"></button>
-            <button class="btn ghost icon" id="btn-feedback" title="Report a bug or suggest an idea">${icon('message')}</button>
-            <button class="btn ghost icon" id="btn-help" title="Help">${icon('help')}</button>
-            <button class="btn ghost icon" id="btn-panel-toggle" title="${m ? 'Mission, inspector and author' : 'Toggle panel'}">${icon(m ? 'flag' : 'sidebar')}</button>
-            ${m ? `<button class="btn ghost icon" id="btn-more" title="View, bench and settings">${icon('more', 18)}</button>` : ''}
+            <button class="btn primary" id="btn-verify" title="${t('Run test bench')}">${icon('play', 14)}<span>${t('Run tests')}</span></button>
+            <button class="btn ghost" id="btn-tutorial" title="${t('Interactive beginner tutorial')}">${icon('book', 14)}<span>${t('Tutorial')}</span></button>
+            <button class="btn ghost icon" id="btn-feedback" title="${t('Report a bug or suggest an idea')}">${icon('message')}</button>
+            <button class="btn ghost icon" id="btn-help" title="${t('Help')}">${icon('help')}</button>
+            <div class="bench-wrap settings-wrap">
+              <button class="btn ghost icon" id="btn-settings" title="${t('Settings')}">${icon('settings')}</button>
+              <div class="bench-pop settings-pop" id="settings-pop" hidden>
+                <div class="bench-row"><span>${t('Sound')}</span><button class="btn sm" id="btn-sound"></button></div>
+                <div class="bench-row"><span>${t('3D orbit')}</span><button class="btn sm" id="btn-invert-orbit"></button></div>
+                <label class="bench-row"><span>${lang() === 'en' ? 'Language' : `${t('Language')} · Language`}</span>${this.langPickerHtml('full')}</label>
+              </div>
+            </div>
+            <button class="btn ghost icon" id="btn-panel-toggle" title="${m ? t('Mission, inspector and author') : t('Toggle panel')}">${icon(m ? 'flag' : 'sidebar')}</button>
+            ${m ? `<button class="btn ghost icon" id="btn-more" title="${t('View, bench and settings')}">${icon('more', 18)}</button>` : ''}
           </div>
         </header>
 
         ${m ? this.mobileDockHtml() : `<aside class="tooldock" id="tooldock">
-          ${TOOLS.map((t) => `
-            <button class="tool-btn ${t.id === this.activeTool ? 'active' : ''}" data-tool="${t.id}" data-tip="${this.esc(t.lbl)} · ${t.key}" aria-label="${this.esc(t.tip)}">
-              ${icon(t.ico, 18)}
-              <span class="key">${t.key}</span>
+          ${TOOLS.map((tl) => `
+            <button class="tool-btn ${tl.id === this.activeTool ? 'active' : ''}" data-tool="${tl.id}" data-tip="${this.esc(t(tl.lbl))} · ${tl.key}" aria-label="${this.esc(t(tl.tip))}">
+              ${icon(tl.ico, 18)}
+              <span class="key">${tl.key}</span>
             </button>
           `).join('')}
           <div class="dock-spacer"></div>
           <div class="dock-sep"></div>
-          <button class="tool-btn" id="btn-undo" data-tip="Undo · ⌘Z">${icon('undo', 18)}</button>
-          <button class="tool-btn" id="btn-redo" data-tip="Redo · ⇧⌘Z">${icon('redo', 18)}</button>
-          <button class="tool-btn" id="btn-reset" data-tip="Reset board">${icon('reset', 18)}</button>
+          <button class="tool-btn" id="btn-undo" data-tip="${t('Undo')} · ⌘Z">${icon('undo', 18)}</button>
+          <button class="tool-btn" id="btn-redo" data-tip="${t('Redo')} · ⇧⌘Z">${icon('redo', 18)}</button>
+          <button class="tool-btn" id="btn-reset" data-tip="${t('Reset board')}">${icon('reset', 18)}</button>
         </aside>`}
 
         <main class="viewport" id="viewport">
@@ -579,9 +599,9 @@ export class PcbApp {
           <div class="hud-top-left"><div id="tut-box"></div></div>
           ${m ? `
           <div class="m-viewctl">
-            <button class="m-vbtn" id="m-fit" title="Fit board">${icon('fit', 18)}</button>
+            <button class="m-vbtn" id="m-fit" title="${t('Fit board')}">${icon('fit', 18)}</button>
             <button class="m-vbtn" id="m-mode" title="2D / 3D"></button>
-            <button class="m-vbtn" id="m-flip" title="Top / Bottom side"></button>
+            <button class="m-vbtn" id="m-flip" title="${t('Top / Bottom side')}"></button>
           </div>
           <div class="m-hud"><div id="scope-box"></div><div id="psu-box"></div><div id="dmm-box"></div></div>` : `
           <div class="hud-bottom-left"><div id="dmm-box"></div></div>
@@ -590,12 +610,12 @@ export class PcbApp {
         </main>
 
         <aside class="sidepanel" id="sidepanel">
-          <div class="sidepanel-resizer" id="sidepanel-resizer" title="Drag to resize panel"></div>
+          <div class="sidepanel-resizer" id="sidepanel-resizer" title="${t('Drag to resize panel')}"></div>
           <div class="tabs">
-            <button class="tab active" data-tab="mission">Overview</button>
-            <button class="tab" data-tab="inspect">Inspector</button>
-            <button class="tab" data-tab="studio">Author</button>
-            ${m ? `<button class="btn ghost icon m-sheet-close" id="m-panel-close" title="Close">${icon('x', 16)}</button>` : ''}
+            <button class="tab active" data-tab="mission">${t('Overview')}</button>
+            <button class="tab" data-tab="inspect">${t('Inspector')}</button>
+            <button class="tab" data-tab="studio">${t('Author')}</button>
+            ${m ? `<button class="btn ghost icon m-sheet-close" id="m-panel-close" title="${t('Close')}">${icon('x', 16)}</button>` : ''}
           </div>
           <div class="panel-body" id="side-body"></div>
         </aside>
@@ -603,17 +623,17 @@ export class PcbApp {
         <footer class="statusbar">
           <div class="sb-left" id="hud-top"></div>
           <div class="sb-right">
-            <span class="sb-item"><span class="kbd">LMB</span>Tool / Drag Pan</span>
-            <span class="sb-item"><span class="kbd">RMB</span>Orbit</span>
-            <span class="sb-item"><span class="kbd">MMB</span>Pan</span>
-            <span class="sb-item"><span class="kbd">F</span>Flip</span>
+            <span class="sb-item"><span class="kbd">LMB</span>${t('Tool / Drag Pan')}</span>
+            <span class="sb-item"><span class="kbd">RMB</span>${t('Orbit')}</span>
+            <span class="sb-item"><span class="kbd">MMB</span>${t('Pan')}</span>
+            <span class="sb-item"><span class="kbd">F</span>${t('Flip')}</span>
             <span class="sb-item"><span class="kbd">Tab</span>2D/3D</span>
           </div>
         </footer>
       </div>
       <div id="modal-root"></div>
       ${m ? this.mobileMoreHtml() + this.rotateHintHtml() : ''}
-      <div class="drop-overlay" id="drop-overlay" style="display:none">Drop a .brd, .tvw, .kicad_pcb, .pcbfix.json, or mod .zip to import</div>
+      <div class="drop-overlay" id="drop-overlay" style="display:none">${t('Drop a .brd, .tvw, .kicad_pcb, .pcbfix.json, or mod .zip to import')}</div>
     `;
 
     this.layoutEl = this.mount.querySelector('#layout')!;
@@ -637,16 +657,16 @@ export class PcbApp {
     return `
         <aside class="tooldock" id="tooldock">
           <div class="tool-scroll">
-            ${TOOLS.map((t) => `
-              <button class="tool-btn ${t.id === this.activeTool ? 'active' : ''}" data-tool="${t.id}" aria-label="${this.esc(t.lbl)}">
-                ${icon(t.ico, 20)}
-                <span class="tool-lbl">${TOOL_SHORT[t.id] ?? t.lbl}</span>
+            ${TOOLS.map((tl) => `
+              <button class="tool-btn ${tl.id === this.activeTool ? 'active' : ''}" data-tool="${tl.id}" aria-label="${this.esc(t(tl.lbl))}">
+                ${icon(tl.ico, 20)}
+                <span class="tool-lbl">${t(TOOL_SHORT[tl.id] ?? tl.lbl)}</span>
               </button>
             `).join('')}
           </div>
           <div class="tool-pinned">
-            <button class="tool-btn" id="btn-undo" aria-label="Undo">${icon('undo', 20)}<span class="tool-lbl">Undo</span></button>
-            <button class="tool-btn" id="btn-redo" aria-label="Redo">${icon('redo', 20)}<span class="tool-lbl">Redo</span></button>
+            <button class="tool-btn" id="btn-undo" aria-label="${t('Undo')}">${icon('undo', 20)}<span class="tool-lbl">${t('Undo')}</span></button>
+            <button class="tool-btn" id="btn-redo" aria-label="${t('Redo')}">${icon('redo', 20)}<span class="tool-lbl">${t('Redo')}</span></button>
           </div>
         </aside>`;
   }
@@ -656,23 +676,24 @@ export class PcbApp {
     const row = (id: string, ico: string, label: string) => `<button class="m-row" data-proxy="${id}">${icon(ico, 16)}<span>${label}</span></button>`;
     return `
       <div class="m-more-bg" id="m-more" hidden>
-        <div class="m-more" role="dialog" aria-label="View, bench and settings">
-          <div class="m-more-head"><span>View &amp; bench</span><button class="btn ghost icon" id="m-more-close" title="Close">${icon('x', 16)}</button></div>
+        <div class="m-more" role="dialog" aria-label="${t('View, bench and settings')}">
+          <div class="m-more-head"><span>${t('View & bench')}</span><button class="btn ghost icon" id="m-more-close" title="${t('Close')}">${icon('x', 16)}</button></div>
           <div class="m-more-body">
-            <div class="m-sec"><div class="m-sec-t">View</div><div class="m-ctl" id="m-slot-view"></div><div class="m-ctl" id="m-slot-side"></div>
+            <div class="m-sec"><div class="m-sec-t">${t('View')}</div><div class="m-ctl" id="m-slot-view"></div><div class="m-ctl" id="m-slot-side"></div>
               <button class="m-row" data-proxy="#btn-invert-orbit">${icon('rotate', 16)}<span id="m-invert-lbl"></span></button></div>
-            <div class="m-sec"><div class="m-sec-t">Display</div><div class="m-ctl" id="m-slot-viz"></div></div>
-            <div class="m-sec"><div class="m-sec-t">Bench</div><div class="m-bench" id="m-slot-bench"></div></div>
-            <div class="m-sec"><div class="m-sec-t">Board</div>
-              ${row('#btn-tutorial', 'book', 'Tutorial')}
-              ${row('#btn-reset', 'reset', 'Reset board')}
-              ${row('#btn-new-board', 'plus', 'New blank board')}
-              ${row('#btn-import', 'upload', 'Import a board or mod')}
+            <div class="m-sec"><div class="m-sec-t">${t('Display')}</div><div class="m-ctl" id="m-slot-viz"></div></div>
+            <div class="m-sec"><div class="m-sec-t">${t('Bench')}</div><div class="m-bench" id="m-slot-bench"></div></div>
+            <div class="m-sec"><div class="m-sec-t">${t('Board')}</div>
+              ${row('#btn-tutorial', 'book', t('Tutorial'))}
+              ${row('#btn-reset', 'reset', t('Reset board'))}
+              ${row('#btn-new-board', 'plus', t('New blank board'))}
+              ${row('#btn-import', 'upload', t('Import a board or mod'))}
             </div>
-            <div class="m-sec"><div class="m-sec-t">App</div>
+            <div class="m-sec"><div class="m-sec-t">${t('App')}</div>
+              ${this.langPickerHtml('row')}
               <button class="m-row" data-proxy="#btn-sound"><span id="m-sound-ico"></span><span id="m-sound-lbl"></span></button>
-              ${row('#btn-feedback', 'message', 'Feedback')}
-              ${row('#btn-help', 'help', 'Help')}
+              ${row('#btn-feedback', 'message', t('Feedback'))}
+              ${row('#btn-help', 'help', t('Help'))}
             </div>
           </div>
         </div>
@@ -691,9 +712,9 @@ export class PcbApp {
       <div class="m-rotate" id="m-rotate" role="dialog" aria-labelledby="m-rotate-t">
         <div class="m-rotate-card">
           <div class="m-rotate-ico">${icon('phone', 56)}</div>
-          <div class="m-rotate-t" id="m-rotate-t">Turn your phone sideways</div>
-          <p>The bench has more room in landscape: the board, tools and meter fit side by side.</p>
-          <button class="btn" id="m-rotate-keep">Keep portrait</button>
+          <div class="m-rotate-t" id="m-rotate-t">${t('Turn your phone sideways')}</div>
+          <p>${t('The bench has more room in landscape: the board, tools and meter fit side by side.')}</p>
+          <button class="btn" id="m-rotate-keep">${t('Keep portrait')}</button>
         </div>
       </div>`;
   }
@@ -731,10 +752,10 @@ export class PcbApp {
     const box = document.createElement('div');
     box.className = 'video-backdrop';
     box.innerHTML = `
-      <div class="video-panel" role="dialog" aria-label="${kind === 'approach' ? 'How to approach' : 'Solution'} walkthrough">
+      <div class="video-panel" role="dialog" aria-label="${kind === 'approach' ? t('How to approach') : t('Solution')}">
         <div class="video-head">
-          <span>${this.esc(this.activeScenario.meta.title)} · ${kind === 'approach' ? 'How to approach' : 'Solution'}</span>
-          <button class="btn ghost icon sm" data-close title="Close (Esc)">${icon('x', 14)}</button>
+          <span>${this.esc(t(this.activeScenario.meta.title))} · ${kind === 'approach' ? t('How to approach') : t('Solution')}</span>
+          <button class="btn ghost icon sm" data-close title="${t('Close (Esc)')}">${icon('x', 14)}</button>
         </div>
         <video controls autoplay playsinline preload="metadata" poster="./videos/${v.poster}">
           <source src="./videos/${v.file}" type="video/mp4" />
@@ -762,7 +783,7 @@ export class PcbApp {
         url = URL.createObjectURL(new Blob([(await mb.schematic.read()) as BlobPart], { type: mb.schematic.mime }));
         this.schematicUrls.set(mb, url);
       } catch (e) {
-        this.toast(`Could not open the schematic: ${e instanceof Error ? e.message : e}`, 'danger');
+        this.toast(t('Could not open the schematic: {error}', { error: e instanceof Error ? e.message : String(e) }), 'danger');
         return;
       }
     }
@@ -771,13 +792,13 @@ export class PcbApp {
     win.className = 'schem-win';
     win.setAttribute('role', 'dialog');
     win.innerHTML = `
-      <div class="schem-head" title="Drag to move">
-        <span>${icon('book', 13)} ${this.esc(s.meta.title)} · schematic</span>
-        <button class="btn ghost icon sm" data-close title="Close">${icon('x', 14)}</button>
+      <div class="schem-head" title="${t('Drag to move')}">
+        <span>${icon('book', 13)} ${this.esc(t(s.meta.title))} · ${t('schematic')}</span>
+        <button class="btn ghost icon sm" data-close title="${t('Close')}">${icon('x', 14)}</button>
       </div>
       <div class="schem-body">${pdf
-        ? `<iframe src="${url}" title="Schematic"></iframe>`
-        : `<img src="${url}" alt="Schematic of ${this.esc(s.meta.title)}" title="Click to zoom" draggable="false" />`}</div>`;
+        ? `<iframe src="${url}" title="${t('Schematic')}"></iframe>`
+        : `<img src="${url}" alt="${this.esc(t('Schematic of {title}', { title: s.meta.title }))}" title="${t('Click to zoom')}" draggable="false" />`}</div>`;
     document.body.appendChild(win);
     win.querySelector('[data-close]')!.addEventListener('click', () => win.remove());
     const img = win.querySelector('img');
@@ -882,13 +903,13 @@ export class PcbApp {
       const mod = await installMod(bytes, f.name, (id) => builtin.has(id));
       await this.loadMods();
       this.refreshScenarioSelect();
-      const warn = mod.warnings.length ? ` (${mod.warnings.length} warning${mod.warnings.length > 1 ? 's' : ''}: see Mods)` : '';
-      this.toast(`Installed mod "${mod.manifest.name}" v${mod.manifest.version}: ${mod.boards.length} board${mod.boards.length > 1 ? 's' : ''}${warn}`, mod.warnings.length ? 'info' : 'success');
+      const warn = mod.warnings.length ? ' ' + t('({n} warning: see Mods)|({n} warnings: see Mods)', { n: mod.warnings.length }) : '';
+      this.toast(t('Installed mod «{name}» v{version}: {n} board|Installed mod «{name}» v{version}: {n} boards', { name: mod.manifest.name, version: mod.manifest.version, n: mod.boards.length }) + warn, mod.warnings.length ? 'info' : 'success');
       const first = this.scenarios.findIndex((s) => this.modBoards.get(s)?.mod.id === mod.manifest.id);
       if (first >= 0) await this.openScenario(first);
       return mod.warnings.length;
     } catch (err) {
-      this.toast(`Mod not installed: ${err instanceof Error ? err.message : String(err)}`, 'danger');
+      this.toast(t('Mod not installed: {error}', { error: err instanceof Error ? err.message : String(err) }), 'danger');
       return -1;
     }
   }
@@ -898,20 +919,20 @@ export class PcbApp {
     let sc = this.scenarios[idx];
     const mb = this.modBoards.get(sc);
     if (mb && sc === mb.stub && !mb.stub.board.components.length) {
-      this.toast(`Loading ${sc.meta.title}…`, 'info');
+      this.toast(t('Loading {title}…', { title: t(sc.meta.title) }), 'info');
       try {
         const full = await mb.load();
         this.modBoards.delete(sc);
         this.modBoards.set(full, mb);
         this.scenarios[idx] = sc = full;
       } catch (err) {
-        this.toast(`Could not load ${sc.meta.title} (mod "${mb.mod.name}"): ${err instanceof Error ? err.message : err}`, 'danger');
+        this.toast(t('Could not load {title} (mod «{mod}»): {error}', { title: sc.meta.title, mod: mb.mod.name, error: err instanceof Error ? err.message : String(err) }), 'danger');
         return;
       }
     }
     const url = this.demoUrls.get(sc);
     if (url) {
-      this.toast(`Loading ${sc.meta.title}…`, 'info');
+      this.toast(t('Loading {title}…', { title: t(sc.meta.title) }), 'info');
       try {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -919,7 +940,7 @@ export class PcbApp {
         this.demoUrls.delete(sc);
         this.scenarios[idx] = sc = full;
       } catch (err) {
-        this.toast(`Could not load the demo board: ${err instanceof Error ? err.message : err}`, 'danger');
+        this.toast(t('Could not load the demo board: {error}', { error: err instanceof Error ? err.message : String(err) }), 'danger');
         this.refreshScenarioSelect();
         return;
       }
@@ -930,8 +951,8 @@ export class PcbApp {
   private refreshScenarioSelect() {
     const sel = this.mount.querySelector<HTMLSelectElement>('#sc-select')!;
     const renderOpt = (s: Scenario, i: number) => {
-      const solved = this.solvedIds.has(s.id) ? ' — solved' : '';
-      return `<option value="${i}">${this.esc(s.meta.title)} · L${s.meta.difficulty}${solved}</option>`;
+      const solved = this.solvedIds.has(s.id) ? ` — ${t('solved')}` : '';
+      return `<option value="${i}">${this.esc(t(s.meta.title))} · L${s.meta.difficulty}${solved}</option>`;
     };
     const tuts: string[] = [];
     const main: string[] = [];
@@ -939,8 +960,8 @@ export class PcbApp {
       (isTutorialScenario(s.id) ? tuts : main).push(renderOpt(s, i));
     });
     sel.innerHTML =
-      (tuts.length ? `<optgroup label="Beginner Tutorials">${tuts.join('')}</optgroup>` : '') +
-      (main.length ? `<optgroup label="Repair Challenges">${main.join('')}</optgroup>` : '');
+      (tuts.length ? `<optgroup label="${t('Beginner Tutorials')}">${tuts.join('')}</optgroup>` : '') +
+      (main.length ? `<optgroup label="${t('Repair Challenges')}">${main.join('')}</optgroup>` : '');
     const idx = this.scenarios.indexOf(this.activeScenario);
     if (idx >= 0) sel.value = String(idx);
 
@@ -952,7 +973,7 @@ export class PcbApp {
       const tutIdx = TUTORIAL_SCENARIO_IDS.indexOf(s.id as (typeof TUTORIAL_SCENARIO_IDS)[number]);
       badge.textContent = tutIdx >= 0 ? `T${tutIdx + 1}` : `L${s.meta.difficulty}`;
       badge.classList.toggle('tut', tutIdx >= 0);
-      title.textContent = s.meta.title;
+      title.textContent = t(s.meta.title);
       chk.hidden = !this.solvedIds.has(s.id);
     }
     if (this.showBoards) this.renderModal();
@@ -977,7 +998,7 @@ export class PcbApp {
     this.boot.powerOff(); // a new board powers up from scratch
     if (sc.solver && sc.solver !== this.solver) {
       this.solver = sc.solver; // for this board only: the saved preference is left alone
-      if (sc.solver === 'spice-power') this.toast('This board runs on Solver: SPICE + PWR (regulator models and power states).', 'info');
+      if (sc.solver === 'spice-power') this.toast(t('This board runs on Solver: SPICE + PWR (regulator models and power states).'), 'info');
     }
     this.authorMode = false;
     this.tutorialStep = 0;
@@ -1067,10 +1088,10 @@ export class PcbApp {
           anyBlew = true;
           this.renderer?.spawnSmoke(c.at[0], c.at[1], c.side, this.board.thickness, 'burn');
           if (!silentOverloads) {
-            this.toast(`${c.ref} ${r.overMsg ?? 'overloaded and burned out!'}`, 'danger');
+            this.toast(`${c.ref} ${r.overMsg ?? t('overloaded and burned out!')}`, 'danger');
           }
         } else if (!silentOverloads && c.kind === 'battery' && r && r.i > 5) {
-          this.toast(`Short circuit on ${c.ref} (${r.i.toFixed(1)} A)! Turn Power OFF or enable PSU OCP 100 mA.`, 'danger');
+          this.toast(t('Short circuit on {ref} ({amps} A)! Turn Power OFF or enable PSU OCP 100 mA.', { ref: c.ref, amps: r.i.toFixed(1) }), 'danger');
         }
       }
       if (anyBlew) {
@@ -1223,7 +1244,7 @@ export class PcbApp {
     if (!this.psuBoxEl.querySelector('.psu-card')) {
       this.psuBoxEl.innerHTML = `
         <div class="psu-card">
-          <div class="psu-head"><span>Bench supply</span><span class="muted" id="psu-mode"></span></div>
+          <div class="psu-head"><span>${t('Bench supply')}</span><span class="muted" id="psu-mode"></span></div>
           <div class="psu-lcd">
             <div class="v" id="psu-v"></div><div class="a" id="psu-a"></div>
             <div class="l">VOLTS</div><div class="l r">AMPS</div>
@@ -1231,30 +1252,30 @@ export class PcbApp {
           <canvas class="psu-chart" id="psu-chart" width="528" height="128"></canvas>
           <div class="psu-state" id="psu-state"></div>
         </div>`;
-      if (this.mobile) {
+      // the current chart folds away (click the header); boards with power states show it
+      this.psuBoxEl.querySelector('.psu-head')?.addEventListener('click', () => {
+        this.psuExpanded = !this.psuExpanded;
         this.psuBoxEl.classList.toggle('expanded', this.psuExpanded);
-        this.psuBoxEl.querySelector('.psu-head')?.addEventListener('click', () => {
-          this.psuExpanded = !this.psuExpanded;
-          this.psuBoxEl.classList.toggle('expanded', this.psuExpanded);
-        });
-      }
+      });
     }
+    this.psuBoxEl.classList.toggle('expanded', this.psuExpanded || (!this.mobile && this.bootSequenced));
     const rd = this.supplyReading();
     const amps = this.powerOn ? this.boot.amps : 0;
     const q = (id: string) => this.psuBoxEl.querySelector<HTMLElement>(id)!;
     q('#psu-v').textContent = `${rd.volts.toFixed(2)} V`;
     q('#psu-a').textContent = amps >= 1 ? `${amps.toFixed(3)} A` : `${(amps * 1000).toFixed(1)} mA`;
-    q('#psu-mode').textContent = this.psuInject ? 'injection' : rd.cc ? 'CC limit' : this.ocpAmps > 0 ? `OCP ${this.ocpAmps} A` : 'CV';
+    q('#psu-mode').textContent = this.psuInject ? t('injection') : rd.cc ? t('CC limit') : this.ocpAmps > 0 ? `OCP ${this.ocpAmps} A` : 'CV';
     const st = q('#psu-state');
     const b = this.boot;
     let txt = '', warn = false;
-    if (!this.powerOn) txt = 'Output off';
-    else if (!this.bootSequenced) txt = this.solver === 'spice-power' ? 'No power states found on this board' : 'Board powered (power-up sequence needs Solver: SPICE + PWR)';
+    if (!this.powerOn) txt = t('Output off');
+    // the power-up hint only matters on boards that have regulators to sequence
+    else if (!this.bootSequenced) txt = !this.rails().sequenced ? t('Board powered') : this.solver === 'spice-power' ? t('No power states found on this board') : t('Board powered (power-up sequence needs Solver: SPICE + PWR)');
     else if (b.state === 'S0SW') txt = [...this.rails().byState.values()].some((r) => r.length)
-      ? 'Running (S0) — all sequenced rails up'
-      : 'Running (S0) — rail names carry no power states: the controller enables everything, check the rails yourself';
-    else if (b.failures > 0) { warn = true; txt = `Boot loop: attempt ${b.failures + 1} · stuck in ${b.state}${b.blockedBy.length ? ` · waiting for ${b.blockedBy.slice(0, 2).join(', ')}${b.blockedBy.length > 2 ? '…' : ''}` : ''}`; }
-    else txt = b.state === 'G3H' ? 'Standby (G3H) — always-on rails only' : `Powering up: ${b.state}`;
+      ? t('Running (S0) — all sequenced rails up')
+      : t('Running (S0) — rail names carry no power states: the controller enables everything, check the rails yourself');
+    else if (b.failures > 0) { warn = true; txt = t('Boot loop: attempt {n} · stuck in {state}', { n: b.failures + 1, state: b.state }) + (b.blockedBy.length ? ' · ' + t('waiting for {rails}', { rails: b.blockedBy.slice(0, 2).join(', ') + (b.blockedBy.length > 2 ? '…' : '') }) : ''); }
+    else txt = b.state === 'G3H' ? t('Standby (G3H) — always-on rails only') : t('Powering up: {state}', { state: b.state });
     st.textContent = this.mobile && !this.psuExpanded && !warn ? txt.split(/ — | \(/)[0] : txt;
     st.classList.toggle('warn', warn);
     this.drawPsuChart(q('#psu-chart') as unknown as HTMLCanvasElement);
@@ -1308,10 +1329,10 @@ export class PcbApp {
       this.scopeBoxEl.innerHTML = `
         <div class="psu-card scope-card">
           <div class="psu-head">
-            <span>Oscilloscope · CH1</span>
+            <span>${t('Oscilloscope')} · CH1</span>
             <div class="row">
               <div class="seg"><button id="sc-auto">Auto</button><button id="sc-roll">Roll</button></div>
-              <button class="btn ghost icon" id="sc-close" title="Remove probe">${icon('x', 14)}</button>
+              <button class="btn ghost icon" id="sc-close" title="${t('Remove probe')}">${icon('x', 14)}</button>
             </div>
           </div>
           <canvas class="scope-screen" id="sc-canvas" width="528" height="240"></canvas>
@@ -1346,7 +1367,7 @@ export class PcbApp {
       const pts = this.scopeRoll.filter((s) => s.t >= t1 - 10);
       ys = Float64Array.from(pts.map((s) => s.v));
       timeDiv = '1 s/div · roll';
-      note.textContent = sig ? `${sig.note}${this.scopeMode === 'auto' && sig.kind === 'dc' ? ' — showing the last 10 s' : ''}` : this.powerOn ? `${label}: probe not on a powered net` : 'Supply off';
+      note.textContent = sig ? `${sig.note}${this.scopeMode === 'auto' && sig.kind === 'dc' ? ` — ${t('showing the last 10 s')}` : ''}` : this.powerOn ? t('{label}: probe not on a powered net', { label }) : t('Supply off');
       this.drawTrace(ctx, W, H, ys, pts.map((s) => (s.t - (t1 - 10)) / 10));
     } else {
       const span = 3 / sig.freq;
@@ -1456,7 +1477,7 @@ export class PcbApp {
         ...(this.bootSequenced && this.boot.state !== 'OFF' && { powerState: this.boot.state, loadScale: this.activeScenario.calibration?.loadScale }),
         ammeter: { a, b, ohms },
       }) as Sim & { ammeterAmps?: number };
-      r = s.source ? displayAmps(s.ammeterAmps ?? 0, GENERIC_DMM, rnd) : { text: '0.0 mA', value: 0, sub: 'no supply' };
+      r = s.source ? displayAmps(s.ammeterAmps ?? 0, GENERIC_DMM, rnd) : { text: '0.0 mA', value: 0, sub: t('no supply') };
       m.set(key, r);
     }
     return r;
@@ -1486,7 +1507,7 @@ export class PcbApp {
     a.click();
     URL.revokeObjectURL(url);
     const stubs = nl.report.filter((r) => r.source === 'stub').length;
-    this.toast(`Exported SPICE netlist: ${nl.circuit.elements.length} elements${stubs ? `, ${stubs} unmodelled parts as hi-Z stubs` : ''}.`, 'success');
+    this.toast(t('Exported SPICE netlist: {n} elements', { n: nl.circuit.elements.length }) + (stubs ? ', ' + t('{n} unmodelled parts as hi-Z stubs', { n: stubs }) : '') + '.', 'success');
   }
 
   private refreshProbes() {
@@ -1499,7 +1520,7 @@ export class PcbApp {
         p.label = hit.label;
       } else {
         p.net = -1;
-        p.label = 'No contact';
+        p.label = t('No contact');
       }
     }
   }
@@ -1514,15 +1535,15 @@ export class PcbApp {
       localStorage.setItem('pcbfix_solved', JSON.stringify([...this.solvedIds]));
       this.refreshScenarioSelect();
       sfxWin();
-      this.toast(`Flag captured: ${res.flag}`, 'success');
+      this.toast(t('Flag captured: {flag}', { flag: res.flag }), 'success');
     } else if (res.allPassed && res.topologyMismatch) {
-      this.toast('Checks pass, but the circuit is not the reference design — a fault is still hiding in there.', 'warn');
+      this.toast(t('Checks pass, but the circuit is not the reference design — a fault is still hiding in there.'), 'warn');
     } else if (res.allPassed && !this.activeScenario.lock) {
       sfxWin();
-      this.toast('All checks green. The board is alive.', 'success');
+      this.toast(t('All checks green. The board is alive.'), 'success');
     } else {
       sfxClick();
-      this.toast('Bench checks failed — details in the Overview tab.', 'warn');
+      this.toast(t('Bench checks failed — details in the Overview tab.'), 'warn');
     }
     this.activeTab = 'mission';
     this.panelOpen = true;
@@ -1584,20 +1605,29 @@ export class PcbApp {
       this.vizMode = (e.target as HTMLSelectElement).value as VizMode;
       this.renderUI();
     });
-    q('#btn-bench').addEventListener('click', (e) => {
-      e.stopPropagation();
-      const pop = q('#bench-pop') as HTMLElement;
-      pop.hidden = !pop.hidden;
-      q('#btn-bench').classList.toggle('active', !pop.hidden);
-    });
+    // top-bar dropdowns (bench setup, settings): one open at a time, closed by a click elsewhere
+    const pops: [string, string][] = [['#btn-bench', '#bench-pop'], ['#btn-settings', '#settings-pop']];
+    for (const [btn, sel] of pops) {
+      q(btn).addEventListener('click', (e) => {
+        e.stopPropagation();
+        const pop = q(sel) as HTMLElement;
+        const open = pop.hidden;
+        for (const [b2, s2] of pops) { (q(s2) as HTMLElement).hidden = true; q(b2).classList.remove('active'); }
+        pop.hidden = !open;
+        q(btn).classList.toggle('active', open);
+      });
+    }
     document.addEventListener('pointerdown', (e) => {
-      const pop = this.mount.querySelector('#bench-pop') as HTMLElement | null;
-      if (pop && !pop.hidden && !(e.target as HTMLElement).closest('.bench-wrap')) { pop.hidden = true; q('#btn-bench').classList.remove('active'); }
+      if ((e.target as HTMLElement).closest('.bench-wrap')) return;
+      for (const [btn, sel] of pops) {
+        const pop = this.mount.querySelector(sel) as HTMLElement | null;
+        if (pop && !pop.hidden) { pop.hidden = true; q(btn).classList.remove('active'); }
+      }
     });
     q('#rework-mode').addEventListener('change', (e) => {
       const v = (e.target as HTMLSelectElement).value;
       this.reworkMode = v === 'instant' ? { ...this.reworkMode, realistic: false } : { realistic: true, ironTemp: v.startsWith('r400') ? 400 : 350, flux: v.endsWith('f') };
-      if (this.reworkMode.realistic) this.toast('Realistic rework: joints melt, pads lift and parts crack from the actual heat you apply. Watch the Thermal view.', 'info');
+      if (this.reworkMode.realistic) this.toast(t('Realistic rework: joints melt, pads lift and parts crack from the actual heat you apply. Watch the Thermal view.'), 'info');
     });
     q('#preheat').addEventListener('change', (e) => {
       this.preheatTemp = Number((e.target as HTMLSelectElement).value) || 0;
@@ -1606,7 +1636,7 @@ export class PcbApp {
     q('#psu-mode').addEventListener('change', (e) => {
       const v = (e.target as HTMLSelectElement).value;
       this.psuInject = v === 'inject1' ? { volts: 1, amps: 3 } : v === 'inject3' ? { volts: 3.3, amps: 1 } : null;
-      if (this.psuInject) this.toast('Voltage injection: place the red probe on the shorted rail, then power on. The faulty part heats up — use Thermal view, freeze spray or IPA.', 'info');
+      if (this.psuInject) this.toast(t('Voltage injection: place the red probe on the shorted rail, then power on. The faulty part heats up — use Thermal view, freeze spray or IPA.'), 'info');
       this.recompute(true);
       this.renderUI();
     });
@@ -1645,6 +1675,7 @@ export class PcbApp {
       this.renderUI();
     });
     q('#btn-feedback').addEventListener('click', () => this.openFeedback(!this.showFeedback));
+    this.mount.querySelectorAll<HTMLSelectElement>('.lang-select').forEach((sel) => sel.addEventListener('change', () => this.switchLanguage(sel.value, sel)));
     q('#btn-help').addEventListener('click', () => {
       this.showHelp = !this.showHelp;
       if (this.showHelp) { this.showBoards = false; this.showFeedback = false; }
@@ -1774,9 +1805,28 @@ export class PcbApp {
     this.renderUI();
   }
 
+  /** Language picker by native names: a select (Settings menu, help window) or a phone More-sheet row. */
+  private langPickerHtml(kind: 'row' | 'full' = 'full'): string {
+    const opts = LANGUAGES.map((l) => `<option value="${l.code}"${l.code === lang() ? ' selected' : ''}>${l.name}</option>`).join('');
+    if (kind === 'row') return `<label class="m-row m-lang">${icon('globe', 16)}<span>${t('Language')}</span><select class="lang-select" aria-label="Language">${opts}</select></label>`;
+    return `<select class="lang-select" aria-label="Language">${opts}</select>`;
+  }
+
+  /** Reloads in another language, reopening the same board (unsaved changes to it are lost). */
+  private switchLanguage(code: string, sel: HTMLSelectElement) {
+    if (code === lang()) return;
+    if (this.moves > 0 && !confirm(t('Switching the language reloads the bench: your changes to this board will be lost. Continue?'))) { sel.value = lang(); return; }
+    saveLanguage(code);
+    try { sessionStorage.setItem('deadboard_reopen', this.activeScenario.id); } catch { /* storage unavailable */ }
+    const u = new URL(location.href);
+    u.searchParams.delete('lang');
+    location.replace(u.toString());
+  }
+
   /** Mouse wording → touch wording on the mobile layout. */
   private txt(s: string): string {
-    return this.mobile ? touchCopy(s) : s;
+    // the English text is rewritten for touch; translations are worded for both mouse and touch
+    return this.mobile && lang() === 'en' ? touchCopy(s) : s;
   }
 
   private async handleFile(f: File) {
@@ -1786,17 +1836,18 @@ export class PcbApp {
       const sc = importScenarioOrPcb(f.name, bytes);
       this.scenarios.push(sc);
       this.loadScenario(sc);
-      this.toast(`Loaded ${sc.meta.title} (${sc.board.components.length} parts, ${sc.board.traces.length} traces)`, 'success');
+      this.toast(t('Loaded {title} ({parts} parts, {traces} traces)', { title: t(sc.meta.title), parts: sc.board.components.length, traces: sc.board.traces.length }), 'success');
     } catch (err) {
-      this.toast(`Import error: ${err instanceof Error ? err.message : String(err)}`, 'danger');
+      this.toast(t('Import error: {error}', { error: err instanceof Error ? err.message : String(err) }), 'danger');
     }
   }
 
   private setTool(t: ToolId) {
+    const tr = (s: string) => translate(s);
     if (this.mobile && t !== this.activeTool && !this.toolTipsShown.has(t)) {
       this.toolTipsShown.add(t);
       const tool = TOOLS.find((x) => x.id === t);
-      if (tool && t !== 'inspect') this.toast(`${tool.lbl}: ${TOOL_TIP_PHONE[t] ?? tool.tip}`, 'info');
+      if (tool && t !== 'inspect') this.toast(`${tr(tool.lbl)}: ${tr(TOOL_TIP_PHONE[t] ?? tool.tip)}`, 'info');
     }
     this.activeTool = t;
     if (t !== 'jumper') this.jumperStart = null;
@@ -2059,8 +2110,8 @@ export class PcbApp {
       this.renderUI();
       return;
     }
-    const t = TOOLS.find((x) => x.key === e.key);
-    if (t) this.setTool(t.id);
+    const tool = TOOLS.find((x) => x.key === e.key);
+    if (tool) this.setTool(tool.id);
   }
 
   private resolveBoardPt(raw: V2 | null): { pt: V2; side: Side } | null {
@@ -2081,7 +2132,7 @@ export class PcbApp {
     const hit = netAt(this.board, this.conn, pt, side, this.vizMode === 'xray');
     const pin: ProbePin = hit
       ? { pos: hit.snap, side, net: hit.net, label: hit.label }
-      : { pos: pt, side, net: -1, label: 'Open / No copper' };
+      : { pos: pt, side, net: -1, label: t('Open / No copper') };
     if (which === 'red') this.probeRed = pin;
     else this.probeBlack = pin;
     if (this.powerOn && (this.psuInject || (this.solver !== 'fast' && this.dmmMode === 'V'))) { this.sim = this.solve(); this.updateThermalPower(); }
@@ -2116,12 +2167,12 @@ export class PcbApp {
       this.thermal!.applyRosin(pt[0], pt[1], 6);
       for (const c of this.board.components) if (Math.hypot(c.at[0] - pt[0], c.at[1] - pt[1]) <= 6 + Math.max(c.body.w, c.body.h) / 2) this.rosinParts.add(c);
       sfxClick();
-      this.toast('Rosin film applied — on a powered board it melts clear first where a part runs hot.', 'info');
+      this.toast(t('Rosin film applied — on a powered board it melts clear first where a part runs hot.'), 'info');
       return;
     }
     if (this.activeTool === 'scope') {
       const hit = netAt(this.board, this.conn, pt, side, this.vizMode === 'xray');
-      this.scopeProbe = { pos: [pt[0], pt[1]], side, net: hit?.net ?? -1, label: hit?.label ?? 'No contact' };
+      this.scopeProbe = { pos: [pt[0], pt[1]], side, net: hit?.net ?? -1, label: hit?.label ?? t('No contact') };
       this.scopeRoll = [];
       sfxClick();
       this.renderScope();
@@ -2130,7 +2181,7 @@ export class PcbApp {
     if (this.activeTool === 'press') {
       this.flex.press(pt[0], pt[1], { duration: 2.5 });
       sfxClick();
-      this.toast('Pressing on the board…', 'info');
+      this.toast(t('Pressing on the board…'), 'info');
       return;
     }
     if (this.activeTool === 'freeze' || this.activeTool === 'ipa') {
@@ -2138,7 +2189,7 @@ export class PcbApp {
       if (this.activeTool === 'freeze') {
         this.thermal!.freezeSpray(pt[0], pt[1], 5);
         sfxClick();
-        this.toast('Freeze spray applied — watch which part defrosts first.', 'info');
+        this.toast(t('Freeze spray applied — watch which part defrosts first.'), 'info');
         return;
       }
       this.thermal!.applyIpa(pt[0], pt[1], 6);
@@ -2149,8 +2200,8 @@ export class PcbApp {
       if (cleaned.length) {
         this.recompute(true);
         this.renderUI();
-        this.toast(cleared.length ? `Residue scrubbed off ${cleared.join(', ')} — the board is clean there.` : `Scrubbing residue on ${cleaned.join(', ')}… it is thinning, keep cleaning.`, cleared.length ? 'success' : 'info');
-      } else this.toast('Isopropyl applied — the hottest part dries first.', 'info');
+        this.toast(cleared.length ? t('Residue scrubbed off {refs} — the board is clean there.', { refs: cleared.join(', ') }) : t('Scrubbing residue on {refs}… it is thinning, keep cleaning.', { refs: cleaned.join(', ') }), cleared.length ? 'success' : 'info');
+      } else this.toast(t('Isopropyl applied — the hottest part dries first.'), 'info');
       return;
     }
 
@@ -2211,7 +2262,7 @@ export class PcbApp {
           this.selectedCompId = c.id;
           this.activeTab = 'inspect';
           if (this.mobile) this.panelOpen = true;
-          this.toast(`${c.ref} footprint is empty — pick a replacement in Inspector!`, 'info');
+          this.toast(t('{ref} footprint is empty — pick a replacement in Inspector!', { ref: c.ref }), 'info');
           this.renderUI();
           return;
         }
@@ -2222,7 +2273,7 @@ export class PcbApp {
           this.renderer.spawnSmoke(hit.pos[0], hit.pos[1], side, this.board.thickness, 'flux');
           sfxSolder();
           this.recompute(false);
-          this.toast(`Reflowed cold solder joint on ${c.ref} pad ${c.pads[hit.padIndex].name}`, 'success');
+          this.toast(t('Reflowed cold solder joint on {ref} pad {pad}', { ref: c.ref, pad: c.pads[hit.padIndex].name }), 'success');
           this.renderUI();
           return;
         }
@@ -2237,7 +2288,7 @@ export class PcbApp {
           this.renderer.spawnSmoke(c.at[0], c.at[1], side, this.board.thickness, 'flux');
           sfxSolder();
           this.recompute(false);
-          this.toast(`Soldered fresh ${c.ref} (${marking(c)})`, 'success');
+          this.toast(t('Soldered fresh {ref} ({marking})', { ref: c.ref, marking: marking(c) }), 'success');
           this.renderUI();
           return;
         }
@@ -2247,7 +2298,7 @@ export class PcbApp {
           this.renderer.spawnSmoke(c.at[0], c.at[1], side, this.board.thickness, 'flux');
           sfxSolder();
           this.recompute(false);
-          this.toast(`Reflowed all cold joints on ${c.ref}`, 'success');
+          this.toast(t('Reflowed all cold joints on {ref}', { ref: c.ref }), 'success');
           this.renderUI();
           return;
         }
@@ -2269,7 +2320,7 @@ export class PcbApp {
         this.renderer.spawnSmoke(hit.pos[0], hit.pos[1], side, this.board.thickness, 'flux');
         sfxSolder();
         this.recompute(false);
-        this.toast('Wicked away solder bridge', 'success');
+        this.toast(t('Wicked away solder bridge'), 'success');
         this.renderUI();
         return;
       }
@@ -2278,14 +2329,14 @@ export class PcbApp {
         removeJumper(this.board, hit.jumper);
         sfxCut();
         this.recompute(false);
-        this.toast('Removed jumper wire', 'info');
+        this.toast(t('Removed jumper wire'), 'info');
         this.renderUI();
         return;
       }
       if (hit?.kind === 'comp' || hit?.kind === 'pad') {
         const c = hit.comp;
         if (c.state.populated && this.reworkMode.realistic && !this.rework?.isMolten(c)) {
-          this.toast(`${c.ref}: joints are not molten — heat the part with hot air first (preheat helps on plane-heavy boards).`, 'info');
+          this.toast(t('{ref}: joints are not molten — heat the part with hot air first (preheat helps on plane-heavy boards).', { ref: c.ref }), 'info');
           return;
         }
         if (c.state.populated) {
@@ -2293,7 +2344,7 @@ export class PcbApp {
           removePart(c);
           sfxSolder();
           this.recompute(false);
-          this.toast(`Desoldered ${c.ref}`, 'info');
+          this.toast(t('Desoldered {ref}', { ref: c.ref }), 'info');
           this.renderUI();
         }
       }
@@ -2307,7 +2358,7 @@ export class PcbApp {
         c.state.reversed = !c.state.reversed;
         sfxClick();
         this.recompute(false);
-        this.toast(`Flipped ${c.ref} 180°`, 'info');
+        this.toast(t('Flipped {ref} 180°', { ref: c.ref }), 'info');
         this.renderUI();
       }
       return;
@@ -2319,7 +2370,7 @@ export class PcbApp {
       if (!this.jumperStart) {
         this.jumperStart = { a: snap, la: side };
         sfxClick();
-        this.toast('Jumper start set — click destination (you can flip board F first!)', 'info');
+        this.toast(t('Jumper start set — click destination (you can flip board F first!)'), 'info');
         return;
       }
       if (dist(this.jumperStart.a, snap) < 0.3 && this.jumperStart.la === side) {
@@ -2341,7 +2392,7 @@ export class PcbApp {
         cutTrace(this.board, hit.trace, pt, 0.7);
         sfxCut();
         this.recompute(false);
-        this.toast('Cut copper trace', 'info');
+        this.toast(t('Cut copper trace'), 'info');
         this.renderUI();
       } else if (hit?.kind === 'blob') {
         this.pushUndo();
@@ -2380,15 +2431,15 @@ export class PcbApp {
     if (!rest) el.textContent = text;
     else {
       // phone: the first sentence; "More" shows the rest and keeps the toast up longer
-      const t = document.createElement('span');
-      t.className = 'toast-txt';
-      t.textContent = lead;
+      const span = document.createElement('span');
+      span.className = 'toast-txt';
+      span.textContent = lead;
       const more = document.createElement('button');
       more.className = 'toast-more';
-      more.textContent = 'More';
-      more.addEventListener('click', () => { t.textContent = text; more.remove(); clearTimeout(timer); timer = setTimeout(() => el.remove(), 9000); });
+      more.textContent = t('More');
+      more.addEventListener('click', () => { span.textContent = text; more.remove(); clearTimeout(timer); timer = setTimeout(() => el.remove(), 9000); });
       el.classList.add('has-more');
-      el.append(t, more);
+      el.append(span, more);
     }
     this.toastEl.appendChild(el);
     let timer = setTimeout(() => el.remove(), rest ? 6000 : 4500);
@@ -2405,16 +2456,16 @@ export class PcbApp {
 
     const pBtn = this.mount.querySelector('#btn-power')!;
     pBtn.classList.toggle('on', this.powerOn);
-    pBtn.querySelector('.lbl')!.textContent = this.powerOn ? 'Power on' : 'Power off';
+    pBtn.querySelector('.lbl')!.textContent = this.powerOn ? t('Power on') : t('Power off');
 
     const oBtn = this.mount.querySelector<HTMLElement>('#btn-invert-orbit')!;
-    oBtn.classList.toggle('active', this.camera.invertOrbit);
+    oBtn.innerHTML = `${icon('rotate', 13)}<span>${this.camera.invertOrbit ? t('Inverted') : t('Grab and turn')}</span>`;
     oBtn.title = this.camera.invertOrbit
-      ? '3D orbit: inverted (drag moves the camera). Click for grab-and-turn.'
-      : '3D orbit: grab-and-turn (board follows the drag). Click to invert.';
+      ? t('3D orbit: inverted (drag moves the camera). Click for grab-and-turn.')
+      : t('3D orbit: grab-and-turn (board follows the drag). Click to invert.');
 
     const sBtn = this.mount.querySelector('#btn-sound')!;
-    sBtn.innerHTML = icon(soundEnabled ? 'volume' : 'mute');
+    sBtn.innerHTML = `${icon(soundEnabled ? 'volume' : 'mute', 13)}<span>${soundEnabled ? t('On') : t('Off')}</span>`;
 
     const tBtn = this.mount.querySelector('#btn-tutorial')!;
     const tutBoard = isTutorialScenario(this.activeScenario.id);
@@ -2424,10 +2475,10 @@ export class PcbApp {
     if (this.mobile) {
       const set = (sel: string, html: string) => { const el = this.mount.querySelector<HTMLElement>(sel); if (el) el.innerHTML = html; };
       set('#m-mode', `<b>${this.camera.mode.toUpperCase()}</b>`);
-      set('#m-flip', `${icon('layers', 16)}<b>${this.camera.bothSides ? 'BOTH' : this.camera.side === 'F' ? 'TOP' : 'BOT'}</b>`);
-      set('#m-invert-lbl', this.camera.invertOrbit ? '3D drag moves the camera (tap: board follows)' : '3D drag turns the board (tap: camera moves)');
+      set('#m-flip', `${icon('layers', 16)}<b>${this.camera.bothSides ? t('BOTH') : this.camera.side === 'F' ? t('TOP') : t('BOT')}</b>`);
+      set('#m-invert-lbl', this.camera.invertOrbit ? t('3D drag moves the camera (tap: board follows)') : t('3D drag turns the board (tap: camera moves)'));
       set('#m-sound-ico', icon(soundEnabled ? 'volume' : 'mute', 16));
-      set('#m-sound-lbl', soundEnabled ? 'Sound on' : 'Sound off');
+      set('#m-sound-lbl', soundEnabled ? t('Sound on') : t('Sound off'));
       const tutRow = this.mount.querySelector<HTMLElement>('[data-proxy="#btn-tutorial"]');
       if (tutRow) tutRow.hidden = !tutBoard;
     }
@@ -2447,7 +2498,7 @@ export class PcbApp {
       }
       const iStr = totalI >= 1 ? `${totalI.toFixed(2)} A` : `${(totalI * 1000).toFixed(1)} mA`;
       const cc = !!this.sim.ccLimited;
-      psuItem = `<span class="sb-item ${cc ? 'warn' : ''}">Supply <span class="v">${iStr}${cc ? ' · CC' : ''}</span></span>`;
+      psuItem = `<span class="sb-item ${cc ? 'warn' : ''}">${t('Supply')} <span class="v">${iStr}${cc ? ' · CC' : ''}</span></span>`;
     }
 
     let hoverTxt = '';
@@ -2455,10 +2506,10 @@ export class PcbApp {
       if (this.hovered.kind === 'pad') {
         const c = this.hovered.comp;
         const p = c.pads[this.hovered.padIndex];
-        const cold = c.state.cold.includes(this.hovered.padIndex) ? ' · cold joint' : '';
+        const cold = c.state.cold.includes(this.hovered.padIndex) ? ` · ${t('cold joint')}` : '';
         // IR spot reading off bare metal: low emissivity, reads near room temperature
-        const t = this.vizMode === 'thermal' ? this.thermal?.partTemp(c.id) : undefined;
-        const ir = t !== undefined ? ` · IR ${apparentTemp(t, EMISSIVITY.metal).toFixed(0)} °C (bare metal, ε ${EMISSIVITY.metal})` : '';
+        const tc = this.vizMode === 'thermal' ? this.thermal?.partTemp(c.id) : undefined;
+        const ir = tc !== undefined ? ` · IR ${apparentTemp(tc, EMISSIVITY.metal).toFixed(0)} °C (${t('bare metal')}, ε ${EMISSIVITY.metal})` : '';
         hoverTxt = `${c.ref}.${p.name}${cold}${ir}`;
       } else if (this.hovered.kind === 'comp') {
         const c = this.hovered.comp;
@@ -2468,28 +2519,28 @@ export class PcbApp {
         const tempStr = this.vizMode === 'thermal' ? ` · IR ${apparentTemp(temp, eps).toFixed(0)} °C` : '';
         hoverTxt = `${c.ref} · ${marking(c)}${tempStr}`;
       } else if (this.hovered.kind === 'trace') {
-        hoverTxt = `Trace · ${this.hovered.trace.net ?? 'unnamed net'}`;
+        hoverTxt = `${t('Trace')} · ${this.hovered.trace.net ?? t('unnamed net')}`;
       } else if (this.hovered.kind === 'blob') {
-        hoverTxt = 'Solder blob';
+        hoverTxt = t('Solder blob');
       } else if (this.hovered.kind === 'via') {
-        hoverTxt = `Via · ${this.hovered.via.net ?? 'unnamed net'}`;
+        hoverTxt = `${t('Via')} · ${this.hovered.via.net ?? t('unnamed net')}`;
       } else if (this.hovered.kind === 'jumper') {
-        hoverTxt = 'Jumper wire';
+        hoverTxt = t('Jumper wire');
       }
     }
     const sideLabel = this.camera.bothSides
-      ? `Both (${this.cursorSide === 'F' ? 'Top' : 'Bottom'})`
-      : this.camera.side === 'F' ? 'Top' : 'Bottom';
+      ? `${t('Both')} (${this.cursorSide === 'F' ? t('Top') : t('Bottom')})`
+      : this.camera.side === 'F' ? t('Top') : t('Bottom');
     let pinCount = 0;
     for (const c of this.board.components) pinCount += c.pads.length;
     this.hudTopEl.innerHTML = `
-      <span class="sb-item"><span class="sb-dot ${this.powerOn ? 'ok' : ''}"></span>${this.powerOn ? 'Powered' : 'Unpowered'}</span>
+      <span class="sb-item"><span class="sb-dot ${this.powerOn ? 'ok' : ''}"></span>${this.powerOn ? t('Powered') : t('Unpowered')}</span>
       ${psuItem}
-      <span class="sb-item"><span class="v">${this.board.components.length} Comp · ${pinCount} Pins · ${this.conn.netCount} Nets</span></span>
-      <span class="sb-item">Side <span class="v">${sideLabel}</span></span>
-      <span class="sb-item">Cursor <span class="v">${coord} mm</span></span>
+      <span class="sb-item"><span class="v">${t('{parts} Comp · {pins} Pins · {nets} Nets', { parts: this.board.components.length, pins: pinCount, nets: this.conn.netCount })}</span></span>
+      <span class="sb-item">${t('Side')} <span class="v">${sideLabel}</span></span>
+      <span class="sb-item">${t('Cursor')} <span class="v">${coord} mm</span></span>
       ${hoverTxt ? `<span class="sb-item"><span class="v">${this.esc(hoverTxt)}</span></span>` : ''}
-      ${this.authorMode ? `<span class="sb-item warn"><span class="sb-dot warn"></span>Author mode</span>` : ''}
+      ${this.authorMode ? `<span class="sb-item warn"><span class="sb-dot warn"></span>${t('Author mode')}</span>` : ''}
     `;
   }
 
@@ -2501,12 +2552,12 @@ export class PcbApp {
       return;
     }
     let reading = '— . —';
-    let sub = 'Place Red (+) and Black (−) probes';
+    let sub = t('Place Red (+) and Black (−) probes');
 
     if (this.dmmMode === 'V') {
       if (!this.powerOn) {
         reading = '0.000 V';
-        sub = 'Supply off — enable power to measure DC voltage';
+        sub = t('Supply off — enable power to measure DC voltage');
       } else if (this.probeRed && this.probeRed.net >= 0 && this.sim?.source) {
         const niA = this.sim.nodeOfNet.get(this.probeRed.net);
         const va = niA !== undefined ? this.sim.V[niA] : null;
@@ -2525,56 +2576,56 @@ export class PcbApp {
             const d = displayVolts(dv, undefined, placementRng('V', pr[0].toFixed(1), pr[1].toFixed(1), pb?.[0].toFixed(1) ?? '', pb?.[1].toFixed(1) ?? ''));
             reading = `${(d.value ?? 0) >= 0 && d.text !== 'OL' ? '+' : ''}${d.text}`;
           } else reading = `${dv >= 0 ? '+' : ''}${dv.toFixed(3)} V`;
-          sub = this.probeBlack ? 'Differential (Red − Black)' : 'Referenced to supply GND';
+          sub = this.probeBlack ? t('Differential (Red − Black)') : t('Referenced to supply GND');
         } else {
           reading = 'FLOAT';
-          sub = 'Floating node (open circuit)';
+          sub = t('Floating node (open circuit)');
         }
       }
     } else if (this.dmmMode === 'CAP') {
       if (this.powerOn) {
         reading = 'ERR';
-        sub = 'Disable power before measuring capacitance';
+        sub = t('Disable power before measuring capacitance');
       } else if (this.probeRed && this.probeBlack) {
         const rd = this.meter('CAP', this.probeRed.net, this.probeBlack.net);
         reading = rd.text;
-        sub = rd.sub ?? (rd.value !== null ? `Capacitance across the probes${this.capValuesGuessed() ? ' (board data has no cap values: placeholder values)' : ''}` : '');
+        sub = rd.sub ?? (rd.value !== null ? t('Capacitance across the probes') + (this.capValuesGuessed() ? ` ${t('(board data has no cap values: placeholder values)')}` : '') : '');
       } else {
         reading = '0.000 nF';
-        sub = 'Place both probes across the part (power off)';
+        sub = t('Place both probes across the part (power off)');
       }
     } else if (this.dmmMode === 'AMP') {
       if (!this.powerOn) {
         reading = '0.0 mA';
-        sub = 'Supply off — the meter reads current only while powered';
+        sub = t('Supply off — the meter reads current only while powered');
       } else if (this.probeRed && this.probeBlack && this.probeRed.net >= 0 && this.probeBlack.net >= 0) {
         const rd = this.ammeterReading(this.probeRed.net, this.probeBlack.net);
         reading = rd.text;
-        sub = rd.sub ?? (this.probeRed.net === this.probeBlack.net ? 'Probes on one net: the copper carries the current, not the meter' : 'Meter in series (10 A input): lift a fuse / link and probe its pads to read the branch current');
+        sub = rd.sub ?? (this.probeRed.net === this.probeBlack.net ? t('Probes on one net: the copper carries the current, not the meter') : t('Meter in series (10 A input): lift a fuse / link and probe its pads to read the branch current'));
       } else {
         reading = '0.0 mA';
-        sub = 'Put the meter in series: probes on both pads of a removed fuse / 0 Ω link';
+        sub = t('Put the meter in series: probes on both pads of a removed fuse / 0 Ω link');
       }
     } else if (this.dmmMode === 'OHM') {
       if (this.powerOn) {
         reading = 'ERR';
-        sub = 'Disable power before measuring resistance';
+        sub = t('Disable power before measuring resistance');
       } else if (this.probeRed && this.probeBlack) {
         if (this.probeRed.net < 0 || this.probeBlack.net < 0) {
           reading = 'OL';
-          sub = 'Open circuit (probe not on copper)';
+          sub = t('Open circuit (probe not on copper)');
         } else {
           const rd = this.solver !== 'fast' ? this.meter('OHM', this.probeRed.net, this.probeBlack.net) : null;
           const r = rd ? rd.value ?? Infinity : this.ohms(this.probeRed.net, this.probeBlack.net);
           if (rd) {
             reading = rd.text;
-            sub = rd.value === null ? (rd.sub ?? 'Open circuit (OL)') : rd.beep ? `Continuity beep (< 30 Ω) · ${rd.range} range` : `In-circuit resistance · ${rd.range} range`;
+            sub = rd.value === null ? (rd.sub ?? t('Open circuit (OL)')) : rd.beep ? t('Continuity beep (< 30 Ω) · {range} range', { range: rd.range ?? '' }) : t('In-circuit resistance · {range} range', { range: rd.range ?? '' });
           } else if (!Number.isFinite(r)) {
             reading = 'OL';
-            sub = 'Open circuit (no continuity)';
+            sub = t('Open circuit (no continuity)');
           } else {
             reading = r < 0.05 ? '0.0 Ω' : fmtOhm(r);
-            sub = r < 5 ? 'Continuity (< 5 Ω)' : 'In-circuit resistance';
+            sub = r < 5 ? t('Continuity (< 5 Ω)') : t('In-circuit resistance');
           }
         }
       }
@@ -2582,27 +2633,27 @@ export class PcbApp {
       // DIODE TEST MODE
       if (this.powerOn) {
         reading = 'ERR';
-        sub = 'Disable power before diode test';
+        sub = t('Disable power before diode test');
       } else if (this.probeRed && this.probeBlack) {
         if (this.probeRed.net < 0 || this.probeBlack.net < 0) {
           reading = 'OL';
-          sub = 'Open or reverse-biased (> 3.3 V)';
+          sub = t('Open or reverse-biased (> 3.3 V)');
         } else {
           const res = this.diodeTest(this.probeRed.net, this.probeBlack.net);
           this.diodeLitIds = res.litIds;
           const dd = this.solver !== 'fast' ? this.meter('DIODE', this.probeRed.net, this.probeBlack.net) : null;
           if (dd) {
             reading = dd.text;
-            sub = dd.value === null ? 'Open or reverse-biased (OL)' : dd.value < 0.05 ? 'Shorted junction' : dd.value < 0.3 ? 'Low drop: Schottky / partial short' : 'Forward junction drop (ESD / body diode / PN)';
+            sub = dd.value === null ? t('Open or reverse-biased (OL)') : dd.value < 0.05 ? t('Shorted junction') : dd.value < 0.3 ? t('Low drop: Schottky / partial short') : t('Forward junction drop (ESD / body diode / PN)');
           } else if (!Number.isFinite(res.volts)) {
             reading = 'OL';
-            sub = 'Open or reverse-biased (> 3.3 V)';
+            sub = t('Open or reverse-biased (> 3.3 V)');
           } else if (res.volts < 0.05) {
             reading = `${res.volts.toFixed(3)} V`;
-            sub = 'Shorted junction';
+            sub = t('Shorted junction');
           } else {
             reading = `${res.volts.toFixed(3)} V`;
-            sub = res.litIds.length > 0 ? 'Forward drop (LED illuminated)' : 'Forward junction drop';
+            sub = res.litIds.length > 0 ? t('Forward drop (LED illuminated)') : t('Forward junction drop');
           }
         }
       }
@@ -2610,17 +2661,17 @@ export class PcbApp {
 
     this.dmmBoxEl.innerHTML = `
       <div class="dmm-card${this.mobile && this.dmmSubFull ? ' full' : ''}" style="transform: translate3d(${this.dmmPos[0]}px, ${this.dmmPos[1]}px, 0)">
-        <div class="dmm-head" title="Drag to move window">
-          <span>Multimeter</span>
+        <div class="dmm-head" title="${t('Drag to move window')}">
+          <span>${t('Multimeter')}</span>
           <div class="row">
             <div class="seg">
-              <button class="${this.dmmMode === 'V' ? 'on' : ''}" id="dmm-v" title="DC voltage">V⎓</button>
-              <button class="${this.dmmMode === 'OHM' ? 'on' : ''}" id="dmm-ohm" title="Resistance / continuity">Ω</button>
-              <button class="${this.dmmMode === 'DIODE' ? 'on' : ''}" id="dmm-diode" title="Diode test">Diode</button>
-              <button class="${this.dmmMode === 'CAP' ? 'on' : ''}" id="dmm-cap" title="Capacitance (power off)">F</button>
-              <button class="${this.dmmMode === 'AMP' ? 'on' : ''}" id="dmm-amp" title="Current, 10 A input (meter in series)">A</button>
+              <button class="${this.dmmMode === 'V' ? 'on' : ''}" id="dmm-v" title="${t('DC voltage')}">V⎓</button>
+              <button class="${this.dmmMode === 'OHM' ? 'on' : ''}" id="dmm-ohm" title="${t('Resistance / continuity')}">Ω</button>
+              <button class="${this.dmmMode === 'DIODE' ? 'on' : ''}" id="dmm-diode" title="${t('Diode test')}">${t('Diode')}</button>
+              <button class="${this.dmmMode === 'CAP' ? 'on' : ''}" id="dmm-cap" title="${t('Capacitance (power off)')}">F</button>
+              <button class="${this.dmmMode === 'AMP' ? 'on' : ''}" id="dmm-amp" title="${t('Current, 10 A input (meter in series)')}">A</button>
             </div>
-            <button class="btn ghost icon" id="dmm-clr" title="Clear probes">${icon('x', 14)}</button>
+            <button class="btn ghost icon" id="dmm-clr" title="${t('Clear probes')}">${icon('x', 14)}</button>
           </div>
         </div>
         <div class="dmm-lcd">
@@ -2629,12 +2680,12 @@ export class PcbApp {
         </div>
         ${this.mobile ? `
         <div class="dmm-probes m-probes">
-          <button class="probe-tag red ${this.activeProbe === 'red' ? 'armed' : ''}" id="probe-red">${this.esc(this.probeRed?.label ?? (this.activeProbe === 'red' ? 'Tap the board' : 'Red probe'))}</button>
-          <button class="probe-tag blk ${this.activeProbe === 'black' ? 'armed' : ''}" id="probe-blk">${this.esc(this.probeBlack?.label ?? (this.activeProbe === 'black' ? 'Tap the board' : this.dmmMode === 'V' ? 'Supply GND' : 'Black probe'))}</button>
+          <button class="probe-tag red ${this.activeProbe === 'red' ? 'armed' : ''}" id="probe-red">${this.esc(this.probeRed?.label ?? (this.activeProbe === 'red' ? t('Tap the board') : t('Red probe')))}</button>
+          <button class="probe-tag blk ${this.activeProbe === 'black' ? 'armed' : ''}" id="probe-blk">${this.esc(this.probeBlack?.label ?? (this.activeProbe === 'black' ? t('Tap the board') : this.dmmMode === 'V' ? t('Supply GND') : t('Black probe')))}</button>
         </div>` : `
         <div class="dmm-probes">
-          <div class="probe-tag red" title="${this.esc(this.probeRed?.label ?? '')}">${this.esc(this.probeRed?.label ?? 'Click to place')}</div>
-          <div class="probe-tag blk" title="${this.esc(this.probeBlack?.label ?? '')}">${this.esc(this.probeBlack?.label ?? (this.dmmMode === 'V' ? 'Supply GND' : 'Right-click'))}</div>
+          <div class="probe-tag red" title="${this.esc(this.probeRed?.label ?? '')}">${this.esc(this.probeRed?.label ?? t('Click to place'))}</div>
+          <div class="probe-tag blk" title="${this.esc(this.probeBlack?.label ?? '')}">${this.esc(this.probeBlack?.label ?? (this.dmmMode === 'V' ? t('Supply GND') : t('Right-click')))}</div>
         </div>`}
       </div>
     `;
@@ -2694,28 +2745,28 @@ export class PcbApp {
    */
   private phoneTutorialHtml(step: TutorialStep, idx: number, total: number, tutIdx: number, done: boolean, pct: number, isLast: boolean, nextPrimary: boolean, nextId: string | null): string {
     const why = this.tutWhy === `${this.activeScenario.id}:${idx}`;
-    const task = step.phone ?? this.txt(step.task);
+    const task = step.phone ? t(step.phone) : this.txt(t(step.task));
     return `
       <div class="tut-card m-tut${this.tutCollapsed ? ' collapsed' : ''}">
-        <div class="tut-head" title="Tap to fold / unfold">
-          <span class="tut-step">${icon(this.tutCollapsed ? 'chevronDown' : 'book', 13)}<span>${tutIdx >= 0 ? `Lesson ${tutIdx + 1} · ` : ''}${idx + 1}/${total}${this.tutCollapsed ? ` · ${this.esc(step.title)}` : ''}</span></span>
-          <button class="btn ghost icon sm" id="tut-close" title="Close tutorial">${icon('x', 13)}</button>
+        <div class="tut-head" title="${t('Tap to fold / unfold')}">
+          <span class="tut-step">${icon(this.tutCollapsed ? 'chevronDown' : 'book', 13)}<span>${tutIdx >= 0 ? `${t('Lesson {n}', { n: tutIdx + 1 })} · ` : ''}${idx + 1}/${total}${this.tutCollapsed ? ` · ${this.esc(t(step.title))}` : ''}</span></span>
+          <button class="btn ghost icon sm" id="tut-close" title="${t('Close tutorial')}">${icon('x', 13)}</button>
         </div>
         <div class="tut-prog"><i style="width:${pct}%"></i></div>
         <div class="tut-body">
-          <div class="tut-title"><span>${this.esc(step.title)}</span><span class="row">${done ? `<span class="badge pass">${icon('check', 11)}<span>Done</span></span>` : ''}<button class="btn sm ghost ${why ? 'active' : ''}" id="tut-why">${icon('help', 12)}<span>${why ? 'Hide' : 'Why?'}</span></button></span></div>
-          ${why ? `<div class="tut-concept">${this.esc(this.txt(step.concept))}</div>` : ''}
+          <div class="tut-title"><span>${this.esc(t(step.title))}</span><span class="row">${done ? `<span class="badge pass">${icon('check', 11)}<span>${t('Done')}</span></span>` : ''}<button class="btn sm ghost ${why ? 'active' : ''}" id="tut-why">${icon('help', 12)}<span>${why ? t('Hide') : t('Why?')}</span></button></span></div>
+          ${why ? `<div class="tut-concept">${this.esc(this.txt(t(step.concept)))}</div>` : ''}
           <div class="tut-goal ${done ? 'done' : ''}"><div class="tut-goal-txt">${this.esc(task)}</div></div>
           ${step.target || step.quickAction ? `<div class="row wrap">
-            ${step.target ? `<button class="btn sm" id="tut-focus">${icon('target', 12)}<span>Locate</span></button>` : ''}
-            ${step.quickAction ? `<button class="btn sm" id="tut-quick">${this.esc(this.txt(step.quickAction.label))}</button>` : ''}
+            ${step.target ? `<button class="btn sm" id="tut-focus">${icon('target', 12)}<span>${t('Locate')}</span></button>` : ''}
+            ${step.quickAction ? `<button class="btn sm" id="tut-quick">${this.esc(this.txt(t(step.quickAction.label)))}</button>` : ''}
           </div>` : ''}
         </div>
         <div class="tut-foot">
-          <button class="btn sm ghost" id="tut-prev" ${idx === 0 ? 'disabled' : ''}>${icon('chevronLeft', 13)}<span>Back</span></button>
+          <button class="btn sm ghost" id="tut-prev" ${idx === 0 ? 'disabled' : ''}>${icon('chevronLeft', 13)}<span>${t('Back')}</span></button>
           <div class="row">
-            <button class="btn sm ${nextPrimary ? 'primary' : ''}" id="tut-next"><span>${isLast ? (done ? 'Finish' : 'Done') : 'Next'}</span>${isLast ? '' : icon('chevronRight', 13)}</button>
-            ${isLast && done && nextId ? `<button class="btn sm primary" id="tut-next-board"><span>Next lesson</span>${icon('chevronRight', 13)}</button>` : ''}
+            <button class="btn sm ${nextPrimary ? 'primary' : ''}" id="tut-next"><span>${isLast ? (done ? t('Finish') : t('Done')) : t('Next')}</span>${isLast ? '' : icon('chevronRight', 13)}</button>
+            ${isLast && done && nextId ? `<button class="btn sm primary" id="tut-next-board"><span>${t('Next lesson')}</span>${icon('chevronRight', 13)}</button>` : ''}
           </div>
         </div>
       </div>`;
@@ -2753,37 +2804,37 @@ export class PcbApp {
 
     this.tutBoxEl.innerHTML = this.mobile ? this.phoneTutorialHtml(step, idx, total, tutIdx, done, pct, isLast, nextPrimary, nextId) : `
       <div class="tut-card${this.mobile && this.tutCollapsed ? ' collapsed' : ''}" style="transform: translate3d(${this.tutPos[0]}px, ${this.tutPos[1]}px, 0)">
-        <div class="tut-head" title="${this.mobile ? 'Tap to fold / unfold' : 'Drag to move window'}">
-          <span class="tut-step">${icon(this.mobile ? (this.tutCollapsed ? 'chevronDown' : 'book') : 'book', 13)}<span>Tutorial ${tutIdx >= 0 ? `${tutIdx + 1}/${TUTORIAL_SCENARIO_IDS.length} · ` : ''}Step ${idx + 1} / ${total}${this.mobile && this.tutCollapsed ? ` · ${this.esc(step.title)}` : ''}</span></span>
-          <button class="btn ghost icon sm" id="tut-close" title="Close tutorial">${icon('x', 13)}</button>
+        <div class="tut-head" title="${this.mobile ? t('Tap to fold / unfold') : t('Drag to move window')}">
+          <span class="tut-step">${icon(this.mobile ? (this.tutCollapsed ? 'chevronDown' : 'book') : 'book', 13)}<span>${tutIdx >= 0 ? `${t('Tutorial {n}/{total}', { n: tutIdx + 1, total: TUTORIAL_SCENARIO_IDS.length })} · ` : `${t('Tutorial')} · `}${t('Step {n} / {total}', { n: idx + 1, total })}${this.mobile && this.tutCollapsed ? ` · ${this.esc(t(step.title))}` : ''}</span></span>
+          <button class="btn ghost icon sm" id="tut-close" title="${t('Close tutorial')}">${icon('x', 13)}</button>
         </div>
         <div class="tut-prog"><i style="width:${pct}%"></i></div>
         <div class="tut-body">
-          <div class="tut-title">${this.esc(this.txt(step.title))}</div>
-          <div class="tut-concept">${this.esc(this.txt(step.concept))}</div>
+          <div class="tut-title">${this.esc(this.txt(t(step.title)))}</div>
+          <div class="tut-concept">${this.esc(this.txt(t(step.concept)))}</div>
           <div class="tut-goal ${done ? 'done' : ''}">
             <div class="tut-goal-head">
-              <span>${done ? 'Step complete' : 'Your turn'}</span>
-              ${done ? `<span class="badge pass">${icon('check', 11)}<span>Done</span></span>` : ''}
+              <span>${done ? t('Step complete') : t('Your turn')}</span>
+              ${done ? `<span class="badge pass">${icon('check', 11)}<span>${t('Done')}</span></span>` : ''}
             </div>
-            <div class="tut-goal-txt">${this.esc(this.txt(step.task))}</div>
+            <div class="tut-goal-txt">${this.esc(this.txt(t(step.task)))}</div>
             ${step.target || step.quickAction ? `
               <div class="row wrap" style="margin-top:2px">
-                ${step.target ? `<button class="btn sm" id="tut-focus">${icon('target', 12)}<span>Locate on board</span></button>` : ''}
-                ${step.quickAction ? `<button class="btn sm" id="tut-quick">${this.esc(this.txt(step.quickAction.label))}</button>` : ''}
+                ${step.target ? `<button class="btn sm" id="tut-focus">${icon('target', 12)}<span>${t('Locate on board')}</span></button>` : ''}
+                ${step.quickAction ? `<button class="btn sm" id="tut-quick">${this.esc(this.txt(t(step.quickAction.label)))}</button>` : ''}
               </div>
             ` : ''}
           </div>
         </div>
         <div class="tut-foot">
-          <button class="btn sm ghost" id="tut-prev" ${idx === 0 ? 'disabled' : ''}>${icon('chevronLeft', 13)}<span>Back</span></button>
+          <button class="btn sm ghost" id="tut-prev" ${idx === 0 ? 'disabled' : ''}>${icon('chevronLeft', 13)}<span>${t('Back')}</span></button>
           <div class="row">
             <button class="btn sm ${nextPrimary ? 'primary' : ''}" id="tut-next">
-              <span>${isLast ? (done ? 'Finish' : 'Done') : 'Next step'}</span>${isLast ? '' : icon('chevronRight', 13)}
+              <span>${isLast ? (done ? t('Finish') : t('Done')) : t('Next step')}</span>${isLast ? '' : icon('chevronRight', 13)}
             </button>
             ${isLast && done && nextId ? `
               <button class="btn sm primary" id="tut-next-board">
-                <span>Next tutorial</span>${icon('chevronRight', 13)}
+                <span>${t('Next tutorial')}</span>${icon('chevronRight', 13)}
               </button>
             ` : ''}
           </div>
@@ -2894,50 +2945,47 @@ export class PcbApp {
     this.sideBodyEl.innerHTML = `
       <div class="card">
         <div class="card-title lg">
-          <span>${this.esc(s.meta.title)}</span>
-          <span class="badge info">${this.moves}${s.meta.par ? ` / ${s.meta.par}` : ''} moves</span>
+          <span>${this.esc(t(s.meta.title))}</span>
+          <span class="badge info">${t('{moves} moves', { moves: `${this.moves}${s.meta.par ? ` / ${s.meta.par}` : ''}` })}</span>
         </div>
         <div class="row" style="justify-content:space-between">
-          <span class="muted">By ${this.esc(s.meta.author)}</span>
-          <span class="lvl" title="Difficulty ${s.meta.difficulty}/5">${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= s.meta.difficulty ? 'on' : ''}"></i>`).join('')}</span>
+          <span class="muted">${t('By {author}', { author: this.esc(t(s.meta.author)) })}</span>
+          <span class="lvl" title="${t('Difficulty {n}/5', { n: s.meta.difficulty })}">${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= s.meta.difficulty ? 'on' : ''}"></i>`).join('')}</span>
         </div>
-        <div class="text-2">${this.esc(this.txt(s.meta.description))}</div>
+        <div class="text-2">${this.esc(this.txt(t(s.meta.description)))}</div>
         ${s.meta.credits ? `
           <div class="credits">
             <span>${this.esc(s.meta.credits)}</span>
-            <span class="mono">${s.meta.license ? `Licence: ${this.esc(s.meta.license)}` : ''}${s.meta.source ? ` · <a href="${this.esc(s.meta.source.split(' @ ')[0])}" target="_blank" rel="noopener">source${s.meta.source.includes(' @ ') ? ` @ ${this.esc(s.meta.source.split(' @ ')[1])}` : ''}</a>` : ''}</span>
+            <span class="mono">${s.meta.license ? `${t('Licence')}: ${this.esc(s.meta.license)}` : ''}${s.meta.source ? ` · <a href="${this.esc(s.meta.source.split(' @ ')[0])}" target="_blank" rel="noopener">${t('source')}${s.meta.source.includes(' @ ') ? ` @ ${this.esc(s.meta.source.split(' @ ')[1])}` : ''}</a>` : ''}</span>
           </div>
         ` : ''}
         ${this.modBoards.get(s)?.schematic ? `
           <div class="row wrap" style="margin-top:8px">
-            <button class="btn sm" id="open-schematic">${icon('book', 12)}<span>Schematic</span></button>
-            <span class="muted">from the mod "${this.esc(this.modBoards.get(s)!.mod.name)}"</span>
+            <button class="btn sm" id="open-schematic">${icon('book', 12)}<span>${t('Schematic')}</span></button>
+            <span class="muted">${t('from the mod «{name}»', { name: this.esc(this.modBoards.get(s)!.mod.name) })}</span>
           </div>
         ` : ''}
         ${this.videos[s.id] ? `
           <div class="walkthrough">
-            <span class="walk-title">Walkthrough</span>
+            <span class="walk-title">${t('Walkthrough')}</span>
             <div class="row wrap">
-              <button class="btn sm primary" id="vid-approach">${icon('play', 12)}<span>How to approach · ${fmtDur(this.videos[s.id].approach.seconds)}</span></button>
-              <button class="btn sm" id="vid-solution">Show solution</button>
+              <button class="btn sm primary" id="vid-approach">${icon('play', 12)}<span>${t('How to approach')} · ${fmtDur(this.videos[s.id].approach.seconds)}</span></button>
+              <button class="btn sm" id="vid-solution">${t('Show solution')}</button>
             </div>
           </div>
         ` : ''}
         ${!this.tutorialOpen && inTutTrack ? `
-          <button class="btn sm block" id="btn-start-tut">${icon('book', 13)}<span>Start interactive beginner tutorial</span></button>
-        ` : ''}
-        ${!inTutTrack ? `
-          <button class="btn sm block" id="btn-open-catalog">${icon('grid', 13)}<span>Browse all boards &amp; tutorials</span></button>
+          <button class="btn sm block" id="btn-start-tut">${icon('book', 13)}<span>${t('Start interactive beginner tutorial')}</span></button>
         ` : ''}
       </div>
 
       ${inTutTrack ? `
         <div class="card">
           <div class="card-title">
-            <span>Beginner tutorial track</span>
+            <span>${t('Beginner tutorial track')}</span>
             <div class="row">
               <span class="badge info">${TUTORIAL_SCENARIO_IDS.filter((id) => this.solvedIds.has(id)).length}/${TUTORIAL_SCENARIO_IDS.length}</span>
-              <button class="btn sm" id="btn-open-catalog">All boards</button>
+              <button class="btn sm" id="btn-open-catalog">${t('All boards')}</button>
             </div>
           </div>
           <div class="stack">
@@ -2949,8 +2997,8 @@ export class PcbApp {
               const isDone = this.solvedIds.has(id);
               return `
                 <button class="list-btn" data-open-sc="${scIdx}" style="${isCur ? 'background:var(--accent-weak);border:1px solid var(--accent-line)' : ''}">
-                  <span><b>${idx + 1}.</b> ${this.esc(scItem.meta.title)}</span>
-                  ${isDone ? `<span class="badge pass">Done</span>` : isCur ? `<span class="badge info">Active</span>` : `<span class="sub">L1</span>`}
+                  <span><b>${idx + 1}.</b> ${this.esc(t(scItem.meta.title))}</span>
+                  ${isDone ? `<span class="badge pass">${t('Done')}</span>` : isCur ? `<span class="badge info">${t('Active')}</span>` : `<span class="sub">L1</span>`}
                 </button>
               `;
             }).join('')}
@@ -2961,8 +3009,8 @@ export class PcbApp {
       ${this.revealedFlag ? `
         <div class="flag-box">
           <div class="card-title" style="color:var(--accent)">
-            <span class="row">${icon('flag', 14)}<span>Flag unlocked</span></span>
-            <button class="btn sm" id="btn-copy-flag">${icon('copy', 13)}<span>Copy</span></button>
+            <span class="row">${icon('flag', 14)}<span>${t('Flag unlocked')}</span></span>
+            <button class="btn sm" id="btn-copy-flag">${icon('copy', 13)}<span>${t('Copy')}</span></button>
           </div>
           <div class="flag-code" id="flag-txt">${this.esc(this.revealedFlag)}</div>
         </div>
@@ -2970,31 +3018,31 @@ export class PcbApp {
 
       <div class="card">
         <div class="card-title">
-          <span>Objectives</span>
-          <button class="btn sm primary" id="btn-panel-verify">${icon('play', 12)}<span>Run tests</span></button>
+          <span>${t('Objectives')}</span>
+          <button class="btn sm primary" id="btn-panel-verify">${icon('play', 12)}<span>${t('Run tests')}</span></button>
         </div>
-        ${s.objectives.length === 0 ? `<div class="muted">No objectives defined.</div>` : ''}
+        ${s.objectives.length === 0 ? `<div class="muted">${t('No objectives defined.')}</div>` : ''}
         ${(v ? v.results : s.objectives.map((o) => ({
           objective: o,
-          label: o.type === 'led' ? `${o.ref} must be ${o.on ? 'ON' : 'OFF'}` : `V(${o.a}${o.b ? `−${o.b}` : ''}) ∈ [${o.min}, ${o.max}] V`,
+          label: objectiveLabel(o),
           passed: false,
-          detail: 'Run tests to verify',
+          detail: '',
         }))).map((r) => `
           <div class="obj-row ${v ? (r.passed ? 'pass' : 'fail') : ''}">
             <div>
               <div class="t">${this.esc(r.label)}</div>
-              <div class="d">${this.esc(r.detail)}</div>
+              ${r.detail ? `<div class="d">${this.esc(r.detail)}</div>` : ''}
             </div>
-            ${v ? `<span class="badge ${r.passed ? 'pass' : 'fail'}">${r.passed ? 'Pass' : 'Fail'}</span>` : ''}
+            ${v ? `<span class="badge ${r.passed ? 'pass' : 'fail'}">${r.passed ? t('Pass') : t('Fail')}</span>` : ''}
           </div>
         `).join('')}
         ${v && v.overloads.length > 0 ? `
           <div class="obj-row fail">
             <div>
-              <div class="t">Thermal / current overload</div>
+              <div class="t">${t('Thermal / current overload')}</div>
               <div class="d">${v.overloads.map((o) => `${this.esc(o.ref)}: ${this.esc(o.msg)}`).join('; ')}</div>
             </div>
-            <span class="badge fail">Fault</span>
+            <span class="badge fail">${t('Fault')}</span>
           </div>
         ` : ''}
       </div>
@@ -3002,13 +3050,12 @@ export class PcbApp {
       ${hints.length > 0 ? `
         <div class="card">
           <div class="card-title">
-            <span>Notes (${this.hintsShown}/${hints.length})</span>
-            ${this.hintsShown < hints.length ? `<button class="btn sm" id="btn-next-hint">Reveal note</button>` : ''}
+            <span>${t('Notes')} (${this.hintsShown}/${hints.length})</span>
+            ${this.hintsShown < hints.length ? `<button class="btn sm" id="btn-next-hint">${t('Reveal note')}</button>` : ''}
           </div>
           ${hints.slice(0, this.hintsShown).map((h, i) => `
-            <div class="hint-item"><b>${i + 1}.</b> ${this.esc(this.txt(h))}</div>
+            <div class="hint-item"><b>${i + 1}.</b> ${this.esc(this.txt(t(h)))}</div>
           `).join('')}
-          ${this.hintsShown === 0 ? `<div class="muted">Progressive diagnostic notes are available if needed.</div>` : ''}
         </div>
       ` : ''}
     `;
@@ -3030,7 +3077,7 @@ export class PcbApp {
       if (sol.dataset.armed) { this.playVideo(s.id, 'solution'); return; }
       sol.dataset.armed = '1';
       sol.classList.add('warn');
-      sol.textContent = `Spoilers ahead — play solution (${fmtDur(this.videos[s.id].solution.seconds)})`;
+      sol.textContent = t('Spoilers ahead — play solution ({time})', { time: fmtDur(this.videos[s.id].solution.seconds) });
     });
     this.sideBodyEl.querySelector('#btn-next-hint')?.addEventListener('click', () => {
       this.hintsShown = Math.min(hints.length, this.hintsShown + 1);
@@ -3039,7 +3086,7 @@ export class PcbApp {
     this.sideBodyEl.querySelector('#btn-copy-flag')?.addEventListener('click', async () => {
       if (this.revealedFlag) {
         await navigator.clipboard?.writeText(this.revealedFlag);
-        this.toast('Flag copied to clipboard', 'success');
+        this.toast(t('Flag copied to clipboard'), 'success');
       }
     });
   }
@@ -3057,33 +3104,34 @@ export class PcbApp {
           ? this.board.components.filter((comp) =>
               comp.ref.toLowerCase().includes(q)
               || KIND_NAMES[comp.kind].toLowerCase().includes(q)
+              || t(KIND_NAMES[comp.kind]).toLowerCase().includes(q)
               || (comp.label?.toLowerCase().includes(q) ?? false))
           : this.board.components;
         const shown = filtered.slice(0, 120);
         const rows = shown.map((comp) => `
           <button class="list-btn" data-pick-comp="${comp.id}">
-            <span><b>${this.esc(comp.ref)}</b> · ${this.esc(KIND_NAMES[comp.kind])}</span>
+            <span><b>${this.esc(comp.ref)}</b> · ${this.esc(t(KIND_NAMES[comp.kind]))}</span>
             <span class="sub">${this.esc(marking(comp))}</span>
           </button>
         `).join('');
         const tail = filtered.length > 120
-          ? `<div class="muted" style="padding-top:4px">Showing 120 of ${filtered.length} matches — refine search above</div>`
+          ? `<div class="muted" style="padding-top:4px">${t('Showing 120 of {n} matches — refine search above', { n: filtered.length })}</div>`
           : '';
-        return (rows || `<div class="muted">No matching components.</div>`) + tail;
+        return (rows || `<div class="muted">${t('No matching components.')}</div>`) + tail;
       };
       this.sideBodyEl.innerHTML = `
         <div class="card">
-          <div class="card-title">Selection</div>
+          <div class="card-title">${t('Selection')}</div>
           ${netName ? `
             <dl class="kv">
-              <dt>Net</dt><dd>${this.esc(netName)}</dd>
-              <dt>Potential</dt><dd>${v !== null ? `${v.toFixed(3)} V` : this.powerOn ? 'Floating' : 'Unpowered'}</dd>
+              <dt>${t('Net')}</dt><dd>${this.esc(netName)}</dd>
+              <dt>${t('Potential')}</dt><dd>${v !== null ? `${v.toFixed(3)} V` : this.powerOn ? t('Floating') : t('Unpowered')}</dd>
             </dl>
-          ` : `<div class="muted">Select a component, pad, or trace in the viewport to inspect parameters and perform rework.</div>`}
+          ` : `<div class="muted">${t('Select a component, pad, or trace in the viewport to inspect parameters and perform rework.')}</div>`}
         </div>
         <div class="card">
-          <div class="card-title">Components (${this.board.components.length})</div>
-          <input type="text" id="inp-comp-search" placeholder="Search ref or type (e.g. U2, C29, resistor)…" value="${this.esc(this.compSearch)}" style="width:100%;margin-bottom:8px" />
+          <div class="card-title">${t('Components')} (${this.board.components.length})</div>
+          <input type="text" id="inp-comp-search" placeholder="${t('Search ref or type (e.g. U2, C29, resistor)…')}" value="${this.esc(this.compSearch)}" style="width:100%;margin-bottom:8px" />
           <div class="stack" id="comp-list-box">${renderCompRows()}</div>
         </div>
       `;
@@ -3134,15 +3182,15 @@ export class PcbApp {
     this.sideBodyEl.innerHTML = `
       <div class="card">
         <div class="card-title">
-          <button class="btn ghost sm" id="btn-comp-back" style="padding:0 4px">${icon('chevronLeft', 14)}<span>Components</span></button>
+          <button class="btn ghost sm" id="btn-comp-back" style="padding:0 4px">${icon('chevronLeft', 14)}<span>${t('Components')}</span></button>
           <span class="badge info">${this.esc(c.ref)}</span>
         </div>
-        <div class="card-title lg">${this.esc(KIND_NAMES[c.kind])}</div>
+        <div class="card-title lg">${this.esc(t(KIND_NAMES[c.kind]))}</div>
         <dl class="kv">
-          <dt>State</dt><dd>${!c.state.populated ? 'Unpopulated' : c.state.burnt ? 'Damaged (open)' : 'Populated'}${c.state.reversed ? ' · Reversed' : ''}${c.state.cold.length ? ` · ${c.state.cold.length} cold joint` : ''}</dd>
-          <dt>Value</dt><dd>${this.esc(marking(c))}</dd>
+          <dt>${t('State')}</dt><dd>${!c.state.populated ? t('Unpopulated') : c.state.burnt ? t('Damaged (open)') : t('Populated')}${c.state.reversed ? ` · ${t('Reversed')}` : ''}${c.state.cold.length ? ` · ${t('{n} cold joint|{n} cold joints', { n: c.state.cold.length })}` : ''}</dd>
+          <dt>${t('Value')}</dt><dd>${this.esc(marking(c))}</dd>
           ${bands ? `
-            <dt>Color code</dt>
+            <dt>${t('Color code')}</dt>
             <dd>
               <span class="res-bands">
                 <span class="res-band" style="background:${bandColorCss(bands[0])}"></span>
@@ -3153,47 +3201,47 @@ export class PcbApp {
             </dd>
           ` : ''}
           ${cSim ? `
-            <dt>Drop / current</dt><dd>${cSim.v.toFixed(3)} V · ${(cSim.i * 1000).toFixed(2)} mA</dd>
-            <dt>Power / temp</dt><dd>${(cSim.p * 1000).toFixed(1)} mW · ${(25 + cSim.p * (c.kind === 'resistor' ? 185 : 130)).toFixed(0)} °C</dd>
+            <dt>${t('Drop / current')}</dt><dd>${cSim.v.toFixed(3)} V · ${(cSim.i * 1000).toFixed(2)} mA</dd>
+            <dt>${t('Power / temp')}</dt><dd>${(cSim.p * 1000).toFixed(1)} mW · ${(25 + cSim.p * (c.kind === 'resistor' ? 185 : 130)).toFixed(0)} °C</dd>
           ` : ''}
         </dl>
         <div class="callout">
-          <span class="h">Reference note</span>
+          <span class="h">${t('Reference note')}</span>
           <span>${this.esc(
             c.kind === 'resistor'
-              ? 'Read the 4 bands left-to-right toward the gold tolerance band: Digit 1, Digit 2, Multiplier (10^n). Example: Brown-Black-Red = 1-0 × 10² = 1 kΩ.'
+              ? t('Read the 4 bands left-to-right toward the gold tolerance band: Digit 1, Digit 2, Multiplier (10^n). Example: Brown-Black-Red = 1-0 × 10² = 1 kΩ.')
               : c.kind === 'led'
-                ? 'Look for the flat notch on the rim and the larger internal cathode anvil flag. Verify polarity in Diode mode (•◄|).'
+                ? t('Look for the flat notch on the rim and the larger internal cathode anvil flag. Verify polarity in Diode mode (•◄|).')
                 : c.kind === 'diode'
-                  ? 'The silver/white band marks the Cathode (K). A healthy silicon diode drops ~0.6–0.7 V forward and reads OL reversed.'
+                  ? t('The silver/white band marks the Cathode (K). A healthy silicon diode drops ~0.6–0.7 V forward and reads OL reversed.')
                   : c.kind === 'switch'
-                    ? '4-pin tactile switches pair two legs internally on each side (1-1 and 2-2). Pressing bridges side 1 to side 2.'
+                    ? t('4-pin tactile switches pair two legs internally on each side (1-1 and 2-2). Pressing bridges side 1 to side 2.')
                     : c.kind === 'fuse'
-                      ? 'Check for downstream shorts (Ω mode or 100 mA limit + Thermal view) before replacing a blown fuse.'
-                      : 'Probe pads in V DC (Power ON) or Ω / Diode mode (Power OFF) to trace connectivity.'
+                      ? t('Check for downstream shorts (Ω mode or 100 mA limit + Thermal view) before replacing a blown fuse.')
+                      : t('Probe pads in V DC (Power ON) or Ω / Diode mode (Power OFF) to trace connectivity.')
           )}</span>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-title">Rework</div>
+        <div class="card-title">${t('Rework')}</div>
         <div class="row wrap">
-          ${c.kind === 'switch' ? `<button class="btn sm primary" id="act-toggle-sw">${c.state.closed ? 'Release switch' : 'Press switch'}</button>` : ''}
-          ${c.state.populated ? `<button class="btn sm" id="act-flip180">Rotate 180°</button>` : ''}
-          ${c.state.cold.length ? `<button class="btn sm warn" id="act-reflow">Reflow joints</button>` : ''}
-          ${c.state.populated ? `<button class="btn sm" id="act-desolder">Remove part</button>` : ''}
-          ${!c.state.populated || c.state.burnt ? `<button class="btn sm primary" id="act-fit">Fit new ${this.esc(KIND_NAMES[c.kind].toLowerCase())}</button>` : ''}
+          ${c.kind === 'switch' ? `<button class="btn sm primary" id="act-toggle-sw">${c.state.closed ? t('Release switch') : t('Press switch')}</button>` : ''}
+          ${c.state.populated ? `<button class="btn sm" id="act-flip180">${t('Rotate 180°')}</button>` : ''}
+          ${c.state.cold.length ? `<button class="btn sm warn" id="act-reflow">${t('Reflow joints')}</button>` : ''}
+          ${c.state.populated ? `<button class="btn sm" id="act-desolder">${t('Remove part')}</button>` : ''}
+          ${!c.state.populated || c.state.burnt ? `<button class="btn sm primary" id="act-fit">${t('Fit new part: {kind}', { kind: this.esc(t(KIND_NAMES[c.kind]).toLowerCase()) })}</button>` : ''}
         </div>
 
         ${c.kind === 'resistor' ? `
           <div class="field">
-            <label>Resistance (e.g. 100, 330, 4k7, 10k)</label>
+            <label>${t('Resistance (e.g. 100, 330, 4k7, 10k)')}</label>
             <div class="row">
               <input type="text" class="grow" id="inp-res-val" value="${c.value || 330}" />
-              <button class="btn sm primary" id="act-install-res">Apply</button>
+              <button class="btn sm primary" id="act-install-res">${t('Apply')}</button>
             </div>
             <select id="sel-e12" style="margin-top:2px">
-              <option value="">Standard E12 value…</option>
+              <option value="">${t('Standard E12 value…')}</option>
               ${e12.map((v) => `<option value="${v}" ${Math.abs(v - c.value) < 0.01 ? 'selected' : ''}>${fmtOhm(v)}</option>`).join('')}
             </select>
           </div>
@@ -3201,32 +3249,32 @@ export class PcbApp {
 
         ${c.kind === 'led' ? `
           <div class="field">
-            <label>LED emission color</label>
+            <label>${t('LED emission color')}</label>
             <div class="row">
               <select class="grow" id="sel-led-col">
-                ${LED_COLORS.map((col) => `<option value="${col}" ${c.color === col ? 'selected' : ''}>${col.toUpperCase()}</option>`).join('')}
+                ${LED_COLORS.map((col) => `<option value="${col}" ${c.color === col ? 'selected' : ''}>${t(LED_COLOR_NAMES[col]).toUpperCase()}</option>`).join('')}
               </select>
-              <button class="btn sm primary" id="act-install-led">Apply</button>
+              <button class="btn sm primary" id="act-install-led">${t('Apply')}</button>
             </div>
           </div>
         ` : ''}
 
         ${c.kind === 'fuse' ? `
           <div class="field">
-            <label>Fuse current rating (A)</label>
+            <label>${t('Fuse current rating (A)')}</label>
             <div class="row">
               <input type="number" class="grow" step="0.1" min="0.05" id="inp-fuse-val" value="${c.value || 0.5}" />
-              <button class="btn sm primary" id="act-install-fuse">Apply</button>
+              <button class="btn sm primary" id="act-install-fuse">${t('Apply')}</button>
             </div>
           </div>
         ` : ''}
 
         ${c.kind === 'capacitor' ? `
           <div class="field">
-            <label>Capacitance (e.g. 100n, 10u)</label>
+            <label>${t('Capacitance (e.g. 100n, 10u)')}</label>
             <div class="row">
               <input type="text" class="grow" id="inp-cap-val" value="${c.value ? fmtSI(c.value, 'F') : '100n'}" />
-              <button class="btn sm primary" id="act-install-cap">Apply</button>
+              <button class="btn sm primary" id="act-install-cap">${t('Apply')}</button>
             </div>
           </div>
         ` : ''}
@@ -3265,7 +3313,7 @@ export class PcbApp {
       installPart(c, { ...(c.value > 0 && { value: c.value }) });
       sfxSolder();
       this.recompute(false);
-      this.toast(`Fitted a new ${c.ref}`, 'success');
+      this.toast(t('Fitted a new {ref}', { ref: c.ref }), 'success');
       this.renderInspectTab();
     });
     this.sideBodyEl.querySelector('#act-desolder')?.addEventListener('click', () => {
@@ -3288,7 +3336,7 @@ export class PcbApp {
     this.sideBodyEl.querySelector('#act-install-res')?.addEventListener('click', () => {
       const raw = (this.sideBodyEl.querySelector('#inp-res-val') as HTMLInputElement).value;
       const v = parseValue(raw);
-      if (!Number.isFinite(v) || v <= 0) { this.toast('Invalid resistor value', 'danger'); return; }
+      if (!Number.isFinite(v) || v <= 0) { this.toast(t('Invalid resistor value'), 'danger'); return; }
       this.pushUndo();
       installPart(c, { value: v, reversed: c.state.reversed });
       sfxSolder();
@@ -3305,7 +3353,7 @@ export class PcbApp {
     });
     this.sideBodyEl.querySelector('#act-install-fuse')?.addEventListener('click', () => {
       const v = Number((this.sideBodyEl.querySelector('#inp-fuse-val') as HTMLInputElement).value);
-      if (!Number.isFinite(v) || v <= 0) { this.toast('Invalid fuse rating', 'danger'); return; }
+      if (!Number.isFinite(v) || v <= 0) { this.toast(t('Invalid fuse rating'), 'danger'); return; }
       this.pushUndo();
       installPart(c, { value: v });
       sfxSolder();
@@ -3315,7 +3363,7 @@ export class PcbApp {
     this.sideBodyEl.querySelector('#act-install-cap')?.addEventListener('click', () => {
       const raw = (this.sideBodyEl.querySelector('#inp-cap-val') as HTMLInputElement).value;
       const v = parseValue(raw);
-      if (!Number.isFinite(v) || v <= 0) { this.toast('Invalid capacitance', 'danger'); return; }
+      if (!Number.isFinite(v) || v <= 0) { this.toast(t('Invalid capacitance'), 'danger'); return; }
       this.pushUndo();
       installPart(c, { value: v });
       sfxSolder();
@@ -3354,48 +3402,48 @@ export class PcbApp {
     const fastBlind = this.solver === 'fast' && (faults.some((f) => f.spiceOnly) || (cls && needsSpice(cls)));
     return `
       <div class="card">
-        <div class="card-title">Fault injection · ${this.esc(c.ref)}</div>
+        <div class="card-title">${t('Fault injection')} · ${this.esc(c.ref)}</div>
         <div class="row wrap">
-          <button class="btn sm warn" id="sab-burn">Toggle damage</button>
-          <button class="btn sm warn" id="sab-cold">Toggle open joint</button>
-          <button class="btn sm warn" id="sab-rev">Reverse 180°</button>
+          <button class="btn sm warn" id="sab-burn">${t('Toggle damage')}</button>
+          <button class="btn sm warn" id="sab-cold">${t('Toggle open joint')}</button>
+          <button class="btn sm warn" id="sab-rev">${t('Reverse 180°')}</button>
         </div>
         ${cls ? `
           <div class="field">
-            <label>Fault class</label>
+            <label>${t('Fault class')}</label>
             <select id="sab-class">
-              ${classes.map((k) => `<option value="${k}" ${k === cls ? 'selected' : ''}>${this.esc(FAULT_LABELS[k])}</option>`).join('')}
+              ${classes.map((k) => `<option value="${k}" ${k === cls ? 'selected' : ''}>${this.esc(t(FAULT_LABELS[k]))}</option>`).join('')}
             </select>
           </div>
           <div class="grid-2">
             ${jointFault ? `
               <div class="field">
-                <label>Pad</label>
+                <label>${t('Pad')}</label>
                 <select id="sab-pad">
-                  <option value="">Random</option>
+                  <option value="">${t('Random')}</option>
                   ${c.pads.map((p, i) => `<option value="${i}">${this.esc(p.name)}${p.net ? ` · ${this.esc(p.net)}` : ''}</option>`).join('')}
                 </select>
               </div>
             ` : ''}
             ${hint ? `
               <div class="field">
-                <label>${this.esc(hint.what)} (${this.esc(hint.unit)})</label>
-                <input type="text" id="sab-sev" placeholder="random ${hint.unit === 'Ω' ? `${fmtSI(hint.min, 'Ω')} – ${fmtSI(hint.max, 'Ω')}` : `${hint.min}–${hint.max}`}" />
+                <label>${this.esc(t(hint.what))} (${this.esc(t(hint.unit))})</label>
+                <input type="text" id="sab-sev" placeholder="${t('random')} ${hint.unit === 'Ω' ? `${fmtSI(hint.min, 'Ω')} – ${fmtSI(hint.max, 'Ω')}` : `${hint.min}–${hint.max}`}" />
               </div>
             ` : ''}
           </div>
-          <button class="btn sm warn block" id="sab-inject">Inject fault</button>
+          <button class="btn sm warn block" id="sab-inject">${t('Inject fault')}</button>
         ` : ''}
         ${faults.length ? `
-          <div class="card-title" style="margin-top:6px">Faults on ${this.esc(c.ref)} (${faults.length})</div>
+          <div class="card-title" style="margin-top:6px">${t('Faults on {ref}', { ref: this.esc(c.ref) })} (${faults.length})</div>
           ${faults.map((f) => `
             <div class="obj-row">
               <span class="mono">${this.esc(f.label)}${f.spiceOnly ? ' <span class="muted">· SPICE</span>' : ''}</span>
-              <button class="btn ghost icon sm" data-clear-fault="${f.key}" title="Remove fault">${icon('x', 12)}</button>
+              <button class="btn ghost icon sm" data-clear-fault="${f.key}" title="${t('Remove fault')}">${icon('x', 12)}</button>
             </div>
           `).join('')}
         ` : ''}
-        ${fastBlind ? `<div class="callout"><span class="h">Fast DC solver</span><span>Leaks, drift and resistive joints only exist in SPICE (Fast DC treats a resistive joint as open). Switch Bench → Solver to SPICE to see their effect.</span></div>` : ''}
+        ${fastBlind ? `<div class="callout"><span class="h">${t('Fast DC solver')}</span><span>${t('Leaks, drift and resistive joints only exist in SPICE (Fast DC treats a resistive joint as open). Switch Bench → Solver to SPICE to see their effect.')}</span></div>` : ''}
       </div>
     `;
   }
@@ -3414,7 +3462,7 @@ export class PcbApp {
       let severity: number | undefined;
       if (sevRaw) {
         severity = severityHint(cls)?.unit === 'Ω' ? parseValue(sevRaw) : Number(sevRaw);
-        if (!Number.isFinite(severity) || severity <= 0) { this.toast('Invalid severity', 'danger'); return; }
+        if (!Number.isFinite(severity) || severity <= 0) { this.toast(t('Invalid severity'), 'danger'); return; }
         if (cls === 'flex-open-joint' || cls === 'flex-close-joint') severity = Math.min(severity, 1);
       }
       this.pushUndo();
@@ -3449,89 +3497,89 @@ export class PcbApp {
     this.sideBodyEl.innerHTML = `
       <div class="card">
         <div class="card-title">
-          <span>Scenario metadata</span>
-          <span class="badge info">${this.refLockedHash ? `#${this.refLockedHash}` : s.lock ? 'Locked' : 'Draft'}</span>
+          <span>${t('Scenario metadata')}</span>
+          <span class="badge info">${this.refLockedHash ? `#${this.refLockedHash}` : s.lock ? t('Locked') : t('Draft')}</span>
         </div>
         <div class="muted">
-          1. Build, repair, or import a working board.<br/>
-          2. Define objectives and lock a reference flag.<br/>
-          3. Inject faults, then export JSON or copy a share link.
+          ${t('1. Build, repair, or import a working board.')}<br/>
+          ${t('2. Define objectives and lock a reference flag.')}<br/>
+          ${t('3. Inject faults, then export JSON or copy a share link.')}
         </div>
         <div class="field">
-          <label>Title</label>
+          <label>${t('Title')}</label>
           <input type="text" id="st-title" value="${this.esc(s.meta.title)}" />
         </div>
         <div class="grid-2">
           <div class="field">
-            <label>Author</label>
+            <label>${t('Author')}</label>
             <input type="text" id="st-author" value="${this.esc(s.meta.author)}" />
           </div>
           <div class="field">
-            <label>Difficulty (1–5)</label>
+            <label>${t('Difficulty (1–5)')}</label>
             <input type="number" min="1" max="5" id="st-diff" value="${s.meta.difficulty}" />
           </div>
         </div>
         <div class="field">
-          <label>Description</label>
+          <label>${t('Description')}</label>
           <textarea id="st-desc" rows="2">${this.esc(s.meta.description)}</textarea>
         </div>
         <div class="field">
-          <label>Diagnostic notes (one per line)</label>
+          <label>${t('Diagnostic notes (one per line)')}</label>
           <textarea id="st-hints" rows="2">${this.esc(s.meta.hints.join('\n'))}</textarea>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-title">Objectives (${s.objectives.length})</div>
+        <div class="card-title">${t('Objectives')} (${s.objectives.length})</div>
         ${s.objectives.map((o, i) => `
           <div class="obj-row">
             <span class="mono">
               ${o.type === 'led' ? `LED ${o.ref} = ${o.on ? 'ON' : 'OFF'}` : `V(${o.a}) ∈ [${o.min}, ${o.max}] V`}
             </span>
-            <button class="btn ghost icon sm" data-del-obj="${i}" title="Remove">${icon('x', 12)}</button>
+            <button class="btn ghost icon sm" data-del-obj="${i}" title="${t('Remove')}">${icon('x', 12)}</button>
           </div>
         `).join('')}
         <div class="row">
           <select class="grow" id="st-obj-ref">
             ${(leds.length ? leds : probes).map((r) => `<option value="${r}">${r}</option>`).join('')}
           </select>
-          <button class="btn sm" id="st-add-led">Add LED on</button>
+          <button class="btn sm" id="st-add-led">${t('Add LED on')}</button>
         </div>
         <div class="row">
-          <input type="number" step="0.1" id="st-vmin" value="2.3" style="width:72px" placeholder="min V" />
-          <input type="number" step="0.1" id="st-vmax" value="2.7" style="width:72px" placeholder="max V" />
-          <button class="btn sm grow" id="st-add-v">Add V range</button>
+          <input type="number" step="0.1" id="st-vmin" value="2.3" style="width:72px" placeholder="${t('min V')}" />
+          <input type="number" step="0.1" id="st-vmax" value="2.7" style="width:72px" placeholder="${t('max V')}" />
+          <button class="btn sm grow" id="st-add-v">${t('Add V range')}</button>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-title">Verification & fault mode</div>
+        <div class="card-title">${t('Verification & fault mode')}</div>
         <div class="field">
-          <label>CTF flag</label>
+          <label>${t('CTF flag')}</label>
           <input type="text" id="st-flag" value="${this.esc(this.studioFlagInput)}" />
         </div>
-        <button class="btn sm primary block" id="st-lock">${icon('lock', 13)}<span>Lock reference topology & flag</span></button>
+        <button class="btn sm primary block" id="st-lock">${icon('lock', 13)}<span>${t('Lock reference topology & flag')}</span></button>
         <button class="btn sm block ${this.authorMode ? 'warn' : ''}" id="st-author-mode">
-          ${this.authorMode ? 'Fault injection active' : 'Enable fault injection'}
+          ${this.authorMode ? t('Fault injection active') : t('Enable fault injection')}
         </button>
       </div>
 
       <div class="card">
-        <div class="card-title">Injected faults (${faulted.reduce((n, x) => n + x.faults.length, 0)})</div>
+        <div class="card-title">${t('Injected faults')} (${faulted.reduce((n, x) => n + x.faults.length, 0)})</div>
         ${faulted.length ? faulted.map(({ c, faults }) => `
           <button class="btn ghost sm block" data-goto-fault="${this.esc(c.id)}" style="display:block;text-align:left;height:auto;padding:4px 6px;white-space:normal;overflow-wrap:anywhere">
             <b class="mono">${this.esc(c.ref)}</b>
             ${faults.map((f) => `<div class="muted" style="font-size:11px">${this.esc(f.label)}</div>`).join('')}
           </button>
-        `).join('') : `<div class="muted">None yet. Enable fault injection, select a part (Inspect tab) and inject a fault.</div>`}
+        `).join('') : `<div class="muted">${t('None yet. Enable fault injection, select a part (Inspect tab) and inject a fault.')}</div>`}
       </div>
 
       <div class="card">
-        <div class="card-title">Export</div>
+        <div class="card-title">${t('Export')}</div>
         <div class="grid-2">
-          <button class="btn sm primary" id="st-export-json">${icon('download', 13)}<span>Export JSON</span></button>
-          <button class="btn sm" id="st-share-url">${icon('link', 13)}<span>Copy link</span></button>
-          <button class="btn sm" id="st-export-mod" style="grid-column:span 2" title="A .zip others can install from Boards → Mods">${icon('box', 13)}<span>Export as mod (.zip)</span></button>
+          <button class="btn sm primary" id="st-export-json">${icon('download', 13)}<span>${t('Export JSON')}</span></button>
+          <button class="btn sm" id="st-share-url">${icon('link', 13)}<span>${t('Copy link')}</span></button>
+          <button class="btn sm" id="st-export-mod" style="grid-column:span 2" title="${t('A .zip others can install from Boards → Mods')}">${icon('box', 13)}<span>${t('Export as mod (.zip)')}</span></button>
         </div>
       </div>
     `;
@@ -3577,7 +3625,7 @@ export class PcbApp {
     this.sideBodyEl.querySelector('#st-lock')?.addEventListener('click', async () => {
       syncMeta();
       const flag = (this.sideBodyEl.querySelector('#st-flag') as HTMLInputElement).value.trim();
-      if (!flag) { this.toast('Enter a CTF flag first', 'danger'); return; }
+      if (!flag) { this.toast(t('Enter a CTF flag first'), 'danger'); return; }
       this.studioFlagInput = flag;
       // a built-in board locked with a new flag becomes the author's own challenge: give it its own id
       // (the flag lock is derived from the id, and a copy with a built-in id would clash when shared)
@@ -3587,7 +3635,7 @@ export class PcbApp {
       s.lock = await lockFlag(flag, topo);
       this.refLockedHash = topo.slice(0, 6);
       this.authorMode = true;
-      this.toast('Reference topology locked! Now sabotage the board and export/share.', 'success');
+      this.toast(t('Reference topology locked! Now sabotage the board and export/share.'), 'success');
       this.renderUI();
     });
 
@@ -3618,7 +3666,7 @@ export class PcbApp {
       a.download = `${s.meta.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'puzzle'}.pcbfix.json`;
       a.click();
       URL.revokeObjectURL(url);
-      this.toast('Exported .pcbfix.json challenge!', 'success');
+      this.toast(t('Exported .pcbfix.json challenge!'), 'success');
     });
 
     this.sideBodyEl.querySelector('#st-export-mod')?.addEventListener('click', () => { syncMeta(); void this.exportBoardAsMod(); });
@@ -3629,7 +3677,7 @@ export class PcbApp {
       const packed = await packText(serializeScenario(out));
       const shareUrl = `${window.location.origin}${window.location.pathname}#s=${packed}`;
       await navigator.clipboard?.writeText(shareUrl);
-      this.toast('Shareable puzzle URL copied to clipboard!', 'success');
+      this.toast(t('Shareable puzzle URL copied to clipboard!'), 'success');
     });
   }
 
@@ -3641,7 +3689,7 @@ export class PcbApp {
     this.showBoards = false;
     this.renderModal();
     this.renderUI();
-    this.toast('Blank board ready. Lock a flag in the Author tab, then break it.', 'info');
+    this.toast(t('Blank board ready. Lock a flag in the Author tab, then break it.'), 'info');
   }
 
   private openBoardCatalog() {
@@ -3665,18 +3713,18 @@ export class PcbApp {
   private phoneCatalogSection(title: string, solved: number, items: { s: Scenario; idx: number }[]): string {
     return `
       <section class="cat-sec">
-        <div class="cat-sec-head"><h3>${this.esc(title)}</h3><span class="badge info">${solved}/${items.length}</span></div>
+        <div class="cat-sec-head"><h3>${this.esc(t(title))}</h3><span class="badge info">${solved}/${items.length}</span></div>
         <div class="m-cat-list">
           ${items.map(({ s, idx }) => {
             const isActive = s === this.activeScenario;
             const isSolved = this.solvedIds.has(s.id);
             const tutIdx = TUTORIAL_SCENARIO_IDS.indexOf(s.id as (typeof TUTORIAL_SCENARIO_IDS)[number]);
-            const badge = tutIdx >= 0 ? `<span class="br-badge tut">${tutIdx + 1}</span>` : `<span class="br-badge" title="Difficulty ${s.meta.difficulty}/5">L${s.meta.difficulty}</span>`;
-            const state = isSolved ? `<span class="br-state ok">${icon('check', 14)}</span>` : isActive ? `<span class="br-state on">Open</span>` : `<span class="br-state">${icon('chevronRight', 14)}</span>`;
+            const badge = tutIdx >= 0 ? `<span class="br-badge tut">${tutIdx + 1}</span>` : `<span class="br-badge" title="${t('Difficulty {n}/5', { n: s.meta.difficulty })}">L${s.meta.difficulty}</span>`;
+            const state = isSolved ? `<span class="br-state ok">${icon('check', 14)}</span>` : isActive ? `<span class="br-state on">${t('Open')}</span>` : `<span class="br-state">${icon('chevronRight', 14)}</span>`;
             return `
               <button class="board-row ${isActive ? 'active' : ''} ${isSolved ? 'solved' : ''}" data-pick-board="${idx}">
                 ${badge}
-                <span class="br-main"><span class="br-title">${this.esc(s.meta.title)}</span><span class="br-desc">${this.esc(s.meta.description.replace(/^Beginner Tutorial \d+:\s*/, ''))}</span></span>
+                <span class="br-main"><span class="br-title">${this.esc(t(s.meta.title))}</span><span class="br-desc">${this.esc(t(s.meta.description).replace(/^(?:Beginner Tutorial|Урок для новичков) \d+:\s*/, '').replace(/^\p{Ll}/u, (ch) => ch.toUpperCase()))}</span></span>
                 ${state}
               </button>`;
           }).join('')}
@@ -3690,10 +3738,10 @@ export class PcbApp {
     for (const s of this.scenarios) counts[this.classifyScenario(s)]++;
 
     const sections: { key: CatKey; title: string; sub: string }[] = [
-      { key: 'tutorials', title: 'Beginner Tutorials', sub: 'Guided step-by-step boards covering the core fundamentals' },
-      { key: 'challenges', title: 'Repair Challenges', sub: 'Standalone fault-finding & multi-fault diagnostic puzzles' },
-      { key: 'hardware', title: 'Real Hardware & Open Source', sub: 'Full multi-hundred-part schematics & boardviews on SPICE + PWR' },
-      { key: 'mods', title: 'Community Mods', sub: 'Boards from mods you installed. Manage them with the Mods button' },
+      { key: 'tutorials', title: tk('Beginner Tutorials'), sub: tk('Guided step-by-step boards covering the core fundamentals') },
+      { key: 'challenges', title: tk('Repair Challenges'), sub: tk('Standalone fault-finding & multi-fault diagnostic puzzles') },
+      { key: 'hardware', title: tk('Real Hardware & Open Source'), sub: tk('Full multi-hundred-part schematics & boardviews on SPICE + PWR') },
+      { key: 'mods', title: tk('Community Mods'), sub: tk('Boards from mods you installed. Manage them with the Mods button') },
     ];
 
     const renderList = () => {
@@ -3708,7 +3756,7 @@ export class PcbApp {
               if (!q) return true;
               const topics = TUTORIAL_TOPICS[s.id]?.join(' ') ?? '';
               const mod = this.modBoards.get(s)?.mod.name ?? '';
-              return `${s.meta.title} ${s.meta.description} ${s.meta.author} ${topics} ${mod}`.toLowerCase().includes(q);
+              return `${s.meta.title} ${s.meta.description} ${t(s.meta.title)} ${t(s.meta.description)} ${s.meta.author} ${topics} ${(TUTORIAL_TOPICS[s.id] ?? []).map((x) => t(x)).join(' ')} ${mod}`.toLowerCase().includes(q);
             });
           if (!items.length) return '';
           const solvedInSec = items.filter(({ s }) => this.solvedIds.has(s.id)).length;
@@ -3717,10 +3765,10 @@ export class PcbApp {
             <section class="cat-sec">
               <div class="cat-sec-head">
                 <div>
-                  <h3>${this.esc(sec.title)}</h3>
-                  <p>${this.esc(sec.sub)}</p>
+                  <h3>${this.esc(t(sec.title))}</h3>
+                  <p>${this.esc(t(sec.sub))}</p>
                 </div>
-                <span class="badge info">${solvedInSec}/${items.length} solved</span>
+                <span class="badge info">${t('{solved}/{total} solved', { solved: solvedInSec, total: items.length })}</span>
               </div>
               <div class="cat-grid">
                 ${items.map(({ s, idx }) => {
@@ -3731,27 +3779,27 @@ export class PcbApp {
                   const chips: string[] = [];
                   const mb = this.modBoards.get(s);
                   if (mb) {
-                    chips.push(mb.mod.name, `by ${mb.mod.author}`);
-                    if (mb.schematic) chips.push('Schematic');
+                    chips.push(mb.mod.name, t('by {author}', { author: mb.mod.author }));
+                    if (mb.schematic) chips.push(t('Schematic'));
                     if (s.meta.license) chips.push(s.meta.license);
                   } else if (topics) {
-                    chips.push(...topics);
+                    chips.push(...topics.map((x) => t(x)));
                   } else {
-                    if (s.board.components.length > 1) chips.push(`${s.board.components.length} parts`);
-                    if (s.meta.par) chips.push(`Par ${s.meta.par}`);
+                    if (s.board.components.length > 1) chips.push(t('{n} part|{n} parts', { n: s.board.components.length }));
+                    if (s.meta.par) chips.push(t('Par {n}', { n: s.meta.par }));
                     if (s.solver === 'spice-power') chips.push('SPICE + PWR');
-                    if (this.videos[s.id]) chips.push('Video guide');
+                    if (this.videos[s.id]) chips.push(t('Video guide'));
                     if (s.meta.license) chips.push(s.meta.license);
                   }
                   const leftBadge = tutIdx >= 0
-                    ? `<span class="badge info">Tutorial ${tutIdx + 1}</span>`
-                    : `<span class="row"><span class="badge">L${s.meta.difficulty}</span><span class="lvl" title="Difficulty ${s.meta.difficulty}/5">${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= s.meta.difficulty ? 'on' : ''}"></i>`).join('')}</span></span>`;
+                    ? `<span class="badge info">${t('Tutorial {n}', { n: tutIdx + 1 })}</span>`
+                    : `<span class="row"><span class="badge">L${s.meta.difficulty}</span><span class="lvl" title="${t('Difficulty {n}/5', { n: s.meta.difficulty })}">${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= s.meta.difficulty ? 'on' : ''}"></i>`).join('')}</span></span>`;
                   const rightBadge = isSolved
-                    ? `<span class="badge pass">${icon('check', 11)}<span>Solved</span></span>`
+                    ? `<span class="badge pass">${icon('check', 11)}<span>${t('Solved')}</span></span>`
                     : isActive
-                      ? `<span class="badge info">Active</span>`
+                      ? `<span class="badge info">${t('Active')}</span>`
                       : tutIdx >= 0
-                        ? `<span class="badge">Interactive</span>`
+                        ? `<span class="badge">${t('Interactive')}</span>`
                         : '';
                   return `
                     <button class="board-card ${isActive ? 'active' : ''} ${isSolved ? 'solved' : ''}" data-pick-board="${idx}">
@@ -3759,8 +3807,8 @@ export class PcbApp {
                         ${leftBadge}
                         ${rightBadge}
                       </div>
-                      <div class="bc-title">${this.esc(s.meta.title)}</div>
-                      <div class="bc-desc">${this.esc(s.meta.description)}</div>
+                      <div class="bc-title">${this.esc(t(s.meta.title))}</div>
+                      <div class="bc-desc">${this.esc(t(s.meta.description))}</div>
                       ${chips.length ? `<div class="cat-chips">${chips.map((c) => `<span class="cat-chip">${this.esc(c)}</span>`).join('')}</div>` : ''}
                     </button>
                   `;
@@ -3770,58 +3818,58 @@ export class PcbApp {
           `;
         })
         .join('');
-      return blocks || `<div class="muted" style="padding:24px;text-align:center">No matching boards found.</div>`;
+      return blocks || `<div class="muted" style="padding:24px;text-align:center">${t('No matching boards found.')}</div>`;
     };
 
     const filters: { id: 'all' | CatKey; label: string; count: number }[] = [
-      { id: 'all', label: 'All', count: this.scenarios.length },
-      { id: 'tutorials', label: 'Tutorials', count: counts.tutorials },
-      { id: 'challenges', label: 'Challenges', count: counts.challenges },
-      { id: 'hardware', label: this.mobile ? 'Hardware' : 'Real Hardware', count: counts.hardware },
-      ...(counts.mods ? [{ id: 'mods' as const, label: 'Mods', count: counts.mods }] : []),
+      { id: 'all', label: t('All'), count: this.scenarios.length },
+      { id: 'tutorials', label: t('Tutorials'), count: counts.tutorials },
+      { id: 'challenges', label: t('Challenges'), count: counts.challenges },
+      { id: 'hardware', label: this.mobile ? t('Hardware') : t('Real Hardware'), count: counts.hardware },
+      ...(counts.mods ? [{ id: 'mods' as const, label: t('Mods'), count: counts.mods }] : []),
     ];
 
     this.modalRootEl.innerHTML = this.mobile ? `
       <div class="modal-backdrop" id="modal-close-bg">
         <div class="modal board-catalog m-cat">
           <div class="modal-head">
-            <div class="row"><h2>Boards</h2><span class="badge info">${this.solvedIds.size}/${this.scenarios.length} solved</span></div>
-            <button class="btn ghost icon sm" id="modal-close" title="Close">${icon('x', 14)}</button>
+            <div class="row"><h2>${t('Boards')}</h2><span class="badge info">${t('{solved}/{total} solved', { solved: this.solvedIds.size, total: this.scenarios.length })}</span></div>
+            <button class="btn ghost icon sm" id="modal-close" title="${t('Close')}">${icon('x', 14)}</button>
           </div>
           <div class="cat-toolbar">
             <div class="m-cat-filters">
               ${filters.map((f) => `<button class="${this.boardFilter === f.id ? 'on' : ''}" data-cat-filter="${f.id}">${this.esc(f.label)} <span>${f.count}</span></button>`).join('')}
             </div>
-            <input type="text" id="cat-search" placeholder="Search boards" value="${this.esc(this.boardSearch)}" />
+            <input type="text" id="cat-search" placeholder="${t('Search boards')}" value="${this.esc(this.boardSearch)}" />
           </div>
           <div class="cat-body" id="cat-list">${renderList()}</div>
           <div class="m-cat-foot">
-            <button class="btn sm" id="cat-new">${icon('plus', 13)}<span>Blank</span></button>
-            <button class="btn sm" id="cat-import">${icon('upload', 13)}<span>Import</span></button>
-            <button class="btn sm" id="cat-mods">${icon('box', 13)}<span>Mods${this.modResult.failed.length ? ' ⚠' : ''}</span></button>
+            <button class="btn sm" id="cat-new">${icon('plus', 13)}<span>${t('Blank')}</span></button>
+            <button class="btn sm" id="cat-import">${icon('upload', 13)}<span>${t('Import')}</span></button>
+            <button class="btn sm" id="cat-mods">${icon('box', 13)}<span>${t('Mods')}${this.modResult.failed.length ? ' ⚠' : ''}</span></button>
           </div>
         </div>
       </div>
     ` : `
       <div class="modal-backdrop" id="modal-close-bg">
         <div class="modal board-catalog" style="transform: translate3d(${this.modalPos[0]}px, ${this.modalPos[1]}px, 0)">
-          <div class="modal-head" title="Drag to move window">
+          <div class="modal-head" title="${t('Drag to move window')}">
             <div class="row">
-              <h2>Boards &amp; Tutorials</h2>
-              <span class="badge info">${this.solvedIds.size} / ${this.scenarios.length} solved</span>
+              <h2>${t('Boards & Tutorials')}</h2>
+              <span class="badge info">${t('{solved}/{total} solved', { solved: this.solvedIds.size, total: this.scenarios.length })}</span>
             </div>
             <div class="row">
-              <button class="btn sm" id="cat-new">${icon('plus', 13)}<span>Blank board</span></button>
-              <button class="btn sm" id="cat-import">${icon('upload', 13)}<span>Import</span></button>
-              <button class="btn sm" id="cat-mods" title="Install, remove and make mods">${icon('box', 13)}<span>Mods${this.modResult.failed.length ? ' ⚠' : ''}</span></button>
-              <button class="btn ghost icon sm" id="modal-close" title="Close (Esc)">${icon('x', 14)}</button>
+              <button class="btn sm" id="cat-new">${icon('plus', 13)}<span>${t('Blank board')}</span></button>
+              <button class="btn sm" id="cat-import">${icon('upload', 13)}<span>${t('Import')}</span></button>
+              <button class="btn sm" id="cat-mods" title="${t('Install, remove and make mods')}">${icon('box', 13)}<span>${t('Mods')}${this.modResult.failed.length ? ' ⚠' : ''}</span></button>
+              <button class="btn ghost icon sm" id="modal-close" title="${t('Close (Esc)')}">${icon('x', 14)}</button>
             </div>
           </div>
           <div class="cat-toolbar">
             <div class="seg">
               ${filters.map((f) => `<button class="${this.boardFilter === f.id ? 'on' : ''}" data-cat-filter="${f.id}">${this.esc(f.label)} (${f.count})</button>`).join('')}
             </div>
-            <input type="text" id="cat-search" class="grow" placeholder="Filter boards by name, symptom, or topic…" value="${this.esc(this.boardSearch)}" />
+            <input type="text" id="cat-search" class="grow" placeholder="${t('Filter boards by name, symptom, or topic…')}" value="${this.esc(this.boardSearch)}" />
           </div>
           <div class="cat-body" id="cat-list">${renderList()}</div>
         </div>
@@ -3893,15 +3941,15 @@ export class PcbApp {
           <div class="mod-head">
             <div>
               <div class="mod-name">${this.esc(mf.name)} <span class="muted mono">v${this.esc(mf.version)}</span></div>
-              <div class="muted">by ${this.esc(mf.author)} · ${this.esc(mf.license)} · ${this.esc(m.source.origin)}${mf.homepage ? ` · <a href="${this.esc(mf.homepage)}" target="_blank" rel="noopener">homepage</a>` : ''}</div>
+              <div class="muted">${t('by {author}', { author: this.esc(mf.author) })} · ${this.esc(mf.license)} · ${this.esc(t(m.source.origin))}${mf.homepage ? ` · <a href="${this.esc(mf.homepage)}" target="_blank" rel="noopener">${t('homepage')}</a>` : ''}</div>
             </div>
-            ${m.source.origin === 'Installed' ? `<button class="btn sm ghost" data-mod-remove="${this.esc(mf.id)}" title="Remove this mod">${icon('x', 12)}<span>Remove</span></button>` : ''}
+            ${m.source.origin === 'Installed' ? `<button class="btn sm ghost" data-mod-remove="${this.esc(mf.id)}" title="${t('Remove this mod')}">${icon('x', 12)}<span>${t('Remove')}</span></button>` : ''}
           </div>
           ${mf.description ? `<p class="text-2" style="margin:0">${this.esc(mf.description)}</p>` : ''}
           <div class="mod-boards">
-            ${m.boards.map((b) => `<button class="btn sm" data-mod-open="${boardIdx(b)}">${icon('play', 11)}<span>${this.esc(b.stub.meta.title)}</span>${b.schematic ? `<span class="muted">· schematic</span>` : ''}</button>`).join('')}
+            ${m.boards.map((b) => `<button class="btn sm" data-mod-open="${boardIdx(b)}">${icon('play', 11)}<span>${this.esc(b.stub.meta.title)}</span>${b.schematic ? `<span class="muted">· ${t('schematic')}</span>` : ''}</button>`).join('')}
           </div>
-          ${m.warnings.length ? `<details class="mod-warn"><summary>${m.warnings.length} warning${m.warnings.length > 1 ? 's' : ''}</summary><ul>${m.warnings.map((w) => `<li>${this.esc(w)}</li>`).join('')}</ul></details>` : ''}
+          ${m.warnings.length ? `<details class="mod-warn"><summary>${t('{n} warning|{n} warnings', { n: m.warnings.length })}</summary><ul>${m.warnings.map((w) => `<li>${this.esc(w)}</li>`).join('')}</ul></details>` : ''}
         </div>`;
     }).join('');
     const failedCards = failed.map((f) => `
@@ -3913,32 +3961,31 @@ export class PcbApp {
     this.modalRootEl.innerHTML = `
       <div class="modal-backdrop" id="mods-close-bg">
         <div class="modal board-catalog" style="transform: translate3d(${this.modalPos[0]}px, ${this.modalPos[1]}px, 0)">
-          <div class="modal-head" title="Drag to move window">
+          <div class="modal-head" title="${t('Drag to move window')}">
             <div class="row">
-              <h2>Mods</h2>
-              <span class="badge info">${mods.length} loaded</span>
+              <h2>${t('Mods')}</h2>
+              <span class="badge info">${t('{n} loaded', { n: mods.length })}</span>
             </div>
             <div class="row">
-              <button class="btn sm primary" id="mods-install">${icon('upload', 13)}<span>Install mod (.zip)</span></button>
-              ${desktop ? `<button class="btn sm" id="mods-folder" title="${this.esc(modsFolderPath ?? '')}">${icon('box', 13)}<span>Open mods folder</span></button>` : ''}
-              <button class="btn sm" id="mods-back">${icon('grid', 13)}<span>Boards</span></button>
-              <button class="btn ghost icon sm" id="mods-close" title="Close (Esc)">${icon('x', 14)}</button>
+              <button class="btn sm primary" id="mods-install">${icon('upload', 13)}<span>${t('Install mod (.zip)')}</span></button>
+              ${desktop ? `<button class="btn sm" id="mods-folder" title="${this.esc(modsFolderPath ?? '')}">${icon('box', 13)}<span>${t('Open mods folder')}</span></button>` : ''}
+              <button class="btn sm" id="mods-back">${icon('grid', 13)}<span>${t('Boards')}</span></button>
+              <button class="btn ghost icon sm" id="mods-close" title="${t('Close (Esc)')}">${icon('x', 14)}</button>
             </div>
           </div>
           <div class="cat-body">
             <div class="card">
               <p class="text-2" style="margin:0">
-                Mods add boards made by other people: KiCad or boardview files, repair challenges from the Author tab,
-                with their BOM and schematic. Mods are data only, they can't run code.
-                ${desktop ? 'Install a .zip here, or put mod folders / .zip files into the mods folder and reload (Ctrl/Cmd+R).' : 'Install a .zip here or drop it on the bench; it stays in this browser.'}
+                ${t("Mods add boards made by other people: KiCad or boardview files, repair challenges from the Author tab, with their BOM and schematic. Mods are data only, they can't run code.")}
+                ${desktop ? t('Install a .zip here, or put mod folders / .zip files into the mods folder and reload (Ctrl/Cmd+R).') : t('Install a .zip here or drop it on the bench; it stays in this browser.')}
               </p>
               <div class="row wrap">
-                <a class="btn sm" href="${this.moddingUrl}" target="_blank" rel="noopener">${icon('book', 13)}<span>How to make a mod</span></a>
-                <button class="btn sm ghost" id="mods-export">${icon('download', 13)}<span>Current board as a mod</span></button>
+                <a class="btn sm" href="${this.moddingUrl}" target="_blank" rel="noopener">${icon('book', 13)}<span>${t('How to make a mod')}</span></a>
+                <button class="btn sm ghost" id="mods-export">${icon('download', 13)}<span>${t('Current board as a mod')}</span></button>
               </div>
             </div>
             ${failedCards}
-            ${modCards || `<div class="muted" style="padding:24px;text-align:center">No mods yet. Install a mod .zip, or make one from any board with "Current board as a mod".</div>`}
+            ${modCards || `<div class="muted" style="padding:24px;text-align:center">${t('No mods yet. Install a mod .zip, or make one from any board with «Current board as a mod».')}</div>`}
           </div>
           <input type="file" id="mods-file" accept=".zip,application/zip" hidden />
         </div>
@@ -3972,14 +4019,14 @@ export class PcbApp {
     root.querySelectorAll<HTMLButtonElement>('[data-mod-remove]').forEach((b) => b.addEventListener('click', async () => {
       const id = b.dataset.modRemove!;
       const name = mods.find((m) => m.manifest.id === id)?.manifest.name ?? id;
-      if (!confirm(`Remove the mod "${name}"? Its boards disappear from the list (your progress on them is kept).`)) return;
+      if (!confirm(t('Remove the mod «{name}»? Its boards disappear from the list (your progress on them is kept).', { name }))) return;
       try {
         await removeInstalled(id);
         await this.loadMods();
         this.refreshScenarioSelect();
-        this.toast(`Removed mod "${name}"`, 'success');
+        this.toast(t('Removed mod «{name}»', { name }), 'success');
       } catch (e) {
-        this.toast(`Could not remove the mod: ${e instanceof Error ? e.message : e}`, 'danger');
+        this.toast(t('Could not remove the mod: {error}', { error: e instanceof Error ? e.message : String(e) }), 'danger');
       }
       this.renderModsModal();
     }));
@@ -4007,7 +4054,7 @@ export class PcbApp {
     let lockNote = '';
     if (this.bundledIds.has(s.id)) {
       out.id = `${manifest.id}-${boardId}`.slice(0, 80);
-      if (out.lock) { delete out.lock; lockNote = ' It has no flag: lock your own in the Author tab first if you want one.'; }
+      if (out.lock) { delete out.lock; lockNote = ' ' + t('It has no flag: lock your own in the Author tab first if you want one.'); }
     }
     const te = new TextEncoder();
     const zip = await writeZip([
@@ -4020,7 +4067,7 @@ export class PcbApp {
     a.download = `${manifest.id}.zip`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    this.toast(`Saved ${manifest.id}.zip: check the name, author and licence in mod.json before sharing.${lockNote}`, lockNote ? 'info' : 'success');
+    this.toast(t('Saved {file}: check the name, author and licence in mod.json before sharing.', { file: `${manifest.id}.zip` }) + lockNote, lockNote ? 'info' : 'success');
   }
 
   private renderModal() {
@@ -4045,45 +4092,50 @@ export class PcbApp {
     this.modalRootEl.innerHTML = this.txt(`
       <div class="modal-backdrop" id="help-close-bg">
         <div class="modal" style="transform: translate3d(${this.modalPos[0]}px, ${this.modalPos[1]}px, 0)">
-          <div class="modal-head" title="Drag to move window">
-            <h2>Documentation</h2>
-            <button class="btn ghost icon sm" id="help-close" title="Close">${icon('x', 14)}</button>
+          <div class="modal-head" title="${t('Drag to move window')}">
+            <h2>${t('Documentation')}</h2>
+            <button class="btn ghost icon sm" id="help-close" title="${t('Close')}">${icon('x', 14)}</button>
           </div>
           <div class="card">
-            <div class="card-title">Overview</div>
+            <div class="card-title">${t('Language')} · Language</div>
+            <div class="row">${this.langPickerHtml('full')}</div>
+          </div>
+          <div class="card">
+            <div class="card-title">${t('Overview')}</div>
             <p class="text-2" style="margin:0">
-              Each scenario provides a simulated circuit board solved via fast DC nodal analysis or a full SPICE engine (selectable in the top bar; export any board as an ngspice <code>.cir</code> netlist), rendered in 2D/3D WebGPU.
-              Diagnose electrical faults, perform rework, and execute <b>Run tests</b> to verify repairs and decrypt the CTF flag.
+              ${t('Each scenario provides a simulated circuit board solved via fast DC nodal analysis or a full SPICE engine (selectable in the top bar; export any board as an ngspice <code>.cir</code> netlist), rendered in 2D/3D WebGPU.')}
+              ${t('Diagnose electrical faults, perform rework, and execute <b>Run tests</b> to verify repairs and decrypt the CTF flag.')}
             </p>
           </div>
-          ${BEGINNER_PRIMER_HTML}
+          ${beginnerPrimerHtml()}
           <div class="card">
-            <div class="card-title">Fault diagnosis</div>
+            <div class="card-title">${t('Fault diagnosis')}</div>
             <ul>
-              <li><b>Open or cut trace</b> — Disable power, verify continuity in <b>Ω</b> mode, then bridge with <b>Soldering iron (3)</b> or <b>Jumper wire (6)</b>.</li>
-              <li><b>Solder bridge or copper sliver</b> — Flip to the bottom side (<b>F</b>) and inspect closely. Clear blobs with <b>Desolder wick (4)</b> or cut slivers with <b>Trace cutter (7)</b>.</li>
-              <li><b>Cold solder joint</b> — Matte grainy pads on the back side indicate poor wetting; reflow using <b>Soldering iron (3)</b>.</li>
-              <li><b>Reversed polarity</b> — Check the LED cathode notch and internal anvil or diode band against the silkscreen <b>K</b> marker; correct with <b>Rotate 180° (5)</b> or test in <b>Diode</b> mode.</li>
-              <li><b>Damaged or wrong part</b> — Inspect resistor color bands or power dissipation in <b>Thermal</b> mode, then swap values in <b>Parts bin (8)</b>.</li>
+              <li>${t('<b>Open or cut trace</b> — Disable power, verify continuity in <b>Ω</b> mode, then bridge with <b>Soldering iron (3)</b> or <b>Jumper wire (6)</b>.')}</li>
+              <li>${t('<b>Solder bridge or copper sliver</b> — Flip to the bottom side (<b>F</b>) and inspect closely. Clear blobs with <b>Desolder wick (4)</b> or cut slivers with <b>Trace cutter (7)</b>.')}</li>
+              <li>${t('<b>Cold solder joint</b> — Matte grainy pads on the back side indicate poor wetting; reflow using <b>Soldering iron (3)</b>.')}</li>
+              <li>${t('<b>Reversed polarity</b> — Check the LED cathode notch and internal anvil or diode band against the silkscreen <b>K</b> marker; correct with <b>Rotate 180° (5)</b> or test in <b>Diode</b> mode.')}</li>
+              <li>${t('<b>Damaged or wrong part</b> — Inspect resistor color bands or power dissipation in <b>Thermal</b> mode, then swap values in <b>Parts bin (8)</b>.')}</li>
             </ul>
           </div>
           <div class="card">
-            <div class="card-title">Found a bug? Have an idea?</div>
-            <p class="text-2" style="margin:0">Tell us from inside the bench: no account needed. Technical details (browser, GPU, board) can be attached so the problem can be reproduced.</p>
-            <div class="row"><button class="btn sm" id="help-feedback">${icon('message', 13)}<span>Send feedback</span></button></div>
+            <div class="card-title">${t('Found a bug? Have an idea?')}</div>
+            <p class="text-2" style="margin:0">${t('Tell us from inside the bench: no account needed. Technical details (browser, GPU, board) can be attached so the problem can be reproduced.')}</p>
+            <div class="row"><button class="btn sm" id="help-feedback">${icon('message', 13)}<span>${t('Send feedback')}</span></button></div>
           </div>
           <div class="card">
-            <div class="card-title">Importing &amp; authoring</div>
+            <div class="card-title">${t('Importing & authoring')}</div>
             <p class="text-2" style="margin:0">
-              Drag and drop a KiCad <code>.kicad_pcb</code>, boardview <code>.brd</code> / <code>.tvw</code> or <code>.pcbfix.json</code> file into the workspace.
-              In the <b>Author</b> tab, lock a working reference topology with your flag, inject faults, and export JSON, a shareable link, or a mod.
-              <b>Mods</b> (Boards → Mods) bundle boards with their BOM and schematic for others to install: <a href="${this.moddingUrl}" target="_blank" rel="noopener">how to make a mod</a>.
+              ${t('Drag and drop a KiCad <code>.kicad_pcb</code>, boardview <code>.brd</code> / <code>.tvw</code> or <code>.pcbfix.json</code> file into the workspace.')}
+              ${t('In the <b>Author</b> tab, lock a working reference topology with your flag, inject faults, and export JSON, a shareable link, or a mod.')}
+              ${t('<b>Mods</b> (Boards → Mods) bundle boards with their BOM and schematic for others to install: <a href="{url}" target="_blank" rel="noopener">how to make a mod</a>.', { url: this.moddingUrl })}
             </p>
           </div>
         </div>
       </div>
     `);
     this.modalRootEl.querySelector('#help-feedback')?.addEventListener('click', () => this.openFeedback(true));
+    this.modalRootEl.querySelectorAll<HTMLSelectElement>('.lang-select').forEach((sel) => sel.addEventListener('change', () => this.switchLanguage(sel.value, sel)));
     this.modalRootEl.querySelector('#help-close')?.addEventListener('click', () => {
       this.showHelp = false;
       this.renderModal();
@@ -4144,9 +4196,9 @@ export class PcbApp {
       this.scopeSample += dt;
       if (this.scopeSample >= 0.03) {
         this.scopeSample = 0;
-        const t = performance.now() / 1000;
-        this.scopeRoll.push({ t, v: this.probedVolts() ?? 0 });
-        while (this.scopeRoll.length && this.scopeRoll[0].t < t - 12) this.scopeRoll.shift();
+        const now = performance.now() / 1000;
+        this.scopeRoll.push({ t: now, v: this.probedVolts() ?? 0 });
+        while (this.scopeRoll.length && this.scopeRoll[0].t < now - 12) this.scopeRoll.shift();
       }
       if (!this.powerOn && !this.boot.history.length) { this.psuClock += dt; if (this.psuClock >= 0.1) { this.psuClock = 0; this.renderScope(); } }
     }

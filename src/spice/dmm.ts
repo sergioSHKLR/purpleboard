@@ -5,6 +5,7 @@
 //       resistance all show up as on a bench
 //  • diode test: ~1 mA source with a compliance limit, OL above it
 // Deterministic: the same probe placement gives the same reading (no flicker).
+import { t } from '../i18n';
 import type { Board } from '../types';
 import type { Conn } from '../connectivity';
 import { boardToCircuit } from './board';
@@ -101,12 +102,12 @@ function solveWithSource(board: Board, conn: Conn, a: number, b: number, voc: nu
 
 export function measureOhmsDmm(board: Board, conn: Conn, a: number, b: number, opt: { profile?: DmmProfile; seed?: string } = {}): Reading {
   const p = opt.profile ?? GENERIC_DMM;
-  if (a < 0 || b < 0) return { text: 'OL', value: null, sub: 'probe not on copper' };
+  if (a < 0 || b < 0) return { text: 'OL', value: null, sub: t('probe not on copper') };
   const r = placementRng('ohm', opt.seed ?? `${a}-${b}`);
   const series = p.leadOhms + contactResistance(p, r) + contactResistance(p, r);
   if (a === b) {
     const v = series;
-    return { text: fmtOhms(v, 600, p.counts), value: v, range: '600 Ω', beep: v < p.beepOhms, sub: 'probes on the same net (lead + contact resistance)' };
+    return { text: fmtOhms(v, 600, p.counts), value: v, range: '600 Ω', beep: v < p.beepOhms, sub: t('probes on the same net (lead + contact resistance)') };
   }
   for (const rg of p.ohmRanges) {
     const rsrc = rg.voc / rg.itest;
@@ -118,7 +119,7 @@ export function measureOhmsDmm(board: Board, conn: Conn, a: number, b: number, o
       return { text: fmtOhms(rMeas, rg.fullScale, p.counts), value: rMeas, range: `${rg.fullScale >= 1e6 ? rg.fullScale / 1e6 + ' MΩ' : rg.fullScale >= 1e3 ? rg.fullScale / 1e3 + ' kΩ' : rg.fullScale + ' Ω'}`, beep: rMeas < p.beepOhms };
     }
   }
-  return { text: 'OL', value: null, sub: 'above 60 MΩ' };
+  return { text: 'OL', value: null, sub: t('above 60 MΩ') };
 }
 
 export function measureDiodeDmm(board: Board, conn: Conn, a: number, b: number, opt: { profile?: DmmProfile; seed?: string } = {}): Reading {
@@ -129,7 +130,7 @@ export function measureDiodeDmm(board: Board, conn: Conn, a: number, b: number, 
   if (a === b) return { text: '0.000 V', value: 0 };
   const rsrc = (p.diode.voc - 0.6) / p.diode.itest;
   const s = solveWithSource(board, conn, a, b, p.diode.voc, rsrc, series);
-  if (!s || s.vTerm >= p.diode.olVolts) return { text: 'OL', value: null, sub: `open or > ${p.diode.olVolts} V` };
+  if (!s || s.vTerm >= p.diode.olVolts) return { text: 'OL', value: null, sub: t('open or > {v} V', { v: p.diode.olVolts }) };
   const v = quantize(s.vTerm, 0.001);
   return { text: `${v.toFixed(3)} V`, value: v, beep: v < 0.05 };
 }
@@ -169,8 +170,8 @@ export function capacitanceBetween(board: Board, conn: Conn, a: number, b: numbe
 
 export function measureCapDmm(board: Board, conn: Conn, a: number, b: number, opt: { profile?: DmmProfile; seed?: string } = {}): Reading {
   const p = opt.profile ?? GENERIC_DMM;
-  if (a < 0 || b < 0) return { text: 'OL', value: null, sub: 'probe not on copper' };
-  if (a === b) return { text: '0.000 nF', value: 0, sub: 'probes on the same net' };
+  if (a < 0 || b < 0) return { text: 'OL', value: null, sub: t('probe not on copper') };
+  if (a === b) return { text: '0.000 nF', value: 0, sub: t('probes on the same net') };
   const cTrue = capacitanceBetween(board, conn, a, b);
   // in-circuit resistance across the probes (1 V test source)
   const s = solveWithSource(board, conn, a, b, CAP_VREF, 1e3, p.leadOhms);
@@ -184,13 +185,13 @@ export function measureCapDmm(board: Board, conn: Conn, a: number, b: number, op
       const inflated = leak > rg.i * 0.05;
       return {
         text: fmtFarads(read, rg.fs, p.counts), value: read, range: fmtFarads(rg.fs, rg.fs, 6).replace(/\.0+ /, ' '),
-        ...(inflated && { sub: `in circuit: ${rPar < 1e3 ? rPar.toFixed(0) + ' Ω' : (rPar / 1e3).toFixed(1) + ' kΩ'} in parallel inflates the reading — lift one end to measure the part` }),
+        ...(inflated && { sub: t('in circuit: {r} in parallel inflates the reading — lift one end to measure the part', { r: rPar < 1e3 ? rPar.toFixed(0) + ' Ω' : (rPar / 1e3).toFixed(1) + ' kΩ' }) }),
       };
     }
   }
   return rPar < 1e4
-    ? { text: 'OL', value: null, sub: `low resistance in parallel (${rPar < 1e3 ? rPar.toFixed(1) + ' Ω' : (rPar / 1e3).toFixed(1) + ' kΩ'}): capacitance cannot be measured in circuit` }
-    : { text: 'OL', value: null, sub: 'above 6 mF' };
+    ? { text: 'OL', value: null, sub: t('low resistance in parallel ({r}): capacitance cannot be measured in circuit', { r: rPar < 1e3 ? rPar.toFixed(1) + ' Ω' : (rPar / 1e3).toFixed(1) + ' kΩ' }) }
+    : { text: 'OL', value: null, sub: t('above 6 mF') };
 }
 
 // ---------- current ----------
@@ -200,7 +201,7 @@ export const AMMETER_SHUNT = 0.01;
 
 /** Displays a current the way the meter's 10 A input would (± 1.0 % + noise; OL above 10 A). */
 export function displayAmps(i: number, p: DmmProfile = GENERIC_DMM, r: () => number = () => 0.5): Reading {
-  if (Math.abs(i) > 10) return { text: 'OL', value: null, range: '10 A', sub: 'above 10 A — the meter fuse would blow' };
+  if (Math.abs(i) > 10) return { text: 'OL', value: null, range: '10 A', sub: t('above 10 A — the meter fuse would blow') };
   const fs = Math.abs(i) < 0.6 ? 0.6 : Math.abs(i) < 6 ? 6 : 10;
   const res = fs / p.counts;
   const shown = quantize(i * (1 + (r() * 2 - 1) * 0.01) + Math.round((r() * 2 - 1) * 2) * res, res);

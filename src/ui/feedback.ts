@@ -6,6 +6,7 @@
 // (or, after FormSubmit's one-time activation, the random alias it emails you). Locally put it in
 // .env.local; on GitHub Pages set the repository variable FEEDBACK_TO (Settings → Secrets and
 // variables → Actions → Variables). Unset, the form only offers the GitHub route.
+import { lang, t } from '../i18n';
 import { icon } from './icons';
 
 export const REPO_URL = 'https://github.com/tholtman1-del/deadboard';
@@ -34,6 +35,7 @@ export interface FeedbackContext {
 export function diagnostics(ctx: FeedbackContext): string {
   const lines = [
     `Build: ${APP_BUILD}`,
+    `Language: ${lang()}`,
     `Browser: ${navigator.userAgent}`,
     `Screen: ${screen.width}×${screen.height} @${window.devicePixelRatio}x, window ${innerWidth}×${innerHeight}`,
     ctx.gpu && `GPU: ${ctx.gpu}`,
@@ -95,8 +97,8 @@ export function mountFeedbackForm(host: HTMLElement, context: () => FeedbackCont
   host.innerHTML = `
     <div class="fb">
       <div class="seg fb-kind">
-        <button type="button" data-kind="bug">Report a bug</button>
-        <button type="button" data-kind="idea">Suggest an idea</button>
+        <button type="button" data-kind="bug">${t('Report a bug')}</button>
+        <button type="button" data-kind="idea">${t('Suggest an idea')}</button>
       </div>
       <div class="field">
         <label for="fb-msg" class="fb-msg-label"></label>
@@ -104,19 +106,19 @@ export function mountFeedbackForm(host: HTMLElement, context: () => FeedbackCont
       </div>
       ${feedbackConfigured ? `
       <div class="field">
-        <label for="fb-contact">Your email or name <span class="fb-opt">(optional, only if you'd like a reply)</span></label>
+        <label for="fb-contact">${t('Your email or name')} <span class="fb-opt">${t("(optional, only if you'd like a reply)")}</span></label>
         <input id="fb-contact" type="text" maxlength="200" autocomplete="email">
       </div>` : ''}
-      <label class="fb-check"><input type="checkbox" id="fb-include"> Include technical details (browser, GPU, board, view)</label>
-      <details class="fb-details"><summary>What gets sent</summary><pre id="fb-diag"></pre></details>
+      <label class="fb-check"><input type="checkbox" id="fb-include"> ${t('Include technical details (browser, GPU, board, view)')}</label>
+      <details class="fb-details"><summary>${t('What gets sent')}</summary><pre id="fb-diag"></pre></details>
       <div class="fb-actions">
         ${feedbackConfigured
-          ? `<button type="button" class="btn primary" id="fb-send">${icon('check', 14)}<span>Send</span></button>`
-          : `<a class="btn primary" id="fb-gh-main" href="#" target="_blank" rel="noopener">${icon('link', 14)}<span>Continue on GitHub</span></a>`}
+          ? `<button type="button" class="btn primary" id="fb-send">${icon('check', 14)}<span>${t('Send')}</span></button>`
+          : `<a class="btn primary" id="fb-gh-main" href="#" target="_blank" rel="noopener">${icon('link', 14)}<span>${t('Continue on GitHub')}</span></a>`}
         <span class="fb-status muted" id="fb-status" role="status"></span>
       </div>
-      ${feedbackConfigured ? `<p class="muted fb-foot">No account needed: your message is emailed to the developer.
-        Have a GitHub account? <a id="fb-gh" href="#" target="_blank" rel="noopener">Open an issue instead</a>.</p>` : ''}
+      ${feedbackConfigured ? `<p class="muted fb-foot">${t('No account needed: your message is emailed to the developer.')}
+        ${t('Have a GitHub account? <a id="fb-gh" href="#" target="_blank" rel="noopener">Open an issue instead</a>.')}</p>` : ''}
     </div>`;
   const $ = <T extends HTMLElement>(sel: string) => host.querySelector<T>(sel);
   const msg = $<HTMLTextAreaElement>('#fb-msg')!;
@@ -130,16 +132,16 @@ export function mountFeedbackForm(host: HTMLElement, context: () => FeedbackCont
 
   const details = () => (include.checked ? diagnostics(context()) : '');
   // the GitHub route carries no snapshot code, so it does not promise one
-  const ghDetails = () => details().split('\n').filter((l) => !l.startsWith('Bench snapshot')).join('\n');
+  const ghDetails = () => { const note = context().snapshotNote; return details().split('\n').filter((l) => l !== note).join('\n'); };
   const updateGh = () => { for (const a of ghLinks) a.href = githubIssueUrl(draft.kind, msg.value, ghDetails()); };
   const refresh = () => {
     host.querySelectorAll<HTMLButtonElement>('.fb-kind button').forEach((b) => b.classList.toggle('on', b.dataset.kind === draft.kind));
-    $('.fb-msg-label')!.textContent = draft.kind === 'idea' ? 'What would make DEADBOARD better?'
-      : include.checked ? 'What went wrong? (optional: your bench is attached)' : 'What went wrong? What did you do just before?';
+    $('.fb-msg-label')!.textContent = draft.kind === 'idea' ? t('What would make DEADBOARD better?')
+      : include.checked ? t('What went wrong? (optional: your bench is attached)') : t('What went wrong? What did you do just before?');
     msg.placeholder = draft.kind === 'bug'
-      ? 'e.g. On Bridge Troll, flipped to the bottom in 3D: the solder blob between D2\'s legs is not visible.'
-      : 'e.g. Split the board into squares for IPA, so each square dries at its own temperature.';
-    $('#fb-diag')!.innerHTML = escHtml(details() || '(nothing: technical details are switched off)');
+      ? t("e.g. On Bridge Troll, flipped to the bottom in 3D: the solder blob between D2's legs is not visible.")
+      : t('e.g. Split the board into squares for IPA, so each square dries at its own temperature.');
+    $('#fb-diag')!.innerHTML = escHtml(details() || t('(nothing: technical details are switched off)'));
     updateGh();
   };
   host.querySelectorAll<HTMLButtonElement>('.fb-kind button').forEach((b) => b.addEventListener('click', () => { draft.kind = b.dataset.kind as FeedbackKind; refresh(); }));
@@ -152,18 +154,18 @@ export function mountFeedbackForm(host: HTMLElement, context: () => FeedbackCont
   send?.addEventListener('click', async () => {
     // a bug report with technical details can be sent as is: the snapshot shows what happened
     const bare = draft.kind === 'bug' && include.checked;
-    if (!bare && msg.value.trim().length < 5) { status.textContent = 'Please write a few words first.'; msg.focus(); return; }
+    if (!bare && msg.value.trim().length < 5) { status.textContent = t('Please write a few words first.'); msg.focus(); return; }
     send.disabled = true;
-    status.textContent = 'Sending…';
+    status.textContent = t('Sending…');
     try {
       const snapshot = include.checked ? await context().snapshot?.().catch(() => undefined) : undefined;
       await sendFeedback({ kind: draft.kind, message: msg.value.trim() || '(no description: see the snapshot)', contact: contact?.value ?? '', details: details(), snapshot });
       draft.message = ''; msg.value = '';
-      status.textContent = 'Thank you! Your message was sent.';
+      status.textContent = t('Thank you! Your message was sent.');
       updateGh();
       opts.onSent?.();
     } catch (err) {
-      status.textContent = `Could not send (${err instanceof Error ? err.message : String(err)}). Please try again in a moment.`;
+      status.textContent = t('Could not send ({error}). Please try again in a moment.', { error: err instanceof Error ? err.message : String(err) });
     } finally {
       send.disabled = false;
     }

@@ -1,7 +1,7 @@
 // Touch support: the gesture recogniser (tap / drag / pinch), the mobile-layout switch, and the
 // touch wording of every tutorial step (no clicks, right-clicks or keyboard shortcuts left).
 import { TouchGestures, touchCopy, wantsMobileLayout, type GestureSink } from '../src/ui/touch';
-import { BEGINNER_PRIMER_HTML, TUTORIALS_BY_SCENARIO, TUTORIAL_STEPS } from '../src/ui/tutorial';
+import { beginnerPrimerHtml, TUTORIALS_BY_SCENARIO, TUTORIAL_STEPS } from '../src/ui/tutorial';
 
 function assert(c: unknown, m: string): asserts c { if (!c) throw new Error(m); }
 
@@ -96,7 +96,7 @@ const kinds = (ev: Ev[]) => ev.map((e) => e[0]);
       n++;
     }
   }
-  const primer = touchCopy(BEGINNER_PRIMER_HTML);
+  const primer = touchCopy(beginnerPrimerHtml());
   assert(!/<code>F<\/code> key/.test(primer), 'primer keeps no F-key hint');
   assert(/— \(1\) Visually/.test(primer), 'numbered list items keep their numbers');
   assert(touchCopy('Select (1)') === 'Select' && touchCopy('Rotate 180° (5)') === 'Rotate 180°', 'shortcut keys removed');

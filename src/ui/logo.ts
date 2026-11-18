@@ -2,6 +2,8 @@
 // to life and ends in a via — "bring dead boards back". One source for the header, favicon
 // and brand files; colours come from CSS (currentColor + --brand-signal) unless given.
 
+import { tk } from '../i18n';
+
 const BOARD = 'M7 4h15l6 6v15a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z';
 const TRACE = 'M4 17h7l2.5-7 3 13 2.5-8h4';
 
@@ -19,6 +21,6 @@ export function markSvg(size = 20, colors: { board?: string; signal?: string; fi
 export const BRAND = {
   name: 'DEADBOARD',
   tagline: 'Bring dead boards back.',
-  descriptor: 'Board-level repair trainer',
+  descriptor: tk('Board-level repair trainer'),
   site: 'https://tholtman1-del.github.io/deadboard/',
 } as const;

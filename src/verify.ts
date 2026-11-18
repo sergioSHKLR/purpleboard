@@ -4,6 +4,7 @@ import { unlockFlag, topology } from './crypto';
 import { netVoltage, simulate, type Sim, type SimOpts } from './sim';
 import { simulateSpice } from './spice/adapter';
 import type { PowerStateName } from './spice/sequencer';
+import { t } from './i18n';
 
 /** 'fast' = piecewise-linear DC solver, 'spice' = SPICE engine, 'spice-power' = SPICE + behavioral regulators from the power tree. */
 export type Solver = 'fast' | 'spice' | 'spice-power';
@@ -35,8 +36,15 @@ function switchKey(sw?: SwitchMap): string {
 
 function formatSwitches(sw?: SwitchMap): string {
   if (!sw) return '';
-  const parts = Object.entries(sw).map(([k, v]) => `${k} ${v ? 'pressed' : 'released'}`);
+  const parts = Object.entries(sw).map(([k, v]) => (v ? t('{ref} pressed', { ref: k }) : t('{ref} released', { ref: k })));
   return parts.length ? ` (${parts.join(', ')})` : '';
+}
+
+/** What an objective asks, as shown on the test bench. */
+export function objectiveLabel(o: Objective): string {
+  if (o.type === 'led') return (o.on ? t('{ref} must be ON', { ref: o.ref }) : t('{ref} must be OFF', { ref: o.ref })) + formatSwitches(o.switches);
+  const target = o.b ? `${o.a} − ${o.b}` : o.a;
+  return t('V({target}) in [{min} V, {max} V]', { target, min: o.min.toFixed(2), max: o.max.toFixed(2) }) + formatSwitches(o.switches);
 }
 
 function resolveProbeNet(board: Board, conn: Conn, ref: string): number {
@@ -80,7 +88,7 @@ export function evaluateObjectives(board: Board, conn: Conn, objectives: Objecti
       const r = s.comps.get(c.id);
       if (r?.over && !seenOver.has(c.ref)) {
         seenOver.add(c.ref);
-        overloads.push({ ref: c.ref, msg: r.overMsg ?? 'overloaded' });
+        overloads.push({ ref: c.ref, msg: r.overMsg ?? t('overloaded') });
       }
     }
   };
@@ -94,16 +102,17 @@ export function evaluateObjectives(board: Board, conn: Conn, objectives: Objecti
       const r = comp ? s.comps.get(comp.id) : undefined;
       const isOn = !!r?.on && !r?.over;
       const passed = isOn === obj.on;
-      const label = `${obj.ref} must be ${obj.on ? 'ON' : 'OFF'}${formatSwitches(obj.switches)}`;
+      const label = objectiveLabel(obj);
+      const ref = obj.ref, mA = ((r?.i ?? 0) * 1000).toFixed(1);
       const detail = !comp
-        ? `${obj.ref} not found`
+        ? t('{ref} not found', { ref })
         : !comp.state.populated
-          ? `${obj.ref} is unpopulated`
+          ? t('{ref} is unpopulated', { ref })
           : comp.state.burnt
-            ? `${obj.ref} is burnt`
+            ? t('{ref} is burnt', { ref })
             : r?.over
-              ? `${obj.ref} overloaded (${r.overMsg})`
-              : `${obj.ref} is ${isOn ? 'ON' : 'OFF'} (${((r?.i ?? 0) * 1000).toFixed(1)} mA)`;
+              ? t('{ref} overloaded ({msg})', { ref, msg: r.overMsg ?? '' })
+              : isOn ? t('{ref} is ON ({mA} mA)', { ref, mA }) : t('{ref} is OFF ({mA} mA)', { ref, mA });
       return { objective: obj, label, passed, detail };
     }
 
@@ -117,9 +126,8 @@ export function evaluateObjectives(board: Board, conn: Conn, objectives: Objecti
     }
     const diff = va !== null && vb !== null ? va - vb : null;
     const passed = diff !== null && diff >= obj.min && diff <= obj.max && overloads.length === 0;
-    const target = obj.b ? `${obj.a} − ${obj.b}` : obj.a;
-    const label = `V(${target}) in [${obj.min.toFixed(2)} V, ${obj.max.toFixed(2)} V]${formatSwitches(obj.switches)}`;
-    const detail = diff === null ? 'Floating / no power' : `Measured ${diff.toFixed(3)} V`;
+    const label = objectiveLabel(obj);
+    const detail = diff === null ? t('Floating / no power') : t('Measured {v} V', { v: diff.toFixed(3) });
     return { objective: obj, label, passed, detail };
   });
 

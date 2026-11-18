@@ -56,6 +56,9 @@ npm run build      # static site in dist/
 Import your own board: KiCad `.kicad_pcb`, a boardview (OpenBoardView/TopTest or BRD2 `.brd`,
 Tebo-ICT `.tvw`), or a shared `.pcbfix.json` challenge.
 
+Languages: English and Russian (picked from the browser, or with the language menu). To add one,
+see [docs/TRANSLATING.md](docs/TRANSLATING.md).
+
 ## Feedback
 
 Found a bug or have an idea? Press the speech-bubble button in the bench (or **Feedback** on the

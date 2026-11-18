@@ -2,6 +2,7 @@
 //  - "Installed": .zip files the player added in the app, kept in IndexedDB (web and desktop).
 //  - "Mods folder": the desktop app's <userData>/mods folder, listed by the shell at ./mods/index.json
 //    (folders and .zip files). The website has no such folder.
+import { tk } from '../i18n';
 import { loadMod, zipSource, type LoadedMod, type ModSource } from './mods';
 
 /** Bridge exposed by desktop/preload.cjs (absent on the website). */
@@ -38,7 +39,7 @@ async function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBReq
 
 /** Checks a mod .zip and stores it (same id = update). Returns the loaded mod. */
 export async function installMod(bytes: Uint8Array, file: string, takenIds?: (id: string) => boolean): Promise<LoadedMod> {
-  const mod = await loadMod(await zipSource(bytes, file, 'Installed'), takenIds);
+  const mod = await loadMod(await zipSource(bytes, file, tk('Installed')), takenIds);
   await tx('readwrite', (s) => s.put({ id: mod.manifest.id, file, bytes, installed: Date.now() } satisfies StoredMod));
   return mod;
 }
@@ -52,7 +53,7 @@ async function installedSources(): Promise<ModSource[]> {
   const all = await tx<StoredMod[]>('readonly', (s) => s.getAll() as IDBRequest<StoredMod[]>);
   const out: ModSource[] = [];
   for (const m of all.sort((a, b) => a.installed - b.installed)) {
-    try { out.push(await zipSource(m.bytes, m.file, 'Installed')); } catch { /* damaged entry: skipped, shown by the manager as failed */ }
+    try { out.push(await zipSource(m.bytes, m.file, tk('Installed'))); } catch { /* damaged entry: skipped, shown by the manager as failed */ }
   }
   return out;
 }
@@ -82,9 +83,9 @@ async function folderSources(): Promise<ModSource[]> {
   for (const m of idx.mods) {
     const base = `./mods/${encodeURIComponent(m.name)}`;
     if (m.kind === 'zip') {
-      try { out.push(await zipSource(await fetchBytes(base), m.name, 'Mods folder')); } catch { /* reported by loadAllMods */ }
+      try { out.push(await zipSource(await fetchBytes(base), m.name, tk('Mods folder'))); } catch { /* reported by loadAllMods */ }
     } else {
-      out.push({ origin: 'Mods folder', name: m.name, files: m.files, read: (p) => fetchBytes(`${base}/${enc(p)}`) });
+      out.push({ origin: tk('Mods folder'), name: m.name, files: m.files, read: (p) => fetchBytes(`${base}/${enc(p)}`) });
     }
   }
   return out;

@@ -8,6 +8,7 @@
 //     driver has power: a clock of that frequency.
 // Slow behaviour (power-up ramps, sequencing, boot loops) is real simulated data, recorded
 // by the caller from successive solves (roll mode).
+import { t } from './i18n';
 import type { PowerTree } from './spice/powertree';
 
 export type SignalKind = 'dc' | 'switch' | 'clock';
@@ -55,25 +56,25 @@ export function signalOn(netName: string, v: number, tree: PowerTree | null, vol
       const vin = conv.input ? volt(conv.input) ?? 0 : 0, vout = volt(conv.output) ?? 0;
       const target = conv.vTarget ?? 0;
       const running = vin > 1 && target > 0 && vout > 0.8 * target;
-      if (!running) return dc(`${conv.ref} switch node — converter not switching (output ${vout.toFixed(2)} V)`);
+      if (!running) return dc(t('{ref} switch node — converter not switching (output {v} V)', { ref: conv.ref, v: vout.toFixed(2) }));
       const duty = conv.kind === 'buck' ? Math.min(0.95, vout / vin) : Math.min(0.95, 1 - vin / vout);
       const high = conv.kind === 'buck' ? vin : vout;
-      return { kind: 'switch', dc: high * duty, pp: high, freq: FSW, duty, note: `${conv.ref} switch node: ${conv.kind} running, duty ${(duty * 100).toFixed(0)} % — waveform synthesized (fsw ${FSW / 1e3} kHz typical, estimate)` };
+      return { kind: 'switch', dc: high * duty, pp: high, freq: FSW, duty, note: t('{ref} switch node: {kind} running, duty {duty} % — waveform synthesized (fsw {khz} kHz typical, estimate)', { ref: conv.ref, kind: conv.kind, duty: (duty * 100).toFixed(0), khz: FSW / 1e3 }) };
     }
     const reg = tree.sources.find((s) => s.output === netName && (s.kind === 'buck' || s.kind === 'boost'));
     if (reg && reg.vTarget && v > 0.8 * reg.vTarget) {
-      return { kind: 'switch', dc: v, pp: Math.max(0.002, v * RIPPLE_FRACTION), freq: FSW, duty: 0.5, note: `${netName}: ${reg.kind} output, ripple synthesized (${(RIPPLE_FRACTION * 100).toFixed(1)} % p-p at ${FSW / 1e3} kHz, estimate)` };
+      return { kind: 'switch', dc: v, pp: Math.max(0.002, v * RIPPLE_FRACTION), freq: FSW, duty: 0.5, note: t('{net}: {kind} output, ripple synthesized ({pct} % p-p at {khz} kHz, estimate)', { net: netName, kind: reg.kind, pct: (RIPPLE_FRACTION * 100).toFixed(1), khz: FSW / 1e3 }) };
     }
   }
   const f = nameFrequency(netName);
   if (f) {
     // a clock only runs while the chip driving it has power
-    if (clockSupply < 0.8) return dc(`${netName}: clock net (${fmtHz(f)} by name) — no oscillation: no powered chip on this net`);
+    if (clockSupply < 0.8) return dc(t('{net}: clock net ({freq} by name) — no oscillation: no powered chip on this net', { net: netName, freq: fmtHz(f) }));
     const crystal = f < 1e6 || /XTAL|XIN|XOUT|CRYSTAL/i.test(netName);
     const pp = crystal ? 0.6 * clockSupply : clockSupply; // crystal pins swing less than logic clocks
-    return { kind: 'clock', dc: crystal ? clockSupply / 2 : pp / 2, pp, freq: f, duty: 0.5, note: `${netName}: ${fmtHz(f)} ${crystal ? 'crystal' : 'clock'} (frequency from the net name; waveform synthesized)` };
+    return { kind: 'clock', dc: crystal ? clockSupply / 2 : pp / 2, pp, freq: f, duty: 0.5, note: crystal ? t('{net}: {freq} crystal (frequency from the net name; waveform synthesized)', { net: netName, freq: fmtHz(f) }) : t('{net}: {freq} clock (frequency from the net name; waveform synthesized)', { net: netName, freq: fmtHz(f) }) };
   }
-  return dc(`${netName}: DC level from the simulation`);
+  return dc(t('{net}: DC level from the simulation', { net: netName }));
 }
 
 export const fmtHz = (f: number) => (f >= 1e6 ? `${+(f / 1e6).toPrecision(4)} MHz` : f >= 1e3 ? `${+(f / 1e3).toPrecision(4)} kHz` : `${f.toFixed(0)} Hz`);
