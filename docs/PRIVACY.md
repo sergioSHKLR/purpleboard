@@ -1,6 +1,6 @@
 # Privacy
 
-*Last updated: 17 November 2026*
+*Last updated: 18 November 2026*
 
 DEADBOARD (the website, the app on iPhone and iPad, and the desktop app) is made by Tibor Holtman.
 
@@ -14,8 +14,13 @@ DEADBOARD (the website, the app on iPhone and iPad, and the desktop app) is made
 **Feedback.** If you use the Feedback button and press Send, your message, the contact you chose to
 give (optional) and, if you left the box ticked, technical details (app version, browser / system
 version, screen size, graphics card, the open board) are sent to the developer by email through
-FormSubmit (formsubmit.co). You see the technical details before sending. They are used only to
-answer you and fix the problem, and deleted when no longer needed. Ask for deletion at any time by
+FormSubmit (formsubmit.co). With the box ticked a bug report also carries a compressed snapshot of
+the bench, so the developer can rebuild what you saw: the changes you made to the open board (only
+for boards that come with DEADBOARD), power and meter settings, the readings on screen, and the
+last few messages and errors the app showed. A board you imported yourself is never sent: the
+snapshot only says what kind of file it was and how many parts it has. You see a summary of the
+technical details before sending. They are used only to answer you and fix the problem, and
+deleted when no longer needed. Ask for deletion at any time by
 replying to the developer's answer, or through the contact below.
 
 **Links.** Links to GitHub, the modding guide or board sources open in your browser; those sites

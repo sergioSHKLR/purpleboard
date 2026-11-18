@@ -4,7 +4,7 @@ import { dist, transform4 } from '../geom';
 import { buildConnectivity, type Conn } from '../connectivity';
 import { BAND_RGB, GOLD_RGB, KIND_NAMES, LED_COLORS, e12Values, fmtOhm, fmtSI, marking, padWorld, parseValue, resistorBands } from '../model';
 import { addBlob, addJumper, cutTrace, installPart, removeBlob, removeJumper, removePart, toggleCold } from '../ops';
-import { measureDiode, measureOhms, type Sim } from '../sim';
+import { LED_ON_I, measureDiode, measureOhms, type Sim } from '../sim';
 import { measureDiodeSpice, measureOhmsSpice } from '../spice/adapter';
 import { AMMETER_SHUNT, GENERIC_DMM, contactResistance, displayAmps, displayVolts, measureCapDmm, measureDiodeDmm, measureOhmsDmm, placementRng, type Reading } from '../spice/dmm';
 import { boardToCircuit } from '../spice/board';
@@ -31,7 +31,8 @@ import { HOTAIR_H, IRON_G, PREHEAT_H, ReworkMonitor, type ReworkEvent } from '..
 import { WebGPURenderer, type VizMode } from '../render/webgpu';
 import { setSoundEnabled, sfxBeep, sfxBlow, sfxClick, sfxCut, sfxSolder, sfxWin, soundEnabled } from './audio';
 import { icon } from './icons';
-import { mountFeedbackForm, type FeedbackContext } from './feedback';
+import { APP_BUILD, mountFeedbackForm, type FeedbackContext } from './feedback';
+import { boardDiff, encodeSnapshot, type BenchSnapshot } from '../snapshot';
 import { BRAND, markSvg } from './logo';
 import { BEGINNER_PRIMER_HTML, TUTORIAL_SCENARIO_IDS, TUTORIAL_TOPICS, getTutorialSteps, isTutorialScenario, nextTutorialScenarioId, type TutorialStep } from './tutorial';
 import { TOOL_SHORT, TOOL_TIP_PHONE, TouchGestures, splitLead, touchCopy, wantsMobileLayout } from './touch';
@@ -185,6 +186,10 @@ export class PcbApp {
   private showMods = false;
   /** Ids of the boards that ship with DEADBOARD (built-ins + demos): an author's copy needs its own id. */
   private bundledIds = new Set<string>();
+  /** For bug reports: the last messages and errors the player saw, and the meter's display. */
+  private recentToasts: string[] = [];
+  private recentErrors: string[] = [];
+  private dmmShown = '';
   /** Mod boards in the list (stub before first open, full scenario after) → their mod. */
   private modBoards = new Map<Scenario, ModBoard>();
   private modResult: ModLoadResult = { mods: [], failed: [] };
@@ -269,6 +274,9 @@ export class PcbApp {
   constructor(private mount: HTMLElement) {}
 
   async init() {
+    const keepError = (m: string) => { this.recentErrors = [...this.recentErrors, m.slice(0, 300)].slice(-8); };
+    window.addEventListener('error', (e) => keepError(`${e.message} @ ${String(e.filename).replace(/^.*\//, '')}:${e.lineno}`));
+    window.addEventListener('unhandledrejection', (e) => keepError(`unhandled: ${e.reason instanceof Error ? e.reason.message : String(e.reason)}`));
     this.scenarios = await builtinScenarios();
     await this.addDemoStubs();
     this.bundledIds = new Set(this.scenarios.map((s) => s.id));
@@ -384,11 +392,58 @@ export class PcbApp {
     const sc = this.activeScenario;
     const cam = this.camera;
     return {
-      board: sc ? `${sc.meta.title} (${sc.id})` : undefined,
+      // an imported board's title is its file name: it stays on the device like the board itself
+      board: sc ? (this.bundledIds.has(sc.id) ? `${sc.meta.title} (${sc.id})` : `imported board (${sc.meta.author})`) : undefined,
       view: `${cam.mode.toUpperCase()}, ${cam.bothSides ? 'both sides' : cam.side === 'F' ? 'top' : 'bottom'}, ${this.vizMode}${this.powerOn ? ', power on' : ''}`,
       solver: this.solver,
       gpu: this.renderer?.adapterDescription,
+      error: this.recentErrors[this.recentErrors.length - 1],
+      snapshotNote: this.bundledIds.has(sc?.id ?? '')
+        ? `Bench snapshot: your changes to this board (${this.moves} move${this.moves === 1 ? '' : 's'}), readings, last messages`
+        : 'Bench snapshot: readings and last messages (your imported board itself is not sent)',
+      snapshot: () => this.benchSnapshot(),
     };
+  }
+
+  /** Everything needed to rebuild this bench elsewhere, as one code for the feedback email. */
+  private async benchSnapshot(): Promise<string> {
+    const sc = this.activeScenario, b = this.board, cam = this.camera;
+    const shipped = this.bundledIds.has(sc.id);
+    const supply = this.supplyReading();
+    const lit = this.sim ? b.components.filter((c) => c.kind === 'led' && (this.sim!.comps.get(c.id)?.i ?? 0) > LED_ON_I).map((c) => c.ref) : [];
+    const v = this.lastVerify;
+    const snap: BenchSnapshot = {
+      v: 1,
+      build: APP_BUILD,
+      at: new Date().toISOString(),
+      scenario: {
+        id: shipped ? sc.id : 'imported',
+        title: shipped ? sc.meta.title : '',
+        shipped,
+        ...(!shipped && { format: sc.meta.author }),
+        parts: b.components.length, traces: b.traces.length, vias: b.vias.length,
+      },
+      ...(shipped && { diff: boardDiff(sc.board, b) }),
+      bench: {
+        power: this.powerOn,
+        solver: this.solver,
+        ocpAmps: this.ocpAmps,
+        inject: this.psuInject,
+        ...(this.bootSequenced && { boot: this.boot.state }),
+        view: `${cam.mode}, ${cam.bothSides ? 'both' : cam.side === 'F' ? 'top' : 'bottom'}, ${this.vizMode}`,
+        tool: this.activeTool,
+        ...(this.selectedCompId && { selected: b.components.find((c) => c.id === this.selectedCompId)?.ref }),
+        dmm: { mode: this.dmmMode, red: this.probeRed?.label, black: this.probeBlack?.label, reading: this.dmmShown || undefined },
+      },
+      seen: {
+        volts: +supply.volts.toFixed(4), amps: +supply.amps.toFixed(6), cc: supply.cc, lit,
+        ...(v && { tests: `${v.results.filter((r) => r.passed).length}/${v.results.length} passed${v.flag ? ', flag revealed' : ''}` }),
+      },
+      toasts: this.recentToasts,
+      errors: this.recentErrors,
+      moves: this.moves,
+    };
+    return encodeSnapshot(snap);
   }
 
   private renderFeedbackModal() {
@@ -761,6 +816,8 @@ export class PcbApp {
       },
       focus: (x: number, y: number, halfH = 10, side?: Side) => { this.camera.bothSides = false; this.camera.focusAt(x, y, halfH, side); this.renderUI(); },
       fit: () => this.camera.fitBoard(this.board.w, this.board.h),
+      /** The bug-report snapshot code, without sending anything. */
+      snapshot: () => this.benchSnapshot(),
       side: () => this.camera.side,
       /** Board point (mm) → page pixel (CSS px), on the given side's copper surface. */
       toScreen: (x: number, y: number, side: Side = this.camera.side) => {
@@ -2315,6 +2372,7 @@ export class PcbApp {
   }
 
   private toast(msg: string, kind: 'info' | 'success' | 'warn' | 'danger' = 'info') {
+    this.recentToasts = [...this.recentToasts, `${kind}: ${msg}`].slice(-8);
     const el = document.createElement('div');
     el.className = `toast ${kind}`;
     const text = this.txt(msg);
@@ -2566,7 +2624,7 @@ export class PcbApp {
           </div>
         </div>
         <div class="dmm-lcd">
-          <div class="dmm-val">${this.esc(reading)}</div>
+          <div class="dmm-val">${this.esc((this.dmmShown = reading))}</div>
           <div class="dmm-sub">${this.esc(sub)}</div>
         </div>
         ${this.mobile ? `

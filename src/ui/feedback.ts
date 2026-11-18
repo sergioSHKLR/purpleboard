@@ -24,6 +24,10 @@ export interface FeedbackContext {
   solver?: string;
   gpu?: string;
   error?: string;
+  /** One line telling the sender what the bench snapshot holds. */
+  snapshotNote?: string;
+  /** The bench snapshot code (see src/snapshot.ts), made at the moment of sending. */
+  snapshot?: () => Promise<string>;
 }
 
 /** Technical details attached to a report: no personal data, shown to the sender before sending. */
@@ -37,11 +41,12 @@ export function diagnostics(ctx: FeedbackContext): string {
     ctx.view && `View: ${ctx.view}`,
     ctx.solver && `Solver: ${ctx.solver}`,
     ctx.error && `Error: ${ctx.error}`,
+    ctx.snapshotNote,
   ];
   return lines.filter(Boolean).join('\n');
 }
 
-export interface FeedbackMessage { kind: FeedbackKind; message: string; contact: string; details: string }
+export interface FeedbackMessage { kind: FeedbackKind; message: string; contact: string; details: string; snapshot?: string }
 
 export async function sendFeedback(m: FeedbackMessage): Promise<void> {
   if (!feedbackConfigured) throw new Error('feedback is not set up on this build');
@@ -59,6 +64,8 @@ export async function sendFeedback(m: FeedbackMessage): Promise<void> {
       message: m.message.trim(),
       contact: m.contact.trim() || '(none)',
       details: m.details || '(not included)',
+      // last, so the code is easy to copy; scripts/repro.ts reads it back
+      ...(m.snapshot && { snapshot: m.snapshot }),
     }),
   });
   const body = await res.json().catch(() => null) as { success?: string | boolean; message?: string } | null;
@@ -122,10 +129,13 @@ export function mountFeedbackForm(host: HTMLElement, context: () => FeedbackCont
   if (contact) contact.value = draft.contact;
 
   const details = () => (include.checked ? diagnostics(context()) : '');
-  const updateGh = () => { for (const a of ghLinks) a.href = githubIssueUrl(draft.kind, msg.value, details()); };
+  // the GitHub route carries no snapshot code, so it does not promise one
+  const ghDetails = () => details().split('\n').filter((l) => !l.startsWith('Bench snapshot')).join('\n');
+  const updateGh = () => { for (const a of ghLinks) a.href = githubIssueUrl(draft.kind, msg.value, ghDetails()); };
   const refresh = () => {
     host.querySelectorAll<HTMLButtonElement>('.fb-kind button').forEach((b) => b.classList.toggle('on', b.dataset.kind === draft.kind));
-    $('.fb-msg-label')!.textContent = draft.kind === 'bug' ? 'What went wrong? What did you do just before?' : 'What would make DEADBOARD better?';
+    $('.fb-msg-label')!.textContent = draft.kind === 'idea' ? 'What would make DEADBOARD better?'
+      : include.checked ? 'What went wrong? (optional: your bench is attached)' : 'What went wrong? What did you do just before?';
     msg.placeholder = draft.kind === 'bug'
       ? 'e.g. On Bridge Troll, flipped to the bottom in 3D: the solder blob between D2\'s legs is not visible.'
       : 'e.g. Split the board into squares for IPA, so each square dries at its own temperature.';
@@ -140,11 +150,14 @@ export function mountFeedbackForm(host: HTMLElement, context: () => FeedbackCont
   host.addEventListener('keydown', (e) => { if (e.key !== 'Escape') e.stopPropagation(); });
 
   send?.addEventListener('click', async () => {
-    if (msg.value.trim().length < 5) { status.textContent = 'Please write a few words first.'; msg.focus(); return; }
+    // a bug report with technical details can be sent as is: the snapshot shows what happened
+    const bare = draft.kind === 'bug' && include.checked;
+    if (!bare && msg.value.trim().length < 5) { status.textContent = 'Please write a few words first.'; msg.focus(); return; }
     send.disabled = true;
     status.textContent = 'Sending…';
     try {
-      await sendFeedback({ kind: draft.kind, message: msg.value, contact: contact?.value ?? '', details: details() });
+      const snapshot = include.checked ? await context().snapshot?.().catch(() => undefined) : undefined;
+      await sendFeedback({ kind: draft.kind, message: msg.value.trim() || '(no description: see the snapshot)', contact: contact?.value ?? '', details: details(), snapshot });
       draft.message = ''; msg.value = '';
       status.textContent = 'Thank you! Your message was sent.';
       updateGh();
