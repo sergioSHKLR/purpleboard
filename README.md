@@ -53,8 +53,8 @@ npm run build      # static site in dist/
 | **Training boards** | Bridge Troll, Backwards Day, Ghost Short, Smoke Test, The Sagging Rail |
 | **Open-hardware demos** | MNT Reform 2 · dead 3.3 V rail; Antmicro baseboard · no 3.3 V, flaky 5 V |
 
-Import your own board: KiCad `.kicad_pcb`, OpenBoardView/TopTest `.brd`, or a shared
-`.pcbfix.json` challenge.
+Import your own board: KiCad `.kicad_pcb`, a boardview (OpenBoardView/TopTest or BRD2 `.brd`,
+Tebo-ICT `.tvw`), or a shared `.pcbfix.json` challenge.
 
 ## Feedback
 

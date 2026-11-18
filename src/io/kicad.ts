@@ -3,6 +3,7 @@ import { parseValue } from '../model';
 import { parseScenario } from './format';
 import { emptyBoard } from '../scenarios/builder';
 import { isBrdData, parseBrd } from './brd';
+import { parseTvw } from './tvw';
 import { addBenchSupply, chooseInputRail } from './benchSupply';
 
 type SExpr = string | SExpr[];
@@ -459,6 +460,9 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
 }
 
 export function importScenarioOrPcb(filename: string, data: string | Uint8Array): Scenario {
+  if (filename.toLowerCase().endsWith('.tvw')) {
+    return parseTvw(typeof data === 'string' ? Uint8Array.from(data, (c) => c.charCodeAt(0) & 0xff) : data, filename);
+  }
   if (filename.toLowerCase().endsWith('.brd') || isBrdData(data)) {
     return parseBrd(data, filename);
   }

@@ -494,8 +494,8 @@ export class PcbApp {
             </button>
             <select id="sc-select" title="Scenario" hidden></select>
             <button class="btn ghost icon" id="btn-new-board" title="New blank board">${icon('plus')}</button>
-            <button class="btn ghost icon" id="btn-import" title="Import .brd, .kicad_pcb, .pcbfix.json, or a mod .zip">${icon('upload')}</button>
-            <input type="file" id="file-input" accept=".brd,.json,.pcbfix.json,.kicad_pcb,.zip" hidden />
+            <button class="btn ghost icon" id="btn-import" title="Import .brd, .tvw, .kicad_pcb, .pcbfix.json, or a mod .zip">${icon('upload')}</button>
+            <input type="file" id="file-input" accept=".brd,.tvw,.json,.pcbfix.json,.kicad_pcb,.zip" hidden />
           </div>
           <div class="topbar-group">
             <div class="seg" id="seg-view" title="Camera (Tab)">
@@ -613,7 +613,7 @@ export class PcbApp {
       </div>
       <div id="modal-root"></div>
       ${m ? this.mobileMoreHtml() + this.rotateHintHtml() : ''}
-      <div class="drop-overlay" id="drop-overlay" style="display:none">Drop a .brd, .kicad_pcb, .pcbfix.json, or mod .zip to import</div>
+      <div class="drop-overlay" id="drop-overlay" style="display:none">Drop a .brd, .tvw, .kicad_pcb, .pcbfix.json, or mod .zip to import</div>
     `;
 
     this.layoutEl = this.mount.querySelector('#layout')!;
@@ -1475,7 +1475,7 @@ export class PcbApp {
     const title = this.activeScenario.meta.title;
     const nl = boardToCircuit(this.board, conn, {
       title,
-      infer: this.activeScenario.meta.author === 'Boardview (.brd)',
+      infer: this.activeScenario.meta.author.startsWith('Boardview'),
       comments: [`Exported from DEADBOARD scenario "${title}" with its current faults and repairs.`],
     });
     const blob = new Blob([writeSpice(nl.circuit)], { type: 'text/plain' });
@@ -4075,7 +4075,7 @@ export class PcbApp {
           <div class="card">
             <div class="card-title">Importing &amp; authoring</div>
             <p class="text-2" style="margin:0">
-              Drag and drop a KiCad <code>.kicad_pcb</code>, boardview <code>.brd</code> or <code>.pcbfix.json</code> file into the workspace.
+              Drag and drop a KiCad <code>.kicad_pcb</code>, boardview <code>.brd</code> / <code>.tvw</code> or <code>.pcbfix.json</code> file into the workspace.
               In the <b>Author</b> tab, lock a working reference topology with your flag, inject faults, and export JSON, a shareable link, or a mod.
               <b>Mods</b> (Boards → Mods) bundle boards with their BOM and schematic for others to install: <a href="${this.moddingUrl}" target="_blank" rel="noopener">how to make a mod</a>.
             </p>

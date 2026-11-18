@@ -1,5 +1,7 @@
-import type { Board, Component, ComponentKind, Pad, Scenario, Side, V2 } from '../types';
+import type { Board, Component, ComponentKind, Pad, PadLayers, PadShape, Scenario, Side, V2 } from '../types';
 import { emptyBoard } from '../scenarios/builder';
+import { padShape } from '../model';
+import { shapeGap } from '../geom';
 
 const MIL_TO_MM = 0.0254;
 
@@ -51,11 +53,25 @@ export function decodeBrdText(data: Uint8Array | string): string {
   return new TextDecoder('latin1').decode(out);
 }
 
-interface RawPin { x: number; y: number; net?: string }
+/** A pin in file units (mils). Formats that know the copper (TVW) give its name, pad shape and
+ * layers; for the others the builder sizes pads from the pin spacing. */
+export interface RawPin {
+  x: number; y: number; net?: string;
+  name?: string;
+  /** Pad size in mils and rotation in degrees (board frame). */
+  pad?: { w: number; h: number; shape: PadShape; rot: number };
+  layers?: PadLayers;
+}
 /** One part with its pins, in file units (mils), with both board sides in one frame. */
-interface RawPart { ref: string; side: Side; tht: boolean; pins: RawPin[]; box?: [number, number, number, number] }
-interface RawNail { x: number; y: number; side: Side; net?: string }
-interface RawBoard { outline: [number, number][]; parts: RawPart[]; nails: RawNail[] }
+export interface RawPart { ref: string; side: Side; tht: boolean; pins: RawPin[]; box?: [number, number, number, number]; value?: string }
+export interface RawNail { x: number; y: number; side: Side; net?: string }
+export interface RawBoard {
+  outline: [number, number][];
+  /** Board edge as loose segments [x1, y1, x2, y2] (TVW route layer), used instead of `outline`. */
+  edges?: [number, number, number, number][];
+  parts: RawPart[];
+  nails: RawNail[];
+}
 
 const SECTION = /^([A-Za-z_]+):/;
 const cols = (t: string) => t.split(/\s+/);
@@ -229,11 +245,79 @@ export function parseBrd(data: Uint8Array | string, filename = 'board.brd', quir
   if (!raw.parts.length) {
     throw new Error('Unrecognised .brd file: no parts or pins found. Supported boardviews: TopTest / OpenBoardView .brd and BRD2.');
   }
+  return buildBoardview(raw, filename.replace(/^.*[\\/]/, '').replace(/\.brd$/i, ''), brd2 ? 'Boardview (BRD2)' : 'Boardview (.brd)', quirks);
+}
+
+/** Two-terminal passives: a value written on the part ("10K", "4K7", "0.1uF", "100N"), or NaN. */
+function partValue(kind: ComponentKind, s: string | undefined): number {
+  const m = s?.trim().replace(',', '.').match(/^([0-9]*\.?[0-9]+)\s*([pnuµmkKMRrFf]?)([0-9]*)/);
+  if (!m) return NaN;
+  const num = parseFloat(m[3] && m[2] ? `${m[1]}.${m[3]}` : m[1]);
+  const sfx = m[2];
+  let mult: number | undefined;
+  if (kind === 'capacitor') mult = ({ p: 1e-12, n: 1e-9, u: 1e-6, µ: 1e-6, m: 1e-3 } as Record<string, number>)[sfx.toLowerCase()] ?? (sfx === '' || /f/i.test(sfx) ? 1 : undefined);
+  else mult = ({ m: 1e-3, k: 1e3, K: 1e3, M: 1e6, R: 1, r: 1, '': 1 } as Record<string, number>)[sfx];
+  const v = num * (mult ?? NaN);
+  // a capacitor "value" of a farad or more is a misread (or a supercap the solver cannot use)
+  return Number.isFinite(v) && v >= 0 && !(kind === 'capacitor' && (v >= 1 || v === 0)) ? v : NaN;
+}
+
+/** Pads of different nets that touch: shrink them until they clear (a misread shape must never
+ * become a short, since connectivity treats touching copper as one conductor). Returns how many. */
+function clearPads(components: Component[]): number {
+  type P = { c: Component; p: Pad };
+  const cell = 2;
+  const grid = new Map<string, P[]>();
+  const all: P[] = [];
+  for (const c of components) for (const p of c.pads) all.push({ c, p });
+  const bbOf = (x: P) => padShape(x.c, x.p).bb;
+  for (const x of all) {
+    const [x0, y0, x1, y1] = bbOf(x);
+    for (let gx = Math.floor(x0 / cell); gx <= Math.floor(x1 / cell); gx++)
+      for (let gy = Math.floor(y0 / cell); gy <= Math.floor(y1 / cell); gy++) {
+        const k = gx + ',' + gy;
+        let l = grid.get(k);
+        if (!l) grid.set(k, (l = []));
+        l.push(x);
+      }
+  }
+  const shared = (a: PadLayers, b: PadLayers) => a === 'FB' || b === 'FB' || a === b;
+  const trimmed = new Set<Pad>();
+  for (let round = 0; round < 8; round++) {
+    let hits = 0;
+    const seen = new Set<string>();
+    for (const l of grid.values()) {
+      for (let i = 0; i < l.length; i++) for (let j = i + 1; j < l.length; j++) {
+        const A = l[i], B = l[j];
+        if (!A.p.net || !B.p.net || A.p.net === B.p.net || !shared(A.p.layers, B.p.layers)) continue;
+        if (shapeGap(padShape(A.c, A.p), padShape(B.c, B.p)) > 1e-4) continue;
+        const key = A.c.id + A.p.name + '|' + B.c.id + B.p.name;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        hits++;
+        for (const x of [A, B]) {
+          x.p.size = [round3(x.p.size[0] * 0.8), round3(x.p.size[1] * 0.8)];
+          trimmed.add(x.p);
+        }
+      }
+    }
+    if (!hits) break;
+  }
+  return trimmed.size;
+}
+
+/**
+ * The board for any boardview: parts with their pins, nets by name (no routing), the outline as
+ * silkscreen and a bench supply on a likely rail. `title` is shown as-is, `author` names the format.
+ */
+export function buildBoardview(raw: RawBoard, title: string, author: string, quirks: BrdQuirks = {}): Scenario {
   const outlineMils = raw.outline;
   const allPins = raw.parts.flatMap((p) => p.pins);
 
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  const srcPts = outlineMils.length >= 3 ? outlineMils : allPins.map((p) => [p.x, p.y] as [number, number]);
+  const srcPts = raw.edges?.length
+    ? raw.edges.flatMap(([x1, y1, x2, y2]) => [[x1, y1], [x2, y2]] as [number, number][])
+    : outlineMils.length >= 3 ? outlineMils : allPins.map((p) => [p.x, p.y] as [number, number]);
   for (const [xm, ym] of srcPts) {
     const x = xm * MIL_TO_MM, y = ym * MIL_TO_MM;
     if (x < minX) minX = x;
@@ -261,9 +345,10 @@ export function parseBrd(data: Uint8Array | string, filename = 'board.brd', quir
     const prev = cleanOutline[cleanOutline.length - 1];
     if (!prev || Math.hypot(p[0] - prev[0], p[1] - prev[1]) > 0.05) cleanOutline.push(p);
   }
-  for (let i = 0; i < cleanOutline.length; i++) {
-    const a = cleanOutline[i];
-    const b = cleanOutline[(i + 1) % cleanOutline.length];
+  const edges: [V2, V2][] = raw.edges?.length
+    ? raw.edges.map(([x1, y1, x2, y2]) => [toWorld(x1, y1), toWorld(x2, y2)])
+    : cleanOutline.map((a, i) => [a, cleanOutline[(i + 1) % cleanOutline.length]]);
+  for (const [a, b] of edges) {
     if (Math.hypot(a[0] - b[0], a[1] - b[1]) > 0.05) {
       board.silk.push({ a, b, w: 0.22, side: 'F' });
       board.silk.push({ a, b, w: 0.22, side: 'B' });
@@ -334,14 +419,34 @@ export function parseBrd(data: Uint8Array | string, filename = 'board.brd', quir
       spanH = Math.max(spanH, round3(Math.abs(part.box[3] - part.box[1]) * MIL_TO_MM));
     }
 
-    const pads: Pad[] = worldPts.map((wp, pi) => ({
-      name: String(pi + 1),
-      at: [round3(wp.pos[0] - cx), round3(wp.pos[1] - cy)],
-      size: [padD, padD],
-      shape: pi === 0 ? 'rect' : 'circle',
-      layers: part.tht ? 'FB' : side,
-      net: wp.net,
-    }));
+    // pin names from the file when they are usable as keys, else 1..n
+    const names = part.pins.map((p) => p.name?.trim() ?? '');
+    const named = names.every((n) => n) && new Set(names).size === names.length;
+    const pads: Pad[] = worldPts.map((wp, pi) => {
+      const rp = part.pins[pi];
+      const real = rp.pad && rp.pad.w > 0 && rp.pad.h > 0;
+      return {
+        name: named ? names[pi] : String(pi + 1),
+        at: [round3(wp.pos[0] - cx), round3(wp.pos[1] - cy)],
+        size: real ? [round3(rp.pad!.w * MIL_TO_MM), round3(rp.pad!.h * MIL_TO_MM)] : [padD, padD],
+        ...(real && rp.pad!.rot && { rot: round3(rp.pad!.rot) }),
+        shape: real ? rp.pad!.shape : pi === 0 ? 'rect' : 'circle',
+        layers: rp.layers ?? (part.tht ? 'FB' : side),
+        net: wp.net,
+      };
+    });
+    if (part.pins.some((q) => q.pad)) {
+      // the body covers the real pads
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const p of pads) {
+        const r = Math.hypot(p.size[0], p.size[1]) / 2;
+        x0 = Math.min(x0, p.at[0] - r); y0 = Math.min(y0, p.at[1] - r);
+        x1 = Math.max(x1, p.at[0] + r); y1 = Math.max(y1, p.at[1] + r);
+      }
+      spanW = Math.max(0.4, round3(x1 - x0));
+      spanH = Math.max(0.4, round3(y1 - y0));
+    }
+    const p1 = pads[0]?.name ?? '1', p2 = pads[1]?.name ?? '2';
 
     let kind: ComponentKind = 'generic';
     let value = 0;
@@ -354,19 +459,19 @@ export function parseBrd(data: Uint8Array | string, filename = 'board.brd', quir
     if (/^F\d/.test(ref) && pads.length >= 2) {
       kind = 'fuse';
       value = 3.0;
-      pins = { '1': '1', '2': '2' };
+      pins = { '1': p1, '2': p2 };
       bodyShape = 'fuse';
       bodyZ = 0.9;
     } else if (/^R(?!P)\d/.test(ref) && pads.length >= 2) {
       kind = 'resistor';
       value = 1000;
-      pins = { '1': '1', '2': '2' };
+      pins = { '1': p1, '2': p2 };
       bodyShape = 'box';
       bodyZ = 0.45;
     } else if (/^L\d/.test(ref) && pads.length >= 2) {
       kind = 'resistor';
       value = 0.05;
-      pins = { '1': '1', '2': '2' };
+      pins = { '1': p1, '2': p2 };
       bodyShape = 'box';
       bodyZ = 1.4;
       label = 'Inductor';
@@ -374,13 +479,13 @@ export function parseBrd(data: Uint8Array | string, filename = 'board.brd', quir
       if (pads.length >= 2) {
         kind = 'resistor';
         value = 0.01;
-        pins = { '1': '1', '2': '2' };
+        pins = { '1': p1, '2': p2 };
         bodyShape = 'box';
         bodyZ = 0.22;
         label = '0Ω Link';
       } else {
         kind = 'testpoint';
-        pins = { '1': '1' };
+        pins = { '1': p1 };
         bodyShape = 'pin';
         bodyZ = 0.5;
       }
@@ -388,7 +493,7 @@ export function parseBrd(data: Uint8Array | string, filename = 'board.brd', quir
       if (pads.length === 2) {
         kind = 'diode';
         value = 0.65;
-        pins = { A: '1', K: '2' };
+        pins = { A: p1, K: p2 };
         bodyShape = 'box';
         bodyZ = 0.65;
       } else {
@@ -399,12 +504,12 @@ export function parseBrd(data: Uint8Array | string, filename = 'board.brd', quir
     } else if (/^C\d/.test(ref)) {
       kind = 'capacitor';
       value = 1e-7;
-      pins = pads.length >= 2 ? { '1': '1', '2': '2' } : { '1': '1' };
+      pins = pads.length >= 2 ? { '1': p1, '2': p2 } : { '1': p1 };
       bodyShape = 'box';
       bodyZ = 0.55;
     } else if (/^TP\d/.test(ref)) {
       kind = 'testpoint';
-      pins = { '1': '1' };
+      pins = { '1': p1 };
       bodyShape = 'pin';
       bodyZ = 0.7;
     } else if (/^[UQY]/.test(ref)) {
@@ -419,6 +524,16 @@ export function parseBrd(data: Uint8Array | string, filename = 'board.brd', quir
       kind = pads.length > 2 ? 'ic' : 'generic';
       bodyShape = pads.length > 2 ? 'chip' : 'box';
       bodyZ = 0.7;
+    }
+
+    // a value printed on the part (TVW carries them) replaces the placeholder
+    let valueRead = false;
+    if (kind === 'resistor' || kind === 'capacitor') {
+      const v = partValue(kind, part.value);
+      if (Number.isFinite(v)) {
+        valueRead = true;
+        if (kind === 'resistor' && v === 0) { value = 0.01; label ??= '0Ω Link'; } else value = v;
+      }
     }
 
     const q = quirks.parts?.[ref];
@@ -437,7 +552,7 @@ export function parseBrd(data: Uint8Array | string, filename = 'board.brd', quir
       kind,
       value,
       // a boardview carries no part values: classification defaults are placeholders
-      ...(q?.value === undefined && ['resistor', 'capacitor', 'fuse', 'diode'].includes(kind) && { valueGuessed: true }),
+      ...(q?.value === undefined && !valueRead && ['resistor', 'capacitor', 'fuse', 'diode'].includes(kind) && { valueGuessed: true }),
       label,
       at: [cx, cy],
       rot: 0,
@@ -461,19 +576,21 @@ export function parseBrd(data: Uint8Array | string, filename = 'board.brd', quir
     });
   }
 
+  if (raw.parts.some((p) => p.pins.some((q) => q.pad))) clearPads(board.components);
+
   if (!quirks.supply?.(board, nextId, board.components)) addBridgeSupply(nextId, board.components, netPins);
 
   // A boardview carries no copper routing, so no traces are drawn: every net connects by
   // name. The UI shows a selected part's connections as airwires (src/airwires.ts).
 
   board.nextId = next + 1000;
-  const cleanTitle = filename.replace(/^.*[\\/]/, '').replace(/\.brd$/i, '') || 'Imported Boardview';
+  const cleanTitle = title || 'Imported Boardview';
   return {
     format: 'pcbfix/1',
     id: 'brd-' + Date.now().toString(36),
     meta: {
       title: cleanTitle,
-      author: brd2 ? 'Boardview (BRD2)' : 'Boardview (.brd)',
+      author,
       difficulty: 4,
       description: `Imported ${cleanTitle} (${board.components.length} components, ${netPins.size} nets). Probe nets in Voltage map / Thermal mode or inject CTF faults in Author Studio.`,
       hints: ['Use Inspector search to locate parts on large multi-thousand-component boards.'],
