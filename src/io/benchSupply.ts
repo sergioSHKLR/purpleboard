@@ -3,7 +3,7 @@
 // coin cells. The supply goes on the board's main input rail: a root rail of the power tree
 // (feeds converters, produced by nothing on the board), preferring input-style names and rails
 // that reach a connector. Its voltage comes from the rail name; otherwise a labelled assumption.
-import type { Board, Component, Side, V2 } from '../types';
+import type { Board, Component, Pad, Side, V2 } from '../types';
 import { buildConnectivity } from '../connectivity';
 import { padWorld } from '../model';
 import { discoverPowerTree, isGroundName, netBase, railVoltage } from '../spice/powertree';
@@ -41,11 +41,14 @@ export function chooseInputRail(board: Board): SupplyChoice | null {
 
 /** Adds a bench supply ("J_BENCH") on the chosen input rail, next to one of its pads. */
 export function addBenchSupply(board: Board, choice: SupplyChoice, nextId: () => number): Component | null {
-  let posPt: { at: V2; side: Side } | null = null, negPt: { at: V2; side: Side } | null = null;
+  // each clip lands exactly on a board pad and takes that pad's copper outline: a bigger clip pad
+  // would spill onto neighbouring copper, and connectivity treats touching copper as joined
+  type Clip = { at: V2; rot: number; side: Side; pad: Pad };
+  let posPt: Clip | null = null, negPt: Clip | null = null;
   for (const c of board.components) {
     for (const p of c.pads) {
-      if (!posPt && p.net === choice.net) posPt = { at: padWorld(c, p).at, side: c.side };
-      if (!negPt && p.net && isGroundName(netBase(p.net))) negPt = { at: padWorld(c, p).at, side: c.side };
+      if (!posPt && p.net === choice.net) posPt = { ...padWorld(c, p), side: c.side, pad: p };
+      if (!negPt && p.net && isGroundName(netBase(p.net))) negPt = { ...padWorld(c, p), side: c.side, pad: p };
     }
   }
   if (!posPt || !negPt) return null;
@@ -61,8 +64,8 @@ export function addBenchSupply(board: Board, choice: SupplyChoice, nextId: () =>
     rot: 0,
     side: posPt.side,
     pads: [
-      { name: '1', at: [0, 0], size: [1.0, 1.0], shape: 'rect', layers: 'FB', net: choice.net },
-      { name: '2', at: [r3(negPt.at[0] - posPt.at[0]), r3(negPt.at[1] - posPt.at[1])], size: [1.0, 1.0], shape: 'circle', layers: 'FB', net: gndNet },
+      { name: '1', at: [0, 0], size: [...posPt.pad.size], shape: posPt.pad.shape, rot: posPt.rot, layers: posPt.pad.layers, net: choice.net },
+      { name: '2', at: [r3(negPt.at[0] - posPt.at[0]), r3(negPt.at[1] - posPt.at[1])], size: [...negPt.pad.size], shape: negPt.pad.shape, rot: negPt.rot, layers: negPt.pad.layers, net: gndNet },
     ],
     pins: { '+': '1', '-': '2' },
     body: { shape: 'header', w: 2.5, h: 2.5, z: 3.0 },

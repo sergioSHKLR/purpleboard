@@ -108,8 +108,10 @@ function addBridgeSupply(
       rot: 0,
       side: posPt.side,
       pads: [
-        { name: '1', at: [0, 0], size: [1.0, 1.0], shape: 'rect', layers: 'FB', net: posNet },
-        { name: '2', at: [round3(negPt.pos[0] - posPt.pos[0]), round3(negPt.pos[1] - posPt.pos[1])], size: [1.0, 1.0], shape: 'circle', layers: 'FB', net: 'GND' },
+        // clip points smaller than the pins they sit on, on the pin's own side: a wider clip would
+        // reach neighbouring pins, and connectivity treats touching copper as joined
+        { name: '1', at: [0, 0], size: [0.2, 0.2], shape: 'circle', layers: posPt.side, net: posNet },
+        { name: '2', at: [round3(negPt.pos[0] - posPt.pos[0]), round3(negPt.pos[1] - posPt.pos[1])], size: [0.2, 0.2], shape: 'circle', layers: negPt.side, net: 'GND' },
       ],
       pins: { '+': '1', '-': '2' },
       body: { shape: 'header', w: 2.5, h: 2.5, z: 3.0 },

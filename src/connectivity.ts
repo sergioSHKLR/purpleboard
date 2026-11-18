@@ -120,7 +120,10 @@ export function buildConnectivity(board: Board): Conn {
       if (j <= i) continue;
       const B = items[j];
       if (!(A.layers & B.layers)) continue;
-      if (A.net && B.net && A.net !== B.net) continue;
+      // Touching copper is one conductor whatever its labels say: a +5V track drawn over a GND
+      // track is a short, and the bench must show it. Only pours keep to their own net, because
+      // an unfilled zone is stored as its outline and would swallow every track inside it.
+      if (A.net && B.net && A.net !== B.net && (A.kind === 'zone' || B.kind === 'zone')) continue;
       if (A.kind === 'pad' && B.kind === 'pad' && A.comp === B.comp) continue; // same footprint, handled below
       let hit: boolean;
       if (A.kind === 'zone' && B.kind === 'zone') hit = false;

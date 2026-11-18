@@ -106,12 +106,13 @@ function tutPolarity() {
 
 function tutResistor() {
   const k = new Builder(58, 36);
-  const j1 = k.header('J1', 5, [8, 18], 0, 'USB 5V');
+  // J1 turned 180° so pin 1 (+) faces R1 and pin 2 faces the GND return: the two routes never share copper
+  const j1 = k.header('J1', 5, [8, 18], 180, 'USB 5V');
   const r1 = k.resistor('R1', 150, [29, 26]);
   const d1 = k.led('D1', 'blue', [46, 18]);
-  k.track('F', [k.pad(j1, '1'), [14, 16.73], [14, 26], k.pad(r1, '1')], 0.8, '+5V');
+  k.track('F', [k.pad(j1, '1'), [14, 19.27], [14, 26], k.pad(r1, '1')], 0.8, '+5V');
   k.track('F', [k.pad(r1, '2'), [47.27, 26], k.pad(d1, '2')], 0.8, 'LED_A');
-  k.track('F', [k.pad(d1, '1'), [44.73, 8], [14, 8], [14, 19.27], k.pad(j1, '2')], 0.8, 'GND');
+  k.track('F', [k.pad(d1, '1'), [44.73, 8], [14, 8], [14, 16.73], k.pad(j1, '2')], 0.8, 'GND');
   k.text([29, 2.5], 'TUTORIAL 5  OHMS LAW', 1.4);
   return finalize('builtin-tut-resistor', {
     title: 'Resistor & Ohm\'s Law',
@@ -130,15 +131,15 @@ function tutResistor() {
 
 function tutDivider() {
   const k = new Builder(58, 36);
-  const j1 = k.header('J1', 5, [8, 18], 0, '5V IN');
+  const j1 = k.header('J1', 5, [8, 18], 180, '5V IN');
   const r1 = k.resistor('R1', 10000, [28, 26]);
   const r2 = k.resistor('R2', 10000, [28, 12]);
   const tp1 = k.testpoint('TP1', [46, 19], 'VOUT');
   const tp2 = k.testpoint('TP2', [46, 6], 'GND');
-  k.track('F', [k.pad(j1, '1'), [14, 16.73], [14, 26], k.pad(r1, '1')], 0.8, '+5V');
+  k.track('F', [k.pad(j1, '1'), [14, 19.27], [14, 26], k.pad(r1, '1')], 0.8, '+5V');
   k.track('F', [k.pad(r1, '2'), [38, 26], [38, 19], k.pad(tp1, '1')], 0.8, 'VOUT');
   k.track('F', [[38, 19], [38, 12], k.pad(r2, '2')], 0.8, 'VOUT');
-  k.track('F', [k.pad(j1, '2'), [14, 19.27], [14, 6], k.pad(tp2, '1')], 0.8, 'GND');
+  k.track('F', [k.pad(j1, '2'), [14, 16.73], [14, 6], k.pad(tp2, '1')], 0.8, 'GND');
   k.track('F', [[22.92, 6], k.pad(r2, '1')], 0.8, 'GND');
   k.text([29, 32.5], 'TUTORIAL 6  2.5V DIVIDER', 1.4);
   return finalize('builtin-tut-divider', {

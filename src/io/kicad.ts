@@ -374,7 +374,9 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
       // KiCad pad offset is in footprint-local Y-down coords -> negate Y.
       // KiCad angles are counter-clockwise as seen on screen; flipping Y-down → Y-up keeps that
       // visual sense, so angles carry over unchanged (pad angle is absolute in KiCad 6+ files)
-      const padAbsRot = Array.isArray(pat) && typeof pat[3] === 'string' ? flt(pat, 3, frot) : frot;
+      // KiCad omits the angle when the pad's absolute orientation is 0, so a missing angle on a
+      // rotated footprint means the pad is turned back by -frot, not that it follows the footprint
+      const padAbsRot = Array.isArray(pat) && typeof pat[3] === 'string' ? flt(pat, 3, 0) : 0;
       pads.push({
         name: pName,
         at: [flt(pat, 1), -flt(pat, 2)],

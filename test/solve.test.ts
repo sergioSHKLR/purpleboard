@@ -10,6 +10,8 @@ import { packText, unpackText } from '../src/crypto';
 import { parseKicadPcb } from '../src/io/kicad';
 import { parseBrd } from '../src/io/brd';
 import { pickAt } from '../src/pick';
+import { shapeGap } from '../src/geom';
+import { Builder } from '../src/scenarios/builder';
 import { TUTORIAL_SCENARIO_IDS, getTutorialSteps, type TutorialCheckState } from '../src/ui/tutorial';
 
 function assert(cond: unknown, msg = 'Assertion failed'): asserts cond {
@@ -66,6 +68,22 @@ async function run() {
   for (const id of TUTORIAL_SCENARIO_IDS) {
     const steps = getTutorialSteps(id);
     assert(steps && steps.length >= 4, `Expected interactive tutorial steps for ${id}`);
+  }
+
+  // 0. No built-in board ships with copper of two different nets touching. Connectivity trusts net
+  // labels over geometry (it never merges differently-labelled copper), so such an overlap would be a
+  // visible dead short that the solver silently ignores (Tutorial 5 once ran +5V and GND down one line).
+  for (const sc of scenarios) {
+    const { items } = buildConnectivity(sc.board);
+    for (let i = 0; i < items.length; i++) {
+      for (let j = i + 1; j < items.length; j++) {
+        const A = items[i], B = items[j];
+        if (A.kind === 'zone' || B.kind === 'zone' || !(A.layers & B.layers)) continue;
+        if (!A.net || !B.net || A.net === B.net) continue;
+        if (A.kind === 'pad' && B.kind === 'pad' && A.comp === B.comp) continue;
+        assert(shapeGap(A.shape, B.shape) > 1e-6, `[${sc.id}] ${A.kind} on ${A.net} touches ${B.kind} on ${B.net}`);
+      }
+    }
   }
 
   // 1. First Light (Tutorial 1)
@@ -287,6 +305,23 @@ async function run() {
     const j1 = sc.board.components.find((c) => c.ref === 'J1')!;
     const iBat = simOcp.comps.get(j1.id)?.i ?? 0;
     assert(iBat <= 0.11, `OCP should clamp supply current near 0.1 A, got ${iBat}`);
+  }
+
+  // 4e. Copper drawn across two nets is a short, whatever the net labels say: the original
+  // Tutorial 5 layout ran +5V and GND down the same line at x = 14, and its LED must stay dark.
+  {
+    const k = new Builder(58, 36);
+    const j1 = k.header('J1', 5, [8, 18], 0, 'USB 5V');
+    const r1 = k.resistor('R1', 150, [29, 26]);
+    const d1 = k.led('D1', 'blue', [46, 18]);
+    k.track('F', [k.pad(j1, '1'), [14, 16.73], [14, 26], k.pad(r1, '1')], 0.8, '+5V');
+    k.track('F', [k.pad(r1, '2'), [47.27, 26], k.pad(d1, '2')], 0.8, 'LED_A');
+    k.track('F', [k.pad(d1, '1'), [44.73, 8], [14, 8], [14, 19.27], k.pad(j1, '2')], 0.8, 'GND');
+    const conn = buildConnectivity(k.b);
+    assertEq(pinNet(conn, j1, '1'), pinNet(conn, j1, '2'), 'overlapping +5V and GND tracks are one conductor');
+    const sim = simulate(k.b, conn, { currentLimit: 0.1 });
+    assertEq(sim.ccLimited, true, 'the shorted supply goes into current limit');
+    assert((sim.comps.get(d1.id)?.i ?? 0) < 1e-4, 'D1 stays dark across a shorted supply');
   }
 
   // 5. Serialization + URL Pack/Unpack round-trip
