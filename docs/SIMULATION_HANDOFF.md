@@ -1,4 +1,4 @@
-# DEADBOARD — handoff (updated 2026-11-18, after boardview import, translations and bug snapshots)
+# DEADBOARD — handoff (updated 2026-11-18, after boardview import, translations, bug snapshots and website analytics)
 
 Goal: make DEADBOARD (formerly PCB//FIX) a realistic board-repair trainer, as close to a real bench as possible,
 **universal** (any board, not just the MacBook), with honest provenance for every value.
@@ -6,6 +6,22 @@ No reference hardware is available, so realism is validated against *design inte
 (schematic/BOM values, rail names, datasheets) and physics checks — not measurements.
 
 ## Status (start here)
+
+- **2026-11-18 evening: website analytics (live, `5afa430`).** Umami Cloud (user's pick over
+  Plausible / GoatCounter / GA4): no cookies, no consent banner. `src/analytics.ts`, loaded from
+  `src/main.ts` (bench) and `src/home/main.ts` (homepage, modding, privacy). Enabled only when
+  **both** the build has `VITE_UMAMI_ID` (repo variable **`UMAMI_ID`** = `f87071cc-…`, passed in
+  `pages.yml`) **and** the host is `tholtman1-del.github.io`, so dev, forks, iOS and desktop never
+  send anything. App Store answer stays "Data Not Collected"; never enable it in the apps.
+  Honours Do Not Track. **Time spent:** Umami's visit duration is near 0 on a one-page app, so we send
+  `active N min` events at 1, 2, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240 min of *active*
+  time (tab visible + mouse/key/touch within 2 min), once each per page load; read the Events tab
+  as a funnel. Test: `test/analytics.test.ts`. Privacy policy (`docs/PRIVACY.md` → privacy.html)
+  now has a "Website visit statistics" section; anything new we track must be added there.
+  Dashboard: cloud.umami.is (user's account, free Hobby plan, 100k events/month).
+  **Not done:** `launch/reddit-posts.md` and the old draft `ios/store/PRIVACY.md` still say "no
+  analytics / no tracking": fix before posting. Possible follow-ups (user hasn't asked): events
+  for which board was opened / tutorial finished / board solved, to see where people drop off.
 
 - **2026-11-18 session (all live; commits `2b5e0c0` → `4c8fbb4`, handoff `dfe5805`+).** Driven by user reports and
   GitHub issues #2 (Biga73, boardviews) and #3 (SandyTAP, Russian):
