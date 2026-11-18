@@ -34,6 +34,7 @@ class Reader {
   vec(): [number, number] { return [this.s32() * UNIT, this.s32() * UNIT]; }
   str() { const n = this.u8(); this.need(n); const s = new TextDecoder('latin1').decode(this.u.subarray(this.p, this.p + n)); this.p += n; return s; }
   skip(n: number) { this.need(n); this.p += n; }
+  get bytes() { return this.u; }
   /** A count that must fit in what is left of the file at `minSize` bytes per entry. */
   count(minSize: number, what: string) {
     const n = this.u32();
@@ -135,6 +136,13 @@ function readLogicLayer(r: Reader, head: Omit<Layer, 'kind' | 'pads' | 'slots'>)
       r.expect(r.u32() === 0, 'second track table end');
     }
   }
+  readLayerTail(r);
+  return layer;
+}
+
+/** Named items, test points and the test sequence at the end of a logic layer (not needed for the
+ * board, and laid out differently in some versions: on a mismatch the caller resyncs). */
+function readLayerTail(r: Reader) {
   // unidentified named items
   const nItems = r.count(40, 'item');
   r.u32();
@@ -151,14 +159,14 @@ function readLogicLayer(r: Reader, head: Omit<Layer, 'kind' | 'pads' | 'slots'>)
   const nSeq = r.count(9, 'test step'), seqParam = r.u32();
   r.skip(nSeq * 9);
   if (seqParam === 1) r.expect(r.u32() === 0 && r.u32() === 0 && r.u32() === 0, 'test sequence end');
-  return layer;
 }
 
 function readThroughLayer(r: Reader, head: Omit<Layer, 'kind' | 'pads' | 'slots'>): Layer {
   const layer: Layer = { ...head, kind: 'through', pads: [], slots: [] };
   r.expect(r.u32() === 0 && r.u32() === 0, 'drill layer header');
   const tools = r.u32();
-  r.expect(tools >= 1, 'drill tool count');
+  // an unused drill layer (no name, no tools) ends right here
+  if (tools === 0) return layer;
   r.skip((tools - 1) * 29);
   r.expect(r.u8() === 0, 'drill tool table end');
   const n = r.count(17, 'drill');
@@ -167,11 +175,24 @@ function readThroughLayer(r: Reader, head: Omit<Layer, 'kind' | 'pads' | 'slots'
   for (let i = 0; i < n; i++) {
     const code = r.u8();
     if (code === 0x08) r.skip(16);
-    else if (code === 0x0a || code === 0x0b) {
+    else if (code === 0x0a) {
+      // straight slot (on the route layer: a stretch of board edge)
       r.s32(); r.u32();
       const [x1, y1] = r.vec(), [x2, y2] = r.vec();
       r.u32();
       layer.slots.push([x1, y1, x2, y2]);
+    } else if (code === 0x0b) {
+      // arc slot: centre, radius, start and sweep angle in degrees (rounded board corners)
+      r.s32(); r.u32();
+      const [cx, cy] = r.vec();
+      const rad = r.s32() * UNIT, start = r.f32(), sweep = r.f32();
+      if (!(rad > 0 && rad < 1e6 && Number.isFinite(start) && Number.isFinite(sweep))) r.fail(`arc slot (radius ${rad}, angles ${start}, ${sweep})`);
+      const steps = Math.max(2, Math.ceil(Math.abs(sweep) / 10));
+      const at = (k: number): [number, number] => {
+        const a = ((start + (sweep * k) / steps) * Math.PI) / 180;
+        return [cx + rad * Math.cos(a), cy + rad * Math.sin(a)];
+      };
+      for (let k = 0; k < steps; k++) { const [x1, y1] = at(k), [x2, y2] = at(k + 1); layer.slots.push([x1, y1, x2, y2]); }
     } else r.fail(`drill code ${code}`);
   }
   return layer;
@@ -269,16 +290,66 @@ function readPart(r: Reader): TvwPart {
   return { ref, value, layer, pins };
 }
 
+// ---- resync: finding the next object after one this reader could not follow ----
+
+const u32At = (u: Uint8Array, p: number) => (u[p] | (u[p + 1] << 8) | (u[p + 2] << 16) | (u[p + 3] << 24)) >>> 0;
+/** End of a length-prefixed printable string at p, or -1. */
+function strEnd(u: Uint8Array, p: number): number {
+  const n = u[p], e = p + 1 + n;
+  if (e > u.length) return -1;
+  for (let i = p + 1; i < e; i++) if (u[i] < 32 || u[i] === 127) return -1;
+  return e;
+}
+/** The net list: its count twice, that many names, then the probe table (0, 0, 4). (Clean files put
+ * 16 zero bytes before it; after ICT fixture objects they are missing.) */
+function isNetList(u: Uint8Array, p: number): boolean {
+  if (p + 8 > u.length) return false;
+  const n = u32At(u, p);
+  if (!n || n > 1e6 || u32At(u, p + 4) !== n) return false;
+  let q = p + 8;
+  for (let i = 0; i < n; i++) { q = strEnd(u, q); if (q < 0) return false; }
+  return q + 12 <= u.length && u32At(u, q) === 0 && u32At(u, q + 4) === 0 && u32At(u, q + 8) === 4;
+}
+/** A logic / drill layer header (kind, 2, 1, three names, type ≤ 12) that also parses in full. */
+function isLayerAt(u: Uint8Array, p: number): boolean {
+  const kind = u32At(u, p);
+  if ((kind !== 1 && kind !== 3) || u32At(u, p + 4) !== 2 || u32At(u, p + 8) !== 1) return false;
+  let q = p + 12;
+  for (let i = 0; i < 3; i++) { q = strEnd(u, q); if (q < 0) return false; }
+  if (q + 4 > u.length || u32At(u, q) > 12) return false;
+  try { const t = new Reader(u); t.p = p; readLayer(t); return true; } catch { return false; }
+}
+/** Position of the next readable layer or of the net list after `from` (the net list may be at it). */
+function resync(u: Uint8Array, from: number): number {
+  for (let p = from; p + 24 <= u.length; p++) {
+    if (isNetList(u, p)) return p;
+    if (p > from && (u[p] === 1 || u[p] === 3) && isLayerAt(u, p)) return p;
+  }
+  return -1;
+}
+
 /** The parts, pins, nets and edge of a `.tvw` file, in mils with both sides in one frame. */
 export function readTvw(data: Uint8Array): RawBoard {
   const r = new Reader(data);
-  // header: three obfuscated strings, constants and the layer count
-  r.str(); r.u32(); r.str(); r.u8(); r.str(); r.skip(3); r.skip(12);
+  // header: type, 1, customer, an optional code, date, two zero bytes, another optional code (the
+  // codes are empty in many files: eagleview read them as constant zero bytes), three sizes
+  r.str(); r.u32(); r.str(); r.str(); r.str(); r.skip(2); r.str(); r.skip(12);
   const nLayers = r.u32();
   r.expect(nLayers > 0 && nLayers <= 256, `layer count ${nLayers}`);
   const layers: Layer[] = [];
-  for (let i = 0; i < nLayers; i++) layers.push(readLayer(r));
-  for (let i = 0; i < 4; i++) r.expect(r.u32() === 0, 'net list header');
+  // Layers as declared. Some versions add objects this reader does not know (ICT fixture layers)
+  // or lay out a layer's test-point tables differently; the board does not need either, so on a
+  // mismatch the reader skips ahead to the next layer it can read, or to the net list.
+  let failure: TvwError | null = null;
+  for (let i = 0; i < nLayers || failure; i++) {
+    const at = r.p;
+    if (failure && isNetList(r.bytes, at)) break;
+    try { layers.push(readLayer(r)); continue; } catch (e) { if (!(e instanceof TvwError)) throw e; failure ??= e; }
+    const next = resync(r.bytes, at);
+    if (next < 0) throw failure;
+    r.p = next;
+  }
+  if (!failure) for (let i = 0; i < 4; i++) r.expect(r.u32() === 0, 'net list header');
 
   const nNets = r.count(1, 'net');
   r.expect(nNets > 0 && r.u32() === nNets, 'net list header');

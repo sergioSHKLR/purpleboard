@@ -68,14 +68,22 @@ function logicLayer(w: W, name: string, type: number, aps: Ap[], pads: P[], opts
   w.u32(0).u32(1).u32(0).u32(0).u32(0); // empty test sequence, param 1
 }
 
-function routeLayer(w: W, slots: [number, number, number, number][]) {
+/** Edge: straight slots (0x0A) and arcs (0x0B: centre, radius, start and sweep in degrees). */
+function routeLayer(w: W, slots: [number, number, number, number][], arcs: [number, number, number, number, number][] = []) {
   layerHead(w, 1, 'Route', 12);
   w.u32(0).u32(0).u32(2);
   w.bool(true).bool(false).u32(800).zeros(20).zeros(3); // one tool
   w.u8(0);
-  w.u32(slots.length + 1).u32(0).zeros(16);
+  w.u32(slots.length + arcs.length + 1).u32(0).zeros(16);
   w.u8(0x08).s32(-1).u32(1).vec(1000, 500); // a drill hole
   for (const [x1, y1, x2, y2] of slots) w.u8(0x0a).s32(-1).u32(1).vec(x1, y1).vec(x2, y2).u32(0);
+  for (const [cx, cy, r, start, sweep] of arcs) w.u8(0x0b).s32(-1).u32(1).vec(cx, cy).s32(Math.round(r * 100)).f32(start).f32(sweep);
+}
+
+/** An unused drill layer: no name, no tools, nothing after the tool count. */
+function emptyDrillLayer(w: W) {
+  layerHead(w, 1, '', 0);
+  w.u32(0).u32(0).u32(0);
 }
 
 function fixtureData(w: W) {
@@ -86,10 +94,15 @@ function fixtureData(w: W) {
 
 /** 2000 × 1000 mil board, y up. Top: R1, D1 (pads 100 mil apart, aperture 150 wide: overlapping),
  * J1 through-hole. Bottom: C1, J1's other side. */
-function tvw(cut = 0) {
+/**
+ * `newer`: the variants seen in real laptop boards (issue #2): codes in the header, a rounded edge
+ * (arc slot), an empty drill layer, test-point data this reader cannot follow after the top layer,
+ * an ICT fixture object (kind 4) and a net list without the zero bytes in front.
+ */
+function tvw(cut = 0, newer = false) {
   const w = new W();
-  w.str('TEBO').u32(1).str('cust').u8(0).str('date').zeros(3).u32(0).u32(0).u32(0).u32(3);
-  routeLayer(w, [[0, 0, 2000, 0], [2000, 0, 2000, 1000], [2000, 1000, 0, 1000], [0, 1000, 0, 0]]);
+  w.str('TEBO').u32(1).str('cust').str(newer ? 'YZM' : '').str('date').zeros(2).str(newer ? 'YZMded' : '').u32(0).u32(0).u32(0).u32(newer ? 5 : 3);
+  routeLayer(w, [[0, 0, 2000, 0], [2000, 0, 2000, 1000], [2000, 1000, 0, 1000], [0, 1000, 0, 0]], newer ? [[1000, 1000, 100, 0, 180]] : []);
   const nets = { GND: 0, P5: 1, LED: 2 };
   logicLayer(w, 'Top', 1,
     [{ kind: 'rect', w: 60, h: 40, turn: 90 }, { kind: 'rect', w: 150, h: 40, turn: 0 }, { kind: 'round', d: 60 }],
@@ -98,13 +111,17 @@ function tvw(cut = 0) {
       { net: nets.LED, ap: 1, x: 800, y: 700 }, { net: nets.GND, ap: 1, x: 900, y: 700 },
       { net: nets.P5, ap: 2, x: 200, y: 600, hole: true }, { net: nets.GND, ap: 2, x: 200, y: 500, hole: true },
     ], { testPoint: true, item: true });
+  if (newer) w.u8(0x26).u8(4).zeros(2).u8(0x26).zeros(3).u8(1); // test data the reader cannot follow
   logicLayer(w, 'Bottom', 2,
     [{ kind: 'round', d: 40 }, { kind: 'round', d: 60 }],
     [
       { net: nets.P5, ap: 0, x: 500, y: 300 }, { net: nets.GND, ap: 0, x: 600, y: 300 },
       { net: nets.P5, ap: 1, x: 200, y: 600, hole: true }, { net: nets.GND, ap: 1, x: 200, y: 500, hole: true },
     ], { order2: true });
-  w.zeros(16);
+  if (newer) {
+    emptyDrillLayer(w);
+    w.u32(4).u32(1).u32(0).u32(1).str('TopTest').zeros(9).str('Custom_11').u32(0x7d0).u32(0x898); // fixture object
+  } else w.zeros(16);
   w.u32(3).u32(3).str('GND').str('+5V').str('LED_A');
   // probes: one pack with one probe that has no body
   w.u32(0).u32(0).u32(4).str('probes').u32(11811).u32(1).u32(1);
@@ -137,48 +154,57 @@ function tvw(cut = 0) {
 }
 
 function run() {
-  const sc = importScenarioOrPcb('LAPTOP.TVW', tvw());
-  const b = sc.board;
-  assert(sc.meta.author === 'Boardview (TVW)' && sc.meta.title === 'LAPTOP', `credited as TVW: ${sc.meta.author} / ${sc.meta.title}`);
-  for (const ref of ['R1', 'D1', 'J1', 'C1']) assert(get(b, ref), `${ref} imported`);
-  assert(!get(b, 'MH1'), 'part on a non-copper layer skipped');
+  for (const newer of [false, true]) {
+    const sc = importScenarioOrPcb('LAPTOP.TVW', tvw(0, newer));
+    const b = sc.board;
+    assert(sc.meta.author === 'Boardview (TVW)' && sc.meta.title === 'LAPTOP', `credited as TVW: ${sc.meta.author} / ${sc.meta.title}`);
+    for (const ref of ['R1', 'D1', 'J1', 'C1']) assert(get(b, ref), `${ref} imported`);
+    assert(!get(b, 'MH1'), 'part on a non-copper layer skipped');
 
-  // sides and layers
-  assert(get(b, 'R1').side === 'F' && get(b, 'C1').side === 'B', 'R1 on top, C1 on the bottom');
-  assert(get(b, 'C1').pads.every((p) => p.layers === 'B') && get(b, 'R1').pads.every((p) => p.layers === 'F'), 'SMD pads on their own side');
-  assert(get(b, 'J1').pads.every((p) => p.layers === 'FB'), 'plated holes reach both sides');
+    // sides and layers
+    assert(get(b, 'R1').side === 'F' && get(b, 'C1').side === 'B', 'R1 on top, C1 on the bottom');
+    assert(get(b, 'C1').pads.every((p) => p.layers === 'B') && get(b, 'R1').pads.every((p) => p.layers === 'F'), 'SMD pads on their own side');
+    assert(get(b, 'J1').pads.every((p) => p.layers === 'FB'), 'plated holes reach both sides');
 
-  // y is up in the file: R1 (y 700) sits above C1 (y 300), so 400 mil less in board y
-  near(at(b, 'C1', '1')[1] - at(b, 'R1', '1')[1], 400 * MIL, 'y flipped, both sides in one frame');
-  near(at(b, 'C1', '1')[0], at(b, 'R1', '1')[0], 'C1 lines up with R1 in x');
+    // y is up in the file: R1 (y 700) sits above C1 (y 300), so 400 mil less in board y
+    near(at(b, 'C1', '1')[1] - at(b, 'R1', '1')[1], 400 * MIL, 'y flipped, both sides in one frame');
+    near(at(b, 'C1', '1')[0], at(b, 'R1', '1')[0], 'C1 lines up with R1 in x');
 
-  // the edge from the route layer
-  const xs = b.silk.flatMap((s) => [s.a[0], s.b[0]]);
-  near(Math.max(...xs) - Math.min(...xs), 2000 * MIL, 'board edge from the route slots');
+    // the edge from the route layer
+    const xs = b.silk.flatMap((s) => [s.a[0], s.b[0]]);
+    near(Math.max(...xs) - Math.min(...xs), 2000 * MIL, 'board edge from the route slots');
 
-  // real pads: R1's 60 × 40 mil rectangle turned 90°, J1's 60 mil round
-  const r1 = pad(b, 'R1', '1');
-  assert(r1.shape === 'rect' && Math.abs(r1.size[0] - 60 * MIL) < 2e-3 && Math.abs(r1.size[1] - 40 * MIL) < 2e-3, `R1 pad size ${r1.size}`);
-  assert(Math.abs(Math.abs(r1.rot ?? 0) - 90) < 1e-6, `R1 pad turned 90°: ${r1.rot}`);
-  assert(pad(b, 'J1', '1').shape === 'circle', 'J1 round pads');
+    // real pads: R1's 60 × 40 mil rectangle turned 90°, J1's 60 mil round
+    const r1 = pad(b, 'R1', '1');
+    assert(r1.shape === 'rect' && Math.abs(r1.size[0] - 60 * MIL) < 2e-3 && Math.abs(r1.size[1] - 40 * MIL) < 2e-3, `R1 pad size ${r1.size}`);
+    assert(Math.abs(Math.abs(r1.rot ?? 0) - 90) < 1e-6, `R1 pad turned 90°: ${r1.rot}`);
+    assert(pad(b, 'J1', '1').shape === 'circle', 'J1 round pads');
 
-  // pin names and values
-  assert(pad(b, 'D1', 'A') && pad(b, 'D1', 'K') && get(b, 'D1').pins.A === 'A' && get(b, 'D1').pins.K === 'K', 'diode pins keep their names');
-  assert(get(b, 'R1').value === 4700 && !get(b, 'R1').valueGuessed, `R1 value read from the file: ${get(b, 'R1').value}`);
-  assert(Math.abs(get(b, 'C1').value - 1e-7) < 1e-12 && !get(b, 'C1').valueGuessed, `C1 value: ${get(b, 'C1').value}`);
-  assert(get(b, 'D1').valueGuessed, 'no value in the file: still a guess');
+    // pin names and values
+    assert(pad(b, 'D1', 'A') && pad(b, 'D1', 'K') && get(b, 'D1').pins.A === 'A' && get(b, 'D1').pins.K === 'K', 'diode pins keep their names');
+    assert(get(b, 'R1').value === 4700 && !get(b, 'R1').valueGuessed, `R1 value read from the file: ${get(b, 'R1').value}`);
+    assert(Math.abs(get(b, 'C1').value - 1e-7) < 1e-12 && !get(b, 'C1').valueGuessed, `C1 value: ${get(b, 'C1').value}`);
+    assert(get(b, 'D1').valueGuessed, 'no value in the file: still a guess');
 
-  // D1's pads (150 mil wide, 100 mil apart) would touch: trimmed apart, nets stay separate
-  const d1 = get(b, 'D1');
-  assert(shapeGap(padShape(d1, d1.pads[0]), padShape(d1, d1.pads[1])) > 0, 'overlapping pads of two nets trimmed');
-  const conn = buildConnectivity(b);
-  assert(padNet(conn, b, 'D1', 'A') !== padNet(conn, b, 'D1', 'K'), 'D1 not shorted by its own pads');
-  const p5 = padNet(conn, b, 'R1', '1');
-  assert(p5 === padNet(conn, b, 'C1', '1') && p5 === padNet(conn, b, 'J1', '1'), '+5V joins R1, C1 and J1');
-  assert(padNet(conn, b, 'D1', 'K') === padNet(conn, b, 'C1', '2') && padNet(conn, b, 'C1', '2') !== p5, 'GND apart from +5V');
+    // D1's pads (150 mil wide, 100 mil apart) would touch: trimmed apart, nets stay separate
+    const d1 = get(b, 'D1');
+    assert(shapeGap(padShape(d1, d1.pads[0]), padShape(d1, d1.pads[1])) > 0, 'overlapping pads of two nets trimmed');
+    const conn = buildConnectivity(b);
+    assert(padNet(conn, b, 'D1', 'A') !== padNet(conn, b, 'D1', 'K'), 'D1 not shorted by its own pads');
+    const p5 = padNet(conn, b, 'R1', '1');
+    assert(p5 === padNet(conn, b, 'C1', '1') && p5 === padNet(conn, b, 'J1', '1'), '+5V joins R1, C1 and J1');
+    assert(padNet(conn, b, 'D1', 'K') === padNet(conn, b, 'C1', '2') && padNet(conn, b, 'C1', '2') !== p5, 'GND apart from +5V');
 
-  // a bench supply on +5V
-  assert(b.components.some((c) => c.kind === 'battery' && c.pads.some((p) => p.net === '+5V')), 'bench supply placed');
+    // a bench supply on +5V
+    assert(b.components.some((c) => c.kind === 'battery' && c.pads.some((p) => p.net === '+5V')), 'bench supply placed');
+
+    if (newer) {
+      // the rounded edge: an arc of 100 mil radius on the top edge (y up in the file → smaller board y)
+      const ys = b.silk.flatMap((s) => [s.a[1], s.b[1]]);
+      near(Math.max(...ys) - Math.min(...ys), 1100 * MIL, 'arc slot bulges the edge by its radius');
+      assert(b.silk.length > 8, 'the arc is drawn as several segments');
+    }
+  }
 
   // cut-off file: a clear error
   let msg = '';
@@ -189,7 +215,7 @@ function run() {
   try { importScenarioOrPcb('notes.tvw', new TextEncoder().encode('hello, this is not a boardview at all, just text')); } catch (e) { msg = String(e); }
   assert(/Unsupported \.tvw file/.test(msg), `junk rejected: ${msg || 'imported'}`);
 
-  console.log('TVW TESTS PASSED (route edge, sides + y flip, real pad shapes, plated holes, pin names, values, trimmed overlaps, nets, errors)');
+  console.log('TVW TESTS PASSED (route edge, arcs, header codes, empty drill layers, resync past unknown objects, sides + y flip, real pad shapes, plated holes, pin names, values, trimmed overlaps, nets, errors)');
 }
 
 run();
