@@ -31,6 +31,9 @@ jobs:
           # where the in-app feedback form sends mail (address or FormSubmit alias); set it under
           # Settings → Secrets and variables → Actions → Variables. Unset: GitHub issues only.
           VITE_FEEDBACK_TO: ${{ vars.FEEDBACK_TO }}
+          # Umami Cloud website id for visitor + active-time analytics (website only, see
+          # src/analytics.ts). Unset: no analytics.
+          VITE_UMAMI_ID: ${{ vars.UMAMI_ID }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

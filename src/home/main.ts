@@ -4,6 +4,9 @@ import '@fontsource-variable/jetbrains-mono';
 import './home.css';
 import { markSvg } from '../ui/logo';
 import { icon } from '../ui/icons';
+import { initAnalytics } from '../analytics';
+
+initAnalytics();
 
 // Share links made before the homepage existed pointed at "/#s=…": hand them to the app.
 if (location.hash.startsWith('#s=')) location.replace(`./app.html${location.hash}`);

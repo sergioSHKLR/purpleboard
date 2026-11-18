@@ -1,8 +1,11 @@
 import '@fontsource-variable/inter';
 import '@fontsource-variable/jetbrains-mono';
 import './ui/styles.css';
+import { initAnalytics } from './analytics';
 import { initI18n } from './i18n';
 import { PcbApp } from './ui/app';
+
+initAnalytics();
 
 const mount = document.getElementById('app');
 if (mount) {
