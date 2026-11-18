@@ -7,7 +7,7 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
-- **2026-11-18 session (all live; commits `2b5e0c0` → `4c8fbb4`).** Driven by user reports and
+- **2026-11-18 session (all live; commits `2b5e0c0` → `4c8fbb4`, handoff `dfe5805`+).** Driven by user reports and
   GitHub issues #2 (Biga73, boardviews) and #3 (SandyTAP, Russian):
   - **Shorts are physical** (`2b5e0c0`): touching copper is one conductor whatever its net labels
     (`src/connectivity.ts`; only zones keep to their own net). Tutorial 5's original layout had J1's
@@ -22,8 +22,13 @@ No reference hardware is available, so realism is validated against *design inte
     (kind 4) and odd test-point tables are skipped by **resync** to the next layer that parses
     in full or to the net list (count twice + names + `0,0,4`). TVW gives real pad shapes, pin
     names and printed R/C values; `clearPads` trims misread pads so they never short. Shared
-    builder `buildBoardview`. Biga73 confirmed BRD2 and 9 TVW boards; **#2 open** until they
-    re-test the 7 fixed boards. Their files are private (scratchpad only, never commit).
+    builder `buildBoardview`. **#2 closed**: Biga73 re-tested all 7 fixed boards (counts and
+    outlines match the real machines) and found no regressions on 9 others. **Pending: NM-D562**
+    (not sent to us): its status-bar net count is 1 below the file's (3,441 vs 3,442), which
+    means two named nets are joined, most likely two stacked pads of different nets that
+    `clearPads` cannot separate (a fake short). Asked for the file; when it arrives, find the pair
+    and make the importer handle coincident pads. Their files are private (scratchpad only,
+    never commit).
   - **Diode/LED polarity marks** follow the K pin (`cathodeDir` in `src/render/webgpu.ts`).
   - **Bug-report snapshots** (`src/snapshot.ts`, `scripts/repro.ts`): see memory /
     `project-bug-snapshots`. Reports from the WebGPU error screen have no snapshot; that screen
