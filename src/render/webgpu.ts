@@ -216,6 +216,15 @@ interface Label { at: V2; text: string; size: number; side: Side; rot: number; z
 /** Stroke-font width of `text` at `size` (matches textStrokes: 0.62 glyph + 0.22 gap). */
 const textWidth = (text: string, size: number) => (text.length * 0.84 - 0.22) * size;
 
+/** Unit vector in the part's own frame from its anode pad to its cathode pad (the footprint's
+ * polarity, not the fitted part's). Kit footprints put K on −X, which is also the fallback. */
+function cathodeDir(c: Component): V2 {
+  const k = c.pads.find((p) => p.name === c.pins.K), a = c.pads.find((p) => p.name === c.pins.A);
+  if (!k || !a) return [-1, 0];
+  const dx = k.at[0] - a.at[0], dy = k.at[1] - a.at[1], L = Math.hypot(dx, dy);
+  return L > 1e-6 ? [dx / L, dy / L] : [-1, 0];
+}
+
 /**
  * Greedy label placement: highest priority first, a label is kept only if its box (plus a
  * small margin) does not overlap one already kept. Uniform grid keeps it near-linear.
@@ -1142,12 +1151,14 @@ export class WebGPURenderer {
 
         // Polarity mark on silkscreen (fixed to footprint, does NOT rotate when reversed!)
         if ((c.kind === 'led' || c.kind === 'diode')) {
-          const kPos = localToWorld(-c.body.w * 0.5 - 0.8, 0);
-          pushSilkText(kPos, 'K', 0.95, dSide, 0);
-          const aPos = localToWorld(c.body.w * 0.5 + 0.8, 0);
-          pushSilkText(aPos, '+', 0.95, dSide, 0);
-          // Cathode bar on silkscreen
-          const kb0 = localToWorld(-hw - 0.25, -hh * 0.7), kb1 = localToWorld(-hw - 0.25, hh * 0.7);
+          // on the footprint's cathode side, wherever its K pad is
+          const [dx, dy] = cathodeDir(c);
+          const ext = Math.abs(dx) * c.body.w * 0.5 + Math.abs(dy) * c.body.h * 0.5 + 0.8;
+          pushSilkText(localToWorld(dx * ext, dy * ext), 'K', 0.95, dSide, 0);
+          pushSilkText(localToWorld(-dx * ext, -dy * ext), '+', 0.95, dSide, 0);
+          // Cathode bar on silkscreen, across the cathode end
+          const e = Math.abs(dx) * hw + Math.abs(dy) * hh + 0.25, f = (Math.abs(dy) * hw + Math.abs(dx) * hh) * 0.7;
+          const kb0 = localToWorld(dx * e - dy * f, dy * e + dx * f), kb1 = localToWorld(dx * e + dy * f, dy * e - dx * f);
           pushSilkSeg(kb0, kb1, 0.22, dSide);
         } else if (c.kind === 'battery') {
           const p1 = c.pads.find((p) => p.name === c.pins['+']);
@@ -1372,9 +1383,10 @@ export class WebGPURenderer {
       }
 
       if (!burnt && !thermal && isDiode) {
-        // Silver cathode band near -X (pad 1 = K)
-        const k0 = toW(-c.body.w * 0.36, 0, cz);
-        const k1 = toW(-c.body.w * 0.20, 0, cz);
+        // Silver cathode band at the cathode end (the body turns with the part when it is reversed)
+        const kx = cathodeDir(c)[0] > 0 ? 1 : -1;
+        const k0 = toW(kx * c.body.w * 0.36, 0, cz);
+        const k1 = toW(kx * c.body.w * 0.20, 0, cz);
         op.cyl.pushSeg3D(k0, k1, c.body.h * 0.92, c.body.h * 0.92, 0.88, 0.90, 0.94, 1, 0.05, 0.6, 0.25);
       } else if (!burnt && !thermal && c.kind === 'resistor') {
         const [d1, d2, mul] = resistorBands(c.value);
@@ -1411,17 +1423,18 @@ export class WebGPURenderer {
       // Cathode flat notch indicator on rim (local -X in LED footprint before 180 reversal)
       const pRim = toW(0, 0, 0.5);
       op.cyl.pushTRS(pRim[0], pRim[1], pRim[2], dia * 1.12, dia * 1.12, 1.0, effRot, col[0] * 0.75, col[1] * 0.75, col[2] * 0.75, 1, lit ? 0.5 * bright : thermEm, 0.1, 0.3, spec);
-      // Flat cathode side indicator box on -X (pad 1 = K)
-      const pFlat = toW(-dia * 0.48, 0, 0.52);
+      // Flat cathode side indicator box on the cathode side (kit footprints: −X)
+      const kx = cathodeDir(c)[0] > 0 ? 1 : -1;
+      const pFlat = toW(kx * dia * 0.48, 0, 0.52);
       op.box.pushTRS(pFlat[0], pFlat[1], pFlat[2], 0.6, dia * 0.72, 1.05, effRot, 0.85, 0.85, 0.85, 1, 0, 0.2, 0.4);
 
       if (burnt) {
         op.cyl.pushTRS(pBase[0], pBase[1], pBase[2], dia, dia, cylH, effRot, 0.12, 0.11, 0.11, 1, 0, 0.05, 0.9, spec);
         op.dome.pushTRS(pDome[0], pDome[1], pDome[2], dia, dia, sgn * dia, effRot, 0.12, 0.11, 0.11, 1, 0, 0.05, 0.9, spec);
       } else {
-        // Real internal LED lead frame: larger Cathode anvil flag (-X) and smaller Anode post (+X)
-        const pAnvil = toW(-dia * 0.16, 0, cylH * 0.52);
-        const pPost = toW(dia * 0.22, 0, cylH * 0.44);
+        // Real internal LED lead frame: larger Cathode anvil flag and smaller Anode post
+        const pAnvil = toW(kx * dia * 0.16, 0, cylH * 0.52);
+        const pPost = toW(-kx * dia * 0.22, 0, cylH * 0.44);
         op.box.pushTRS(pAnvil[0], pAnvil[1], pAnvil[2], dia * 0.32, dia * 0.18, cylH * 0.72, effRot, lit ? 1 : 0.75, lit ? 0.95 : 0.78, lit ? 0.85 : 0.82, 1, lit ? 1.8 * bright : 0, 0.9, 0.2);
         op.box.pushTRS(pPost[0], pPost[1], pPost[2], dia * 0.14, dia * 0.14, cylH * 0.62, effRot, 0.78, 0.80, 0.84, 1, lit ? 0.8 * bright : 0, 0.9, 0.2);
         // Translucent epoxy dome
@@ -1544,6 +1557,16 @@ export class WebGPURenderer {
           const t = toPadW(p.at[0], p.at[1], z * 0.5);
           const tc = thermMetal ?? [0.80, 0.81, 0.83];
           op.box.pushTRS(t[0], t[1], t[2], term, across, z, ang, tc[0], tc[1], tc[2], 1, thermal ? 0 : thermEm * 0.5, thermal ? 0.1 : 0.9, 0.25, spec);
+        }
+        if (c.kind === 'diode' && !burnt && !thermal) {
+          // cathode band at the cathode end of the body; a reversed part has it at the anode pad
+          const kPad = c.pads.find((p) => p.name === c.pins.K) ?? a;
+          const other = kPad === a ? b : a;
+          const end = c.state.reversed ? other : kPad;
+          const mx = (a.at[0] + b.at[0]) / 2, my = (a.at[1] + b.at[1]) / 2;
+          const k = (bodyLen * 0.38) / (L / 2);
+          const t = toPadW(mx + (end.at[0] - mx) * k, my + (end.at[1] - my) * k, z * 0.5);
+          op.box.pushTRS(t[0], t[1], t[2], bodyLen * 0.14, across * 0.98, z, ang, 0.86, 0.87, 0.90, 1, 0.05, 0.4, 0.35, spec);
         }
         return;
       }
