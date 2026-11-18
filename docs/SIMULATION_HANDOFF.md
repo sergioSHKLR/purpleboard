@@ -1,4 +1,4 @@
-# DEADBOARD — handoff (updated 2026-11-17, after the mobile / touch release)
+# DEADBOARD — handoff (updated 2026-11-18, after boardview import, translations and bug snapshots)
 
 Goal: make DEADBOARD (formerly PCB//FIX) a realistic board-repair trainer, as close to a real bench as possible,
 **universal** (any board, not just the MacBook), with honest provenance for every value.
@@ -6,6 +6,42 @@ No reference hardware is available, so realism is validated against *design inte
 (schematic/BOM values, rail names, datasheets) and physics checks — not measurements.
 
 ## Status (start here)
+
+- **2026-11-18 session (all live; commits `2b5e0c0` → `4c8fbb4`).** Driven by user reports and
+  GitHub issues #2 (Biga73, boardviews) and #3 (SandyTAP, Russian):
+  - **Shorts are physical** (`2b5e0c0`): touching copper is one conductor whatever its net labels
+    (`src/connectivity.ts`; only zones keep to their own net). Tutorial 5's original layout had J1's
+    pins shorted and still lit D1; built-ins now have a no-cross-net-touch test, and KiCad pad
+    rotation and oversized bench clips (`J_BENCH`, `J_PWR`) were fixed so real boards don't merge
+    nets. Known leftover: the PSU panel still says "CV / Board powered" during a dead short.
+  - **Boardviews** (`src/io/brd.ts`, `src/io/tvw.ts`): BRD2 `.brd` (sections, bottom flip y →
+    maxY − y, through-hole when no pin is on the part's side, nails); unknown `.brd` → explicit
+    error. **Tebo-ICT `.tvw`** ported from nitrocaster/eagleview (MIT, `NOTICE`,
+    `licenses/eagleview-MIT.txt`) and extended from 7 real Lenovo boards: edge slot `0x0B` is an
+    arc; two optional header text fields; empty drill layers (0 tools); ICT fixture objects
+    (kind 4) and odd test-point tables are skipped by **resync** to the next layer that parses
+    in full or to the net list (count twice + names + `0,0,4`). TVW gives real pad shapes, pin
+    names and printed R/C values; `clearPads` trims misread pads so they never short. Shared
+    builder `buildBoardview`. Biga73 confirmed BRD2 and 9 TVW boards; **#2 open** until they
+    re-test the 7 fixed boards. Their files are private (scratchpad only, never commit).
+  - **Diode/LED polarity marks** follow the K pin (`cathodeDir` in `src/render/webgpu.ts`).
+  - **Bug-report snapshots** (`src/snapshot.ts`, `scripts/repro.ts`): see memory /
+    `project-bug-snapshots`. Reports from the WebGPU error screen have no snapshot; that screen
+    now detects social apps' in-app browsers (`src/ui/inapp.ts`: Threads = `Barcelona`, `; wv)`)
+    and offers Open in Chrome / Copy link.
+  - **Translations** (`src/i18n/`, `docs/TRANSLATING.md`): English text is the key (`t()`, `tk()`
+    for module tables, `{n} one|other` plurals with an `n` param); Russian (`ru.ts`, ~880 entries)
+    is **maintained**: `test/i18n.test.ts` fails on untranslated / stale strings, placeholder, tag
+    or plural mismatches. Picker in the ⚙ settings menu, Help and the phone More sheet;
+    `?lang=ru`; switching reloads and reopens the same board. Not translated: website pages,
+    imported boards' generated descriptions, mod validation errors, bug-report technical details.
+  - **UI declutter**: top bar 18 → 14 controls (sound / 3D orbit / language in ⚙; New board and
+    Import only in the board list, drag & drop and the phone More sheet); overview without the
+    duplicate board-list button and per-objective "run tests" lines; supply chart folds under its
+    header except on boards with power states. Top bar fits 1280–1920 px in EN and RU.
+  - **Not done / next:** iOS and desktop builds still need a rebuild for all of this (local only);
+    App Store privacy answers may need the bug-report diagnostics; a native speaker should review
+    the Russian; `.tvw` traces / vias / pours are not imported (nets connect by name).
 
 - **Repo security (2026-11-17).** A user's suggestion led to a ruleset **`protect-main`** (id 27471441):
   active on the default branch, *restrict deletions* + *block force pushes*, **no bypass**.
@@ -17,8 +53,7 @@ No reference hardware is available, so realism is validated against *design inte
   protection, read-only default workflow token, Actions can't approve PRs, fork-PR approval for
   first-time contributors, `github-pages` environment limited to `main`. **Open:** Dependabot
   alerts are off (offered, not done); account 2FA unchecked; actions are pinned by tag, not SHA.
-  Open issue **#2** (Biga73): BRD2 `.brd` support (BRDOUT / NETS / PARTS / PINS), waiting on the
-  reporter's sample files.
+  Issue **#2** (Biga73): see the 2026-11-18 entry above.
 
 - **Mobile / touch (2026-11-17, live; commits `01257be` + `a11a4b3`).** Goal: playable on phones in
   the browser first (this stage), App Store release later. The user said **leave the desktop
@@ -319,9 +354,12 @@ scripts lived in the session scratchpad; recreate as needed.
 | KiCad import (real boards) | `src/io/{kicad,benchSupply}.ts`, `src/connectivity.ts`, `src/geom.ts` | rotation sign fixed (KiCad CCW kept); inner-layer copper → `Board.hiddenCopperNets` (vias / TH pads joined by design) plus display-only `Board.inner` (tracks + fills, pours simplified to 0.05 mm; drawn in X-ray and as the selected net's overlay); arcs; multi-layer + multi-island pours; thermal-relief contact; `dnp` → not fitted; bidirectional ESD/TVS + multi-pin diodes → no DC path; L/FB/NT → low-ohm paths; `C_100n_0402` values; coin cells 3 V; bench supply (`J_BENCH`) on the power tree's input rail (12 V assumed if unnamed); earcut triangulation cached per pour; part bodies sized from the F.Fab/B.Fab outline (SMD parts as chips/boxes, offset outlines kept in `body.off`); bodies that cover ≥2 other parts on their side (module sockets, shields) render as open frames with a light tint so parts beneath stay visible and clickable (`occluders()` in `src/render/webgpu.ts`) |
 | Open-hardware demos | `scripts/build-demos.ts`, `public/demos/`, `docs/DEMOS.md` | MNT Reform 2 motherboard (CERN-OHL-S-2.0) and Antmicro Jetson Nano baseboard (Apache-2.0) at pinned commits; build verifies healthy-pass / faulted-fail / repair-unlocks; lazy-loaded; `Scenario.solver`, `meta.credits/license/source` |
 | Walkthrough videos | `scripts/videos/{director,scenes,record}.ts`, `public/videos/`, `docs/VIDEOS.md` | approach + spoiler-gated solution per premade scene (8 scenes, 16 videos, 9 MB); recorded from the real app via `?automation=1` hook; a solution take fails unless the flag really unlocks; flags blurred; Inspector "Fit new part" for any empty / damaged footprint |
+| Boardview import | `src/io/{brd,tvw}.ts` | TopTest / OpenBoardView `.brd`, BRD2, Tebo-ICT `.tvw` (arcs, header codes, fixture objects via resync); `buildBoardview` shared; pins named, pad shapes and R/C values from TVW; no copper routing (nets by name) |
+| Translations | `src/i18n/{index,ru}.ts`, `docs/TRANSLATING.md` | English keys, plurals, lazy-loaded language chunk; Russian complete and test-enforced |
+| Bug snapshots | `src/snapshot.ts`, `scripts/repro.ts`, `src/ui/feedback.ts` | `DBSNAP1:…:END` in feedback emails; repro rebuilds shipped boards and flags shorts / mismatches |
 | Game integration | `src/ui/app.ts`, `src/render/webgpu.ts`, `src/verify.ts` | solver choice (Fast DC / SPICE / SPICE+PWR) in **Bench** dropdown; tools 9 freeze, 0 IPA, H hot air, B press; realistic rework mode; live thermal at 60 fps on the 2,030-part board |
 
-Tests: `test/{solve,spice,schematic,powertree,realism,thermal,intermittent,rework,authoring,boot,scope,calibrate}.test.ts`.
+Tests: `test/{solve,spice,schematic,powertree,realism,thermal,intermittent,rework,authoring,boot,scope,camera,calibrate,kicad,brd,tvw,snapshot,i18n,demos,videos,mods,touch}.test.ts` (`npm test` runs all).
 
 Flag lock: `topology()` (`src/crypto.ts`) adds per-part tokens for leak (`!L`, incl. thermal-leak), drift (`!D`) and
 intermittents (`!I`, even dormant), like `!X` for burnt — a fault the objectives miss must still be repaired.
