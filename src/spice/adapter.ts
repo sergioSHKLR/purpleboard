@@ -11,6 +11,7 @@ import { discoverPowerTree } from './powertree';
 import { powerTreeElements } from './powermodels';
 import { POWER_STATES, enablesForState, type PowerStateName } from './sequencer';
 import { estimateRailLoads, loadWatts } from './loads';
+import { findRegulator } from './regulators';
 
 /** Last solution by unknown name: warm start for the next solve of a similar circuit. */
 let warm: Map<string, number> | null = null;
@@ -105,7 +106,7 @@ export function simulateSpice(board: Board, conn: Conn, opt: SpiceSimOpts = {}):
     const on = opt.powerState ? new Set(enablesForState(tree, opt.powerState).map((d) => d.net)) : null;
     const managed = opt.powerState ? new Set(enablesForState(tree, 'S0SW').map((d) => d.net)) : null;
     const enableAsserted = on && managed ? (net: string) => (managed.has(net) ? on.has(net) : undefined) : undefined;
-    ckt.elements.push(...powerTreeElements(tree, (n) => nameToNode.get(n), { simulatedRefs, stateRank, deadRefs, enableAsserted }).elements);
+    ckt.elements.push(...powerTreeElements(tree, (n) => nameToNode.get(n), { simulatedRefs, stateRank, deadRefs, enableAsserted, ...regulatorData(board, tree) }).elements);
     // A resistor the power tree sees linking two rails (PPBUS → PPBUS_R, sense resistors, 0 Ω
     // links) whose value is only an importer placeholder would choke the power path; such
     // links are near 0 Ω on real boards, so model them so (the note says it was assumed).
@@ -241,6 +242,28 @@ export function simulateSpice(board: Board, conn: Conn, opt: SpiceSimOpts = {}):
   const amm = op.devices.get('R_AMMETER');
   const sim: SpiceSim = { nodeOfNet, V, ground, comps, source: op.converged, ccLimited, netlist: nl, op, injected, ...(opt.ammeter && { ammeterAmps: amm ? amm.i : 0 }) };
   return sim;
+}
+
+/**
+ * Datasheet data for the board's listed regulators (src/spice/regulators.ts): a fixed-output part
+ * sets its rail; an adjustable part with a known reference sets it through its feedback divider
+ * when that agrees with the rail name within 5 % (else the name wins: the divider read is suspect);
+ * known current limits replace the per-class estimate.
+ */
+export function regulatorData(board: Board, tree: ReturnType<typeof discoverPowerTree>): { setpoints: Record<string, number>; limits: Record<string, number> } {
+  const setpoints: Record<string, number> = {}, limits: Record<string, number> = {};
+  for (const s of tree.sources) {
+    const c = board.components.find((x) => x.ref === s.ref);
+    const r = findRegulator(c?.label);
+    if (!r || !s.output) continue;
+    if (r.ilim) limits[s.ref] = r.ilim;
+    if (r.fixedOut !== undefined && !s.divider) setpoints[s.output] = r.fixedOut;
+    else if (r.vref !== undefined && s.divider) {
+      const v = +(r.vref / s.divider.ratio).toFixed(4);
+      if (s.vTarget === null || Math.abs(v - s.vTarget) / s.vTarget <= 0.05) setpoints[s.output] = v;
+    }
+  }
+  return { setpoints, limits };
 }
 
 function netVForRole(conn: Conn, c: Board['components'][number], role: string, netV: (n: number) => number): number {

@@ -3,6 +3,7 @@
 import { allDevices, deviceSpec, type DiodeSpec, type MosSpec } from '../src/spice/devicelib';
 import { parseSpice } from '../src/spice/netlist';
 import { Engine } from '../src/spice/engine';
+import { allRegulators, findRegulator } from '../src/spice/regulators';
 
 function assert(c: unknown, m: string): asserts c { if (!c) throw new Error(m); }
 
@@ -60,6 +61,10 @@ function run() {
     });
   }
   assert(verified >= 8, `datasheet-verified entries: ${verified}`);
+  // regulators: longest part-number match, datasheet source on every entry
+  assert(findRegulator('LMR16006YQ3')?.fixedOut === 3.3 && findRegulator('LMR16006XDDCR')?.vref === 0.765, 'fixed LMR16006YQ3 vs adjustable LMR16006');
+  assert(findRegulator('TLV62568DBV')?.vref === 0.6 && findRegulator('SIC477ED-T1-GE3')?.vref === 0.8 && !findRegulator('LM317'), 'board values match by prefix only');
+  assert(allRegulators().every((r) => /Rev|rev|20\d\d/.test(r.source) && (r.vref ?? r.fixedOut ?? r.ilim) !== undefined), 'every regulator cites its datasheet and carries data');
   console.log(`DEVICELIB TESTS PASSED (${devs.length} parts, ${verified} datasheet-verified with sources; ${checked} units: fitted RDS(on), body diode and VF match their datasheet points)`);
 }
 

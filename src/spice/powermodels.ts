@@ -30,6 +30,8 @@ export interface PowerModelOptions {
   deadRefs?: Set<string>;
   /** Emulated power controller: is this enable asserted? (undefined: not controller-driven). */
   enableAsserted?: (net: string) => boolean | undefined;
+  /** Output current limits by refdes (A), from datasheets; else CURRENT_LIMIT by kind. */
+  limits?: Record<string, number>;
 }
 
 /** Forward drop of a power OR-ing diode (Schottky, at load). Typical value. */
@@ -152,7 +154,7 @@ export function powerTreeElements(tree: PowerTree, node: (net: string) => string
     const g = src.kind === 'load-switch' ? 1 / 0.03 : src.kind === 'ldo' ? 1 / 0.05 : 1 / 0.005;
     const vset = src.kind === 'load-switch' ? `V(${inp})` : src.kind === 'ldo' ? `min(${v}, V(${inp})-0.15)` : `${v}`;
     const err = `(${vset}-V(${out}))`;
-    const lim = CURRENT_LIMIT[src.kind as keyof typeof CURRENT_LIMIT];
+    const lim = opts.limits?.[src.ref] ?? CURRENT_LIMIT[src.kind as keyof typeof CURRENT_LIMIT];
     // output current limit (a converter into a short holds its limit; it does not deliver amps unbounded)
     const iout = series
       ? `min(${g.toFixed(3)}*max(${err},0),${lim})*V(${ss})`
