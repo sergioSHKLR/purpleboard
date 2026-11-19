@@ -1,7 +1,7 @@
 WEBVTT
 
 1
-00:00:00.002 --> 00:00:14.003
+00:00:00.003 --> 00:00:14.004
 GHOST SHORT · HOW TO APPROACH
 Blown fuse: find the cause first
 The circuit: 5 V on J1 → fuse F1 (0.5 A) → power LED D1 (via R3) and a divider R1/R2 that must put 2.5 V on TP1.
@@ -9,39 +9,45 @@ It came back with F1 blown and R2 missing.
 You will learn: why a blown fuse is a symptom, checking for a short before powering up, and finding a short that is not a part.
 
 2
-00:00:18.965 --> 00:00:33.598
+00:00:19.139 --> 00:00:33.790
 STEP 1 · THE FUSE
 Power off, Ω across the fuse: OL. F1 is open.
 Why: A fuse is a deliberate weak link that melts above its rating, here 0.5 A. Something drew that much current, and a new fuse fitted blindly would blow again.
 
 3
-00:00:33.600 --> 00:00:45.857
-STEP 2 · LOOK FOR A SHORT
-J1's + pin to ground (TP2): 0.0 Ω. The 5 V input is shorted to ground.
-Why: A healthy input reads high here: the loads draw only milliamps. Under 10 Ω, a 5 V supply would push amps: that is what blew the fuse.
+00:00:33.791 --> 00:00:48.432
+STEP 2 · BOTH SIDES OF THE FUSE
+J1's + pin to ground (TP2): OL. But F1 is open, so this only covers J1 and the trace up to the fuse.
+Why: The open fuse splits the board in two. Measure each half to ground on its own.
 
 4
-00:00:45.858 --> 00:00:58.818
-STEP 3 · NARROW IT DOWN
-F1 is open, so nothing behind it is in this reading. The short sits between J1 and the fuse.
-Why: The blown fuse splits the board for you: every part downstream is disconnected. Only J1 and its two traces remain.
+00:00:48.433 --> 00:01:00.945
+STEP 2 · BOTH SIDES OF THE FUSE
+F1's output side to ground: 0.0 Ω. The fused +5 V is shorted to ground.
+Why: Only a short after the fuse sends its current through the fuse: that is what blew it. The loads draw milliamps, so a healthy +5 V reads kilohms here.
 
 5
-00:00:58.824 --> 00:01:11.584
+00:01:00.946 --> 00:01:13.134
 STEP 3 · NARROW IT DOWN
-No part here can short. Zoom in between J1's pins and look at the copper itself.
-Why: Shorts are not always parts: a sliver of copper left over from etching, a whisker of solder or a stray wire strand can join two nets.
+No part on +5 V can read 0 Ω: R1 is 10 kΩ, D1 sits behind R3, and R2 is missing.
+Why: When every part on the net is ruled out, the short is in the copper itself.
 
 6
-00:01:11.585 --> 00:01:23.587
+00:01:13.135 --> 00:01:25.902
+STEP 3 · NARROW IT DOWN
+Follow the +5 V trace from the fuse and look at the copper, where a ground trace runs beside it.
+Why: Shorts are not always parts: a sliver of copper left over from etching, a whisker of solder or a stray wire strand can join two nets.
+
+7
+00:01:25.903 --> 00:01:37.906
 STEP 4 · MISSING PART
 One more: R2's footprint is empty. The divider gives V = 5 V × R2 / (R1 + R2), and R1 is 10 kΩ.
 Why: Without R2, TP1 would sit at the full 5 V. Work out which R2 gives 2.5 V.
 
-7
-00:01:23.589 --> 00:01:37.590
+8
+00:01:37.912 --> 00:01:51.913
 WHAT YOU LEARNED
 Never just replace the fuse
-A blown fuse is a symptom: measure Ω across the input to ground before fitting a new one.
-An open fuse isolates the circuit behind it: use it to narrow down where the short can be.
+A blown fuse is a symptom: measure Ω to ground on both sides of it before fitting a new one.
+Only a short after the fuse can blow it: the open fuse tells you which half of the board to search.
 When no part can explain a short, inspect the copper: slivers, whiskers, bridges.

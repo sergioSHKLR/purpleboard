@@ -233,16 +233,24 @@ async function run() {
     const before = await verifyScenario(sc);
     assertEq(before.allPassed, false);
 
-    // Trap check: installing F1 without cutting sliver still leaves J1 dead-shorted (25 A into copper)
+    // The open fuse splits the board: J1's side reads open, F1's output side is the shorted one
+    // (a short before the fuse could never have blown it: player report 2026-11-19)
     const f1 = sc.board.components.find((c) => c.ref === 'F1')!;
-    const j1 = sc.board.components.find((c) => c.ref === 'J1')!;
+    const tp2 = sc.board.components.find((c) => c.ref === 'TP2')!;
+    const c0 = buildConnectivity(sc.board);
+    const gnd = pinNet(c0, tp2, Object.keys(tp2.pins)[0]);
+    assert(measureOhms(sc.board, c0, pinNet(c0, f1, Object.keys(f1.pins)[0]), gnd) > 1e6, 'J1 / fuse input side is not shorted');
+    assert(measureOhms(sc.board, c0, pinNet(c0, f1, Object.keys(f1.pins)[1]), gnd) < 1, 'fuse output side is shorted to ground');
+
+    // Trap check: a new F1 without cutting the sliver blows again
     installPart(f1, { value: 0.5 });
     const simTrap = simulate(sc.board, buildConnectivity(sc.board));
-    assert((simTrap.comps.get(j1.id)?.i ?? 0) > 10, 'J1 should be dead-shorted when sliver remains');
+    const f1sim = simTrap.comps.get(f1.id);
+    assert(f1sim?.over && Math.abs(f1sim.i) > 0.5, 'a new fuse blows while the sliver remains');
 
-    // Now cut the sliver at [8.5, 22] and install R2 = 10k
+    // Now cut the sliver (between the +5 V and ground traces) and install R2 = 10k
     const sliver = sc.board.traces.find((t) => t.id === 'sliver')!;
-    assert(cutTrace(sc.board, sliver, [8.5, 22], 0.7));
+    assert(cutTrace(sc.board, sliver, [37, 10.7], 0.7));
     installPart(f1, { value: 0.5 });
     const r2 = sc.board.components.find((c) => c.ref === 'R2')!;
     installPart(r2, { value: 10000 });
@@ -299,12 +307,16 @@ async function run() {
 
   // 4d. Bench PSU OCP Current Limiter check
   {
+    // Ghost Short with a fresh fuse: the short behind it loads the supply, OCP clamps, the fuse survives
     const sc = structuredClone(scenarios.find((s) => s.id === 'builtin-ghost-short')!);
+    const f1 = sc.board.components.find((c) => c.ref === 'F1')!;
+    installPart(f1, { value: 0.5 });
     const simOcp = simulate(sc.board, buildConnectivity(sc.board), { currentLimit: 0.1 });
     assertEq(simOcp.ccLimited, true, 'OCP 100 mA should enter CC limit on shorted board');
     const j1 = sc.board.components.find((c) => c.ref === 'J1')!;
     const iBat = simOcp.comps.get(j1.id)?.i ?? 0;
     assert(iBat <= 0.11, `OCP should clamp supply current near 0.1 A, got ${iBat}`);
+    assert(!simOcp.comps.get(f1.id)?.over, 'the 0.5 A fuse survives a 100 mA current limit');
   }
 
   // 4e. Copper drawn across two nets is a short, whatever the net labels say: the original

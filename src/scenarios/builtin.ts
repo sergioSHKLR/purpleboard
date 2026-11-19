@@ -253,6 +253,8 @@ function ghostShort() {
   k.track('F', [k.pad(j1, '2'), [10, 23.27], [10, 40], k.pad(tp2, '1')], 1.0, 'GND');
   k.track('F', [k.pad(d1, '1'), [30, 40]], 0.8, 'GND');
   k.track('F', [k.pad(r2, '2'), [44, 40]], 0.8, 'GND');
+  // ground return along the right edge and the top, beside the fused +5 V trace
+  k.track('F', [k.pad(tp2, '1'), [60, 40], [60, 9.4], [28, 9.4]], 0.8, 'GND');
   k.text([36, 2.5], 'GHOST SHORT  5V REF', 1.4);
   return finalize('builtin-ghost-short', {
     title: 'Ghost Short',
@@ -260,14 +262,15 @@ function ghostShort() {
     difficulty: 4,
     description: 'A 5 V reference board: power LED D1 plus a divider that must put 2.5 V (±0.2 V) on TP1. It came back from the field dead with a blown fuse and a missing part. Replace the fuse without finding the cause and it will just blow again.',
     hints: [
-      'With power OFF, measure between TP2 (GND) and the + pin of J1. Should that be 0 Ω?',
-      'Zoom in near J1: a hairline sliver of copper connects two different nets. Cut it with the knife.',
+      'With power OFF, measure from TP2 (GND) to each side of F1. The open fuse splits the board: which side is shorted?',
+      'Follow the +5 V trace after the fuse: a hairline sliver of copper joins it to the ground trace beside it. Cut it with the knife.',
       'Vout = 5 V × R2 / (R1 + R2). R1 is 10 kΩ.',
     ],
     par: 3,
   }, k.b, [on('D1'), { type: 'voltage', a: 'TP1', min: 2.3, max: 2.7 }], 'PCB{gh0st_sl1v3r_exorc1s3d}',
   (b) => {
-    b.traces.push({ id: 'sliver', layer: 'F', a: [8.5, 20.6], b: [8.5, 23.4], w: 0.15 });
+    // downstream of F1 (a short before the fuse could never have blown it)
+    b.traces.push({ id: 'sliver', layer: 'F', a: [37, 9.4], b: [37, 12], w: 0.15 });
     b.components.find((c) => c.ref === 'F1')!.state.burnt = true;
     const r = b.components.find((c) => c.ref === 'R2')!;
     removePart(r);

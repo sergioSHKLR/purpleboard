@@ -46,13 +46,13 @@
       "file": "builtin-ghost-short.approach.mp4",
       "captions": "builtin-ghost-short.approach.vtt",
       "poster": "builtin-ghost-short.approach.jpg",
-      "seconds": 100
+      "seconds": 114
     },
     "solution": {
       "file": "builtin-ghost-short.solution.mp4",
       "captions": "builtin-ghost-short.solution.vtt",
       "poster": "builtin-ghost-short.solution.jpg",
-      "seconds": 109
+      "seconds": 110
     }
   },
   "builtin-smoke-test": {

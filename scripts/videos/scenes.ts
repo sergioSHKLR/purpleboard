@@ -361,19 +361,27 @@ export const SCENES: Scene[] = [
       await t.clear();
       await t.clickPad('J1', '1');
       await t.clickPad('TP2', '1', { button: 'right' });
-      const r = await meter(t, /^\d\.\d Ω$/, 'J1+ to GND');
-      await t.say(`J1\'s + pin to ground (TP2): **${r}**. The 5 V input is **shorted** to ground.`, {
-        step: 'Step 2 · Look for a short', why: 'A healthy input reads high here: the loads draw only milliamps. Under 10 Ω, a 5 V supply would push amps: that is what blew the fuse.',
+      const rin = await meter(t, /^OL$/, 'J1+ to GND');
+      await t.say(`J1\'s + pin to ground (TP2): **${rin}**. But F1 is open, so this only covers J1 and the trace up to the fuse.`, {
+        step: 'Step 2 · Both sides of the fuse', why: 'The open fuse splits the board in two. Measure each half to ground on its own.',
       });
       await t.clear();
-      await t.highlightPart('F1', 'open', 3.5);
-      await t.say('F1 is open, so nothing **behind** it is in this reading. The short sits between J1 and the fuse.', {
-        step: 'Step 3 · Narrow it down', why: 'The blown fuse splits the board for you: every part downstream is disconnected. Only J1 and its two traces remain.',
+      await t.clickPad('F1', '2');
+      await t.clickPad('TP2', '1', { button: 'right' });
+      const r = await meter(t, /^\d\.\d Ω$/, 'F1 out to GND');
+      await t.say(`F1\'s output side to ground: **${r}**. The fused +5 V is **shorted** to ground.`, {
+        step: 'Step 2 · Both sides of the fuse', why: 'Only a short **after** the fuse sends its current through the fuse: that is what blew it. The loads draw milliamps, so a healthy +5 V reads kilohms here.',
       });
       await t.clear();
-      await t.focusPart('J1', 6);
-      await t.highlightBoard(9, 22, 2.4, 'look here');
-      await t.say('No part here can short. Zoom in between J1\'s pins and look at the **copper** itself.', {
+      await t.highlightPart('R1', '10 kΩ', 3.5);
+      await t.highlightPart('D1', 'behind R3', 3.5);
+      await t.say('No part on +5 V can read 0 Ω: R1 is 10 kΩ, D1 sits behind R3, and R2 is missing.', {
+        step: 'Step 3 · Narrow it down', why: 'When every part on the net is ruled out, the short is in the copper itself.',
+      });
+      await t.clear();
+      await t.focus(37, 10.7, 6, 'F');
+      await t.highlightBoard(37, 10.7, 2.4, 'look here');
+      await t.say('Follow the +5 V trace from the fuse and look at the **copper**, where a ground trace runs beside it.', {
         step: 'Step 3 · Narrow it down', why: 'Shorts are not always parts: a sliver of copper left over from etching, a whisker of solder or a stray wire strand can join two nets.',
       });
       await t.clear();
@@ -384,23 +392,23 @@ export const SCENES: Scene[] = [
       });
       await t.clear();
       await t.card('WHAT YOU LEARNED', 'Never just replace the fuse', [
-        'A blown fuse is a **symptom**: measure Ω across the input to ground **before** fitting a new one.',
-        'An open fuse **isolates** the circuit behind it: use it to narrow down where the short can be.',
+        'A blown fuse is a **symptom**: measure Ω to ground on **both sides** of it **before** fitting a new one.',
+        'Only a short **after** the fuse can blow it: the open fuse tells you which half of the board to search.',
         'When no part can explain a short, inspect the **copper**: slivers, whiskers, bridges.',
       ]);
     },
     solution: async (t) => {
       await t.card('GHOST SHORT · SOLUTION', 'Cut the sliver, then fit the fuse', [
-        'Diagnosis (see "How to approach"): a hairline **copper sliver** shorts +5 V to ground at J1, F1 is blown, R2 is missing.',
+        'Diagnosis (see "How to approach"): a hairline **copper sliver** shorts the fused +5 V trace to the ground trace beside it, F1 is blown, R2 is missing.',
         'Order matters: remove the short, prove it is gone, **then** fit a new fuse.',
         'Tools: Trace cutter (7) · Multimeter (2) · Soldering iron (3) · Select (1)',
       ]);
-      await t.focus(8.5, 22, 4, 'F');
-      await t.highlightBoard(8.5, 22, 1.6, 'copper sliver', true);
-      await t.say('A hairline of copper runs from the +5 V trace to the ground trace.', { step: 'Step 1 · Locate' });
+      await t.focus(37, 10.7, 4, 'F');
+      await t.highlightBoard(37, 10.7, 1.6, 'copper sliver', true);
+      await t.say('A hairline of copper runs from the +5 V trace to the ground trace beside it.', { step: 'Step 1 · Locate' });
       await t.clear();
       await t.key('7');
-      await t.clickBoard(8.5, 22, 'F');
+      await t.clickBoard(37, 10.7, 'F');
       await t.say('Trace cutter (7): cut through the sliver.', {
         step: 'Step 2 · Remove the short', why: 'On a real board you would scrape it away with a scalpel and check under magnification that no copper bridges the gap.',
       });
@@ -408,10 +416,10 @@ export const SCENES: Scene[] = [
       await t.key('p');
       await t.key('2');
       await t.clickEl('#dmm-ohm');
-      await t.clickPad('J1', '1');
+      await t.clickPad('F1', '2');
       await t.clickPad('TP2', '1', { button: 'right' });
-      const r = await meter(t, /^(OL|\d+\.\d+ [kM]Ω)$/, 'J1+ to GND after cut');
-      await t.say(`Power off, J1 + to ground again: **${r}**. The short is gone.`, {
+      const r = await meter(t, /^(OL|\d+\.\d+ [kM]Ω)$/, 'F1 out to GND after cut');
+      await t.say(`Power off, F1\'s output to ground again: **${r}**. The short is gone.`, {
         step: 'Step 3 · Prove it', why: 'Never power up on hope. With the short proven gone, a new fuse will survive.',
       });
       await t.clear();
