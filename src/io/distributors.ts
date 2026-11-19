@@ -67,7 +67,9 @@ export function parseDigikeyProduct(p: Json): PartRecord | null {
 /** Digi-Key response (details or keyword search) → the best record for a part number. */
 export function parseDigikey(res: unknown, pn: string): PartRecord | null {
   const r = obj(res);
-  const list = r.Product ? [obj(r.Product)] : ((Array.isArray(r.Products) ? r.Products : []) as Json[]);
+  // keyword search returns { ExactMatches, Products }: exact matches first
+  const arr = (v: unknown) => (Array.isArray(v) ? v : []) as Json[];
+  const list = r.Product ? [obj(r.Product)] : [...arr(r.ExactMatches), ...arr(r.Products)];
   const recs = list.map(parseDigikeyProduct).filter((x): x is PartRecord => !!x);
   return pickBest(recs, pn);
 }

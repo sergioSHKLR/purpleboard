@@ -75,6 +75,8 @@ function run() {
     assert(dk?.source === 'digikey' && dk.mfr === 'SISA18DN-T1-GE3' && dk.datasheet === 'https://www.vishay.com/docs/62579/sisa18dn.pdf' && dk.package.startsWith('PowerPAK') && dk.id.endsWith('-ND'), `Digi-Key product parsed: ${JSON.stringify(dk)}`);
     const kw = parseDigikey({ Products: [{ ManufacturerProductNumber: 'XSISA18', DatasheetUrl: 'a' }, { ManufacturerProductNumber: 'SISA18DN-T1-GE3' }] }, 'SISA18DN');
     assert(kw?.mfr === 'SISA18DN-T1-GE3', 'keyword results: the part that starts with the number wins, not a lookalike');
+    const ex = parseDigikey({ ExactMatches: [{ ManufacturerProductNumber: 'SISA18DN-T1-GE3', DatasheetUrl: 'x.pdf' }], Products: [] }, 'SISA18DN');
+    assert(ex?.mfr === 'SISA18DN-T1-GE3', 'keyword ExactMatches are used');
     const mo = parseMouser({ Errors: [], SearchResults: { Parts: [
       { ManufacturerPartNumber: 'BAT30CWFILMX', Manufacturer: 'ST', DataSheetUrl: '', MouserPartNumber: '511-X' },
       { ManufacturerPartNumber: 'BAT30CWFILM', Manufacturer: 'STMicroelectronics', DataSheetUrl: 'https://www.mouser.com/datasheet/2/389/bat30.pdf', MouserPartNumber: '511-BAT30CWFILM', Description: 'Schottky' },

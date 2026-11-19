@@ -7,17 +7,16 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
-- **NEXT SESSION — start here (written end of 2026-11-19; live at `c241a53`).**
+- **NEXT SESSION — start here (written end of 2026-11-19).**
   The user's direction: **1:1 realistic testing of any board people upload**. Nothing is
   redistributed, so datasheets and vendor SPICE models may be downloaded and used **locally**
   (`.parts-cache/`, git-ignored), never committed.
-  1. **Waiting on the user: Digi-Key / Mouser API keys** in `.env.local`
-     (`DIGIKEY_CLIENT_ID`, `DIGIKEY_CLIENT_SECRET`, `MOUSER_API_KEY`; Digi-Key app = Production +
-     Product Information V4). When they are there: run
-     `npm run parts -- lookup CSD58873Q3D SISA18DN SISA12DN RB521ES-30 SDZT15R6.8` and
-     `npm run parts -- lookup public/demos/demo-antmicro-jetson-nano-bb.pcbfix.json` to check the
-     live responses against `src/io/distributors.ts` (parsers were only tested on documented
-     shapes). Fix field names if the live JSON differs.
+  1. **Digi-Key API live (2026-11-19):** keys are in `.env.local` (git-ignored, mode 600; never
+     print them). Verified end to end: token, product details, keyword search (`ExactMatches` +
+     `Products`), datasheet links. Digi-Key hosts many PDFs itself (mm.digikey.com: download fine);
+     ROHM links redirect to a web page (open in a browser). Jetson demo now 13/13 part numbers
+     found. Digi-Key does not carry SISA12DN (discontinued) or CSD58873Q3D (custom). Mouser key
+     (`MOUSER_API_KEY`) not set: optional; its parser is only tested on documented shapes.
   2. **Proposed, not started (ask first):** (a) a datasheet table extractor that drafts device-
      library entries from `pdftotext -layout` output, keeping Min/Typ/Max apart, for review;
      (b) more parts of real boards in the library (Jetson: 12/13 part numbers found, only 2
