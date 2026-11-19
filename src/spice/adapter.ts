@@ -212,6 +212,14 @@ export function simulateSpice(board: Board, conn: Conn, opt: SpiceSimOpts = {}):
     } else if (!dev && p.roles) {
       v = netVForRole(conn, c, p.roles[0], netV) - netVForRole(conn, c, p.roles[1], netV);
     }
+    if (p.prefix) {
+      // subcircuit part (library MOSFET, array…): its inner devices' power, first device's current
+      const pre = `${p.prefix}.`.toLowerCase();
+      let pw = 0, first: number | undefined;
+      for (const [name, d] of op.devices) if (name.toLowerCase().startsWith(pre)) { pw += Math.abs(d.p ?? 0); if (first === undefined && /^[mqd]/i.test(name.slice(pre.length))) first = d.i; }
+      comps.set(c.id, { i: first ?? 0, v: 0, p: pw, on: false, bright: 0, over: false });
+      continue;
+    }
     const r: CompSim = { i, v, p: Math.abs(v * i), on: false, bright: 0, over: false };
     if (c.kind === 'led') {
       r.on = i >= LED_ON_I;

@@ -53,7 +53,9 @@ const EXPECT: Record<string, Expect> = {
     hottest: 'C173',
     rails: { '+5V': 5.0, '+3V3': 3.3, '+1V2': 1.2, '+1V5': 1.5, LPC_VCC: 3.3 },
     amps: 0.0162,
-    meter: { '+5V': [0.509, 55.8e3], '+3V3': [0.5, 143e3], '+1V2': [0.536, 200e3], '+1V5': [0.548, 250e3], '30V_GATE': [0.527, null] },
+    // 30V_GATE Ω: the 1 µA range sees BAT46WJ D2's datasheet reverse leakage through 100 kΩ (OL before
+    // the device library); LPC_VCC diode: the buck's SBR0560S1 catch diode through L5 (a Schottky drop)
+    meter: { '+5V': [0.509, 55.8e3], '+3V3': [0.5, 143e3], '+1V2': [0.536, 200e3], '+1V5': [0.548, 250e3], '30V_GATE': [0.527, 385e3], LPC_VCC: [0.155, 23.5e3] },
     flag: 'DEAD{r3f0rm_3v3_sh0rt_g0n3}',
   },
   'demo-antmicro-jetson-nano-bb': {
@@ -62,7 +64,7 @@ const EXPECT: Record<string, Expect> = {
     supply: { ref: 'J_BENCH', volts: 12 },
     fails: { index: 0, min: -0.05, max: 0.1 },
     rails: { '5V0_SYS': 4.984, '3V3_SYS': 3.3 },
-    amps: 0.0389,
+    amps: 0.0418, // BSS138PW T2 (gate on the pulled-up #RESET) lights BOOT1: 6.4 mA
     meter: { '5V0_SYS': [0.516, 62e3], '3V3_SYS': [0.52, null], VIN: [0.547, null] },
     flag: 'DEAD{b4s3b0ard_3v3_b4ck}',
   },

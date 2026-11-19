@@ -5,6 +5,7 @@
 //   npm run parts -- fetch-db                      # jlcparts catalogue (JLCPCB / LCSC, ~330 MB download, needs 7zz)
 //   npm run parts -- lookup <board file | MPN…>    # catalogue match, datasheet link, library coverage
 //   npm run parts -- datasheets <board file | MPN…># download the matched datasheets (plain requests)
+//   npm run parts -- extract <pdf> [MPN]          # table rows (Min/Typ/Max kept apart) + a draft devicelib entry to review
 //
 // Lookup order: jlcparts (local) → Digi-Key API → Mouser API, the APIs only for parts the catalogue
 // lacks or has no datasheet link for, and only when their keys are in .env.local (git-ignored):
@@ -19,9 +20,10 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { importScenarioOrPcb } from '../src/io/kicad';
-import { boardPartNumbers, searchPrefixes, type BoardPart } from '../src/io/partNumbers';
+import { boardPartNumbers, rankCatalogue, searchPrefixes, type BoardPart } from '../src/io/partNumbers';
 import { findDevice } from '../src/spice/devicelib';
 import { findRegulator } from '../src/spice/regulators';
+import { draftEntry, extractRows, seriesRows } from '../src/io/datasheetTable';
 import { DIGIKEY, MOUSER, cleanUrl, parseDigikey, parseMouser, type PartRecord } from '../src/io/distributors';
 
 const CACHE = '.parts-cache';
@@ -78,8 +80,17 @@ async function lookupMouser(pn: string): Promise<Match | null> {
 /** jlcparts first; the distributor APIs when it has no match or no datasheet link. */
 async function lookup(value: string): Promise<{ match: Match | null; note?: string }> {
   const local = lookupOne(value);
-  if (local?.datasheet) return { match: local };
   const notes: string[] = [];
+  // the catalogue matched only a shortened number: the full ordering code names the maker
+  // ("-G3-08", "-E3/61" are Vishay codes), so ask Digi-Key for exactly that first
+  const full = value.toUpperCase();
+  if (local && !local.mfr.toUpperCase().startsWith(full) && full !== searchPrefixes(value).at(-1)) {
+    try {
+      const m = await lookupDigikey(full);
+      if (m?.datasheet && m.mfr.toUpperCase().startsWith(full)) return { match: m, note: `full ordering code; jlcparts only had ${local.mfr} (${local.manufacturer})` };
+    } catch (e) { notes.push(String(e instanceof Error ? e.message : e)); }
+  }
+  if (local?.datasheet) return { match: local, ...(notes.length && { note: notes.join(' · ') }) };
   for (const [name, f] of [['Digi-Key', lookupDigikey], ['Mouser', lookupMouser]] as const) {
     for (const p of searchPrefixes(value)) {
       try {
@@ -119,13 +130,11 @@ function sql(query: string): Record<string, unknown>[] {
 
 function lookupOne(value: string): Match | null {
   for (const p of searchPrefixes(value)) {
-    const safe = p.replace(/[^A-Z0-9.\-/+#]/g, '');
+    const safe = p.replace(/[^A-Z0-9.\-/+#,]/g, '');
     const rows = sql(`select lcsc, mfr, manufacturer, package, datasheet, description, attributes from jlc_components
-      where mfr like '${safe}%' order by (upper(mfr) = '${safe}') desc, (datasheet != '') desc, length(mfr) limit 1`);
-    if (rows.length) {
-      const r = rows[0] as Record<string, string>;
-      return { source: 'jlcparts', id: `C${r.lcsc}`, mfr: r.mfr, manufacturer: r.manufacturer, package: r.package, datasheet: cleanUrl(r.datasheet), description: r.description, attributes: JSON.parse(r.attributes || '{}') };
-    }
+      where mfr like '${safe}%' order by (upper(mfr) = '${safe}') desc, (datasheet != '') desc, length(mfr) limit 60`) as Record<string, string>[];
+    const r = rankCatalogue(p, rows);
+    if (r) return { source: 'jlcparts', id: `C${r.lcsc}`, mfr: r.mfr, manufacturer: r.manufacturer, package: r.package, datasheet: cleanUrl(r.datasheet), description: r.description, attributes: JSON.parse(r.attributes || '{}') };
   }
   return null;
 }
@@ -160,11 +169,31 @@ async function download(m: Match): Promise<string> {
   return `saved ${file}`;
 }
 
+/** Datasheet → table rows and a draft library entry, for a person to check against the PDF. */
+function extract(file: string, mpnArg?: string) {
+  const text = file.endsWith('.txt') ? readFileSync(file, 'utf8') : execFileSync('pdftotext', ['-layout', file, '-'], { encoding: 'utf8', maxBuffer: 64 << 20, stdio: ['ignore', 'pipe', 'ignore'] });
+  const mpn = mpnArg ?? file.replace(/^.*[\\/]/, '').replace(/\.(pdf|txt)$/i, '').replace(/_\d+$/, '');
+  const rows = extractRows(text);
+  out(`${file}: ${rows.length} table rows (values scaled to SI; hot = not at 25 °C, left out of the draft)`);
+  for (const r of rows) {
+    const f = (v?: number) => (v === undefined ? '—' : String(v)).padStart(10);
+    out(`  ${String(r.line).padStart(4)}  ${r.quantity.padEnd(6)} ${r.symbol.padEnd(9)} min${f(r.min)} typ${f(r.typ)} max${f(r.max)} ${(r.unit || '-').padEnd(5)} ${r.unitSource.startsWith('assumed') ? '(unit assumed) ' : ''}${r.hot ? 'HOT ' : ''}${r.condText.slice(0, 70)}`);
+  }
+  const series = seriesRows(text, mpn);
+  if (series.length) {
+    out(`\nseries-table rows naming ${mpn} (map the columns by hand):`);
+    for (const s of series.slice(0, 3)) out([...s.header.map((h) => `        ${h.trimEnd()}`), `  ${String(s.line).padStart(4)}  ${s.row.trimEnd()}`].join('\n'));
+  }
+  const d = draftEntry(mpn, text, rows);
+  out(`\ndraft (${d.kind}; verified stays false until every TODO and review item is checked against the PDF):\n${d.entry}\nreview:\n${d.review.map((x) => `  - ${x}`).join('\n')}`);
+}
+
 async function main() {
   const [cmd, ...args] = process.argv.slice(2);
   if (cmd === 'fetch-db') return fetchDb();
+  if (cmd === 'extract' && args.length) return extract(args[0], args[1]);
   if ((cmd !== 'lookup' && cmd !== 'datasheets') || !args.length) {
-    out('usage: npm run parts -- fetch-db | lookup <board file | MPN…> | datasheets <board file | MPN…>');
+    out('usage: npm run parts -- fetch-db | lookup <board file | MPN…> | datasheets <board file | MPN…> | extract <pdf|txt> [MPN]');
     process.exitCode = 1;
     return;
   }

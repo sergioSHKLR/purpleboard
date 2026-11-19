@@ -19,6 +19,7 @@ import { emptyCircuit } from './types';
 import { parseSpice } from './netlist';
 import { parseSpiceNumber } from './units';
 import { VT_300K } from './devices';
+import { boardDevices } from './resolveParts';
 
 // ---------------- part library ----------------
 
@@ -42,6 +43,8 @@ export interface PartSpec {
   ports?: string[];
   spice?: string;
   note?: string;
+  /** Device-library part number this spec was built from (src/spice/devicelib.ts). */
+  device?: string;
 }
 
 export interface PartLibrary {
@@ -69,6 +72,8 @@ export interface PartMap {
   /** Roles (first → second) that define the sign of the reported current. */
   roles?: [string, string];
   type: PartType | 'battery' | 'fuse' | 'switch';
+  /** Subcircuit instance name: its inner devices' power is the part's (thermal camera, burns). */
+  prefix?: string;
 }
 
 export interface BoardSpiceOptions {
@@ -90,6 +95,11 @@ export interface BoardSpiceOptions {
   sources?: boolean;
   /** Treat diodes/LEDs as open (low-power ohmmeter). */
   diodesOpen?: boolean;
+  /**
+   * Model parts whose printed part number (label) is in the device library with its datasheet
+   * model (src/spice/resolveParts.ts boardDevices). Default true; `library` entries win.
+   */
+  devices?: boolean;
   /** Force this connectivity net to be SPICE ground. */
   groundNet?: number;
   /** Refdes to leave out entirely. */
@@ -276,8 +286,9 @@ export function boardToCircuit(board: Board, conn: Conn, opts: BoardSpiceOptions
     return useModel({ name: sanitize(`${ref}_M`), type: fallbackType, params: lowerKeys(spec.model ?? {}) });
   };
 
+  const auto = opts.devices === false ? undefined : boardDevices(board.components, (ref) => !!lib.parts?.[ref] || exclude.has(ref)).parts;
   const specFor = (ref: string): PartSpec | undefined => {
-    const p = lib.parts?.[ref];
+    const p = lib.parts?.[ref] ?? auto?.[ref];
     if (p) return p;
     for (const pat of lib.patterns ?? []) if (new RegExp(pat.match).test(ref)) return pat.spec;
     return undefined;
@@ -438,6 +449,8 @@ export function boardToCircuit(board: Board, conn: Conn, opts: BoardSpiceOptions
 
   function emitSpec(c: Component, spec: PartSpec) {
     const pin = (role: string, dflt: string) => padNode(c, spec.pins?.[role] ?? dflt);
+    // a library diode on a part with its own anode / cathode roles goes through them (reversal)
+    const diodePin = (role: 'A' | 'K', dflt: string) => (spec.pins?.[role] === undefined && c.pins[role] !== undefined ? roleNode(c, role) : pin(role, dflt));
     const note = `${c.ref} [library]${spec.note ? ' ' + spec.note : ''}`;
     switch (spec.type) {
       case 'R': case 'short': {
@@ -479,9 +492,10 @@ export function boardToCircuit(board: Board, conn: Conn, opts: BoardSpiceOptions
         break;
       }
       case 'D': case 'LED': {
+        if (opts.diodesOpen && spec.device) { parts.set(c.id, { comp: c, roles: ['A', 'K'], type: spec.type }); break; }
         const name = elName('D', c.ref);
         const model = spec.model ? libModel(spec, 'D', c.ref) : useModel(spec.type === 'LED' ? ledModel(c.color ?? 'red') : DIODE_MODEL);
-        els.push({ kind: 'D', name, n: [pin('A', '1'), pin('K', '2')], model, note });
+        els.push({ kind: 'D', name, n: [diodePin('A', '1'), diodePin('K', '2')], model, note });
         parts.set(c.id, { comp: c, device: name, roles: ['A', 'K'], type: spec.type });
         break;
       }
@@ -510,6 +524,8 @@ export function boardToCircuit(board: Board, conn: Conn, opts: BoardSpiceOptions
       case 'open': report.push({ ref: c.ref, as: 'open', source: 'library' }); return;
       case 'stub': stub(c, spec.note ?? 'library stub'); return;
       case 'subckt': {
+        // the ideal ohmmeter keeps junctions open: a library device is only junctions without supplies
+        if (opts.diodesOpen && spec.device) { report.push({ ref: c.ref, as: 'open (junctions)', source: 'library' }); return; }
         const ports = spec.ports ?? c.pads.map((p) => p.name).filter((n, i, a) => a.indexOf(n) === i);
         const sname = sanitize(`SUB_${c.ref}`);
         const parsed = parseSpice(`${sname}\n${spec.spice ?? ''}`);
@@ -524,7 +540,9 @@ export function boardToCircuit(board: Board, conn: Conn, opts: BoardSpiceOptions
           return;
         }
         subckts.set(sname, body);
-        els.push({ kind: 'X', name: elName('X', c.ref), n: ports.map((p) => padNode(c, p)), subckt: sname, note });
+        const xname = elName('X', c.ref);
+        els.push({ kind: 'X', name: xname, n: ports.map((p) => padNode(c, p)), subckt: sname, note });
+        parts.set(c.id, { comp: c, type: 'subckt', prefix: xname });
         break;
       }
     }

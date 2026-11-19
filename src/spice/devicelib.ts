@@ -159,6 +159,40 @@ const DEVICES: DeviceDef[] = [
     source: 'Infineon ESD112-B1-02 series data sheet Rev. 1.3, 2013-11-27',
     note: 'line capacitance 0.2 pF typical (matches); breakdown given as 7 V without a typical, so the 9 V estimate is only checked to lie above it',
     units: [{ kind: 'tvs-bi', vf: [], bv: [9, 1e-3], cj: 0.2e-12, pins: { K: '1', A: '2' } }] },
+  // ---- parts of the open-hardware demo boards (Jetson Nano baseboard, MNT Reform), 2026-11-19 ----
+  // Drafted with `npm run parts -- extract` and checked against the PDFs by hand.
+  { mpn: 'BSS138PW', description: 'N-MOSFET 60 V small signal (level shifter)', pkg: 'SOT-323 (SC-70)', verified: true,
+    source: 'Nexperia BSS138PW product data sheet Rev. 1, 2 Nov 2010', thetaJA: 415,
+    note: 'Pinout 1 G, 2 S, 3 D. θJA typical in free air on the standard footprint (480 max)',
+    units: [{ kind: 'nmos', vth: 1.2, rds: [[10, 0.9], [5, 1.0]], body: [0.75, 0.115], caps: [38e-12, 4e-12, 7e-12], pins: { G: '1', S: '2', D: '3' } }] },
+  { mpn: 'PMV50ENEA', description: 'N-MOSFET 30 V', pkg: 'SOT-23 (TO-236AB)', verified: true,
+    source: 'Nexperia PMV50ENEA product data sheet, 10 Mar 2016 (no revision number printed)', thetaJA: 211,
+    note: 'Pinout 1 G, 2 S, 3 D. θJA typical in free air on the standard footprint (245 max)',
+    units: [{ kind: 'nmos', vth: 1.5, rds: [[10, 0.030], [4.5, 0.039]], body: [0.7, 1], caps: [276e-12, 42e-12, 55e-12], pins: { G: '1', S: '2', D: '3' } }] },
+  { mpn: 'PMV50EPEA', description: 'P-MOSFET −30 V', pkg: 'SOT-23 (TO-236AB)', verified: true,
+    source: 'Nexperia PMV50EPEA product data sheet, 30 Jun 2016 (no revision number printed)', thetaJA: 227,
+    note: 'Pinout 1 G, 2 S, 3 D. θJA typical in free air on the standard footprint (261 max)',
+    units: [{ kind: 'pmos', vth: 2.0, rds: [[10, 0.035], [4.5, 0.049]], body: [0.75, 4], caps: [793e-12, 84e-12, 134e-12], pins: { G: '1', S: '2', D: '3' } }] },
+  { mpn: 'SI7850DP', description: 'N-MOSFET 60 V', pkg: 'PowerPAK SO-8 single', verified: true,
+    source: 'Vishay Si7850DP, doc. 71625 Rev. E, 09-Feb-09', thetaJA: 22,
+    note: 'VGS(th) has no typical (1–3 V): midpoint used. Capacitances only as a graph: omitted. Pinout 1-3 S, 4 G, 5-8 D. θJA typical, t ≤ 10 s on 1" × 1" FR4 (58 °C/W steady state)',
+    units: [{ kind: 'nmos', vth: 2.0, rds: [[10, 0.018], [4.5, 0.025]], body: [0.85, 3.8], pins: { S: '1', G: '4', D: '5' } }] },
+  { mpn: 'SI7461DP', description: 'P-MOSFET −60 V', pkg: 'PowerPAK SO-8 single', verified: true,
+    source: 'Vishay Si7461DP, doc. 72567 Rev. J, 13-Jul-15', thetaJA: 18,
+    note: 'VGS(th) has no typical (1–3 V): midpoint used. Capacitances only as a graph: omitted. Pinout 1-3 S, 4 G, 5-8 D. θJA typical, t ≤ 10 s on 1" × 1" FR4 (52 °C/W steady state)',
+    units: [{ kind: 'pmos', vth: 2.0, rds: [[10, 0.0115], [4.5, 0.015]], body: [0.8, 4.5], pins: { S: '1', G: '4', D: '5' } }] },
+  { mpn: 'BAT46WJ', description: 'Schottky 100 V', pkg: 'SOD-323F (SC-90)', verified: true,
+    source: 'Nexperia BAT46WJ product data sheet, 1 Oct 2022 (no revision number printed)', thetaJA: 310,
+    note: 'VF typicals from the table at 0.1, 10 and 250 mA (50 mA: 0.415 V). Cd is given only as a maximum (39 pF at 0 V): used as CJO. BV is the 100 V reverse rating. Pinout 1 K, 2 A. θJA is the maximum, standard footprint',
+    units: [{ kind: 'schottky', vf: [[0.175, 1e-4], [0.315, 0.01], [0.71, 0.25]], bv: [100, 1e-3], cj: 39e-12, pins: { K: '1', A: '2' } }] },
+  { mpn: 'SBR0560S1', description: 'super barrier rectifier 60 V 0.5 A', pkg: 'SOD-123', verified: true,
+    source: 'Diodes Inc. SBR0560S1, DS31525 Rev. 3-2, Sep 2017', thetaJA: 305,
+    note: 'one VF typical in the table (0.44 V at 0.5 A; 0.25 A has a 0.44 V maximum only); 10 mA and 0.1 A points read from Fig. 2 at 25 °C (about ±20 mV). BV is the 60 V rating. θJA on FR-4 with the recommended pad layout',
+    units: [{ kind: 'schottky', vf: [[0.207, 0.01], [0.28, 0.1], [0.44, 0.5]], bv: [60, 1e-3], pins: { K: '1', A: '2' } }] },
+  { mpn: '1N4148WS', description: 'switching diode 75 V', pkg: 'SOD-323F', verified: true,
+    source: 'onsemi 1N4148WS/D Rev. 2, Feb 2017', thetaJA: 500,
+    note: 'a JEDEC type made by many vendors: the onsemi sheet is used (the board BOM names no maker). The table gives limits only (VF ≤ 1 V at 10 mA): the 1, 10 and 100 mA points are read from Fig. 2 at 25 °C (about ±20 mV); CJO ≈ the 0 V end of Fig. 1 (table: ≤ 4 pF). BV is the 100 V minimum at 100 µA. Pinout 1 K, 2 A. θJA on the minimum land pad',
+    units: [{ kind: 'diode', vf: [[0.6, 1e-3], [0.72, 0.01], [0.95, 0.1]], bv: [100, 1e-4], cj: 0.57e-12, pins: { K: '1', A: '2' } }] },
   { mpn: 'GREEN-56MCD-2MA-2.65V', description: 'green LED (debug)', pkg: '0402', verified: false,
     note: 'Vf/If taken from the part string (no manufacturer part number to look up): unverified',
     units: [{ kind: 'led', vf: [[2.65, 2e-3]], pins: { K: '1', A: '2' } }] },
@@ -170,9 +204,10 @@ for (const d of DEVICES) byKey.set(d.mpn.toUpperCase(), d);
 /** Finds a device by part number, tolerating ordering suffixes (_SBMS001, -7, -G, T1G, TRPBF, -HF). */
 export function findDevice(partNumber: string | undefined): DeviceDef | undefined {
   if (!partNumber) return undefined;
-  let s = partNumber.toUpperCase().replace(/_SBMS\d+$/, '').replace(/-HF$/, '');
+  // packing / ordering codes: Nexperia ",115", Vishay "-T1-E3" / "-T1-GE3", Apple "_SBMS001"
+  let s = partNumber.trim().toUpperCase().replace(/_SBMS\d+$/, '').replace(/-HF$/, '').replace(/,\d{3}$/, '').replace(/(-T\d)?-G?E3$/, '');
   for (let k = 0; k < 4; k++) {
-    const d = byKey.get(s);
+    const d = byKey.get(s) ?? (s.length >= 8 ? byKey.get(s.replace(/[RX]$/, '')) : undefined); // Nexperia reel letter (PMV50EPEAR)
     if (d) return d;
     const next = s.replace(/(TRPBF|T1G|T\d?G|-\d|-G|G|PBF)$/, '');
     if (next === s) break;
@@ -228,6 +263,15 @@ export function fitDiode(pts: [number, number][], nDefault = 1.05): DiodeFit {
 
 // ---------------- SPICE emission ----------------
 
+/** SPICE diode-model parameters (IS, N, RS, BV, IBV, CJO) fitted to a two-terminal unit. */
+export function diodeModelParams(u: DiodeSpec): Record<string, number> {
+  const f = fitDiode(u.vf, u.kind === 'led' ? 2 : u.kind === 'schottky' ? 1.05 : 1.0);
+  const p: Record<string, number> = { IS: f.is, N: f.n, RS: u.kind === 'led' ? Math.max(f.rs, 10) : f.rs };
+  if (u.bv) { p.BV = u.bv[0]; p.IBV = u.bv[1]; }
+  if (u.cj) p.CJO = u.cj;
+  return p;
+}
+
 const num = (v: number) => fmt(v);
 
 function unitCards(u: UnitSpec, k: number, port: (pad: string) => string, models: string[]): string[] {
@@ -239,6 +283,10 @@ function unitCards(u: UnitSpec, k: number, port: (pad: string) => string, models
     models.push(`.model ${m}_${u.kind} ${u.kind.toUpperCase()}(VTO=${num(f.vto)} KP=${num(f.kp)} LAMBDA=${num(f.lambda)}${u.body ? ' IS=0' : ''})`);
     const d = port(u.pins.D), g = port(u.pins.G), s = port(u.pins.S);
     L.push(`${m} ${d} ${g} ${s} ${s} ${m}_${u.kind}`);
+    // Gate bleed: a gate whose driver chip is not simulated would float, and the solver's tiny node
+    // shunt to ground would then switch a P-FET fully on. 100 MΩ keeps an undriven gate at its
+    // source (off, as an idle driver leaves it) and is negligible wherever the board drives the gate.
+    L.push(`RGS${k} ${g} ${s} 100Meg`);
     if (u.body) {
       const bf = fitDiode([[u.body[0] - 0.12, u.body[1] / 100], [u.body[0], u.body[1]]]);
       models.push(`.model DB${k} D(IS=${num(bf.is)} N=${num(bf.n)})`);
@@ -261,10 +309,8 @@ function unitCards(u: UnitSpec, k: number, port: (pad: string) => string, models
       models.push(`.model DT${k} D(IS=1e-15 N=1 BV=${num(bv - 0.7)} IBV=${num(ibv)}${dU.cj ? ` CJO=${num(dU.cj * 2)}` : ''})`);
       L.push(`DT${k}a ${a} n${k} DT${k}`, `DT${k}b ${kk} n${k} DT${k}`);
     } else {
-      const f = fitDiode(dU.vf, dU.kind === 'led' ? 2 : dU.kind === 'schottky' ? 1.05 : 1.0);
-      const rs = dU.kind === 'led' ? Math.max(f.rs, 10) : f.rs;
-      const bv = dU.bv ? ` BV=${num(dU.bv[0])} IBV=${num(dU.bv[1])}` : '';
-      models.push(`.model D${k}_m D(IS=${num(f.is)} N=${num(f.n)} RS=${num(rs)}${bv}${dU.cj ? ` CJO=${num(dU.cj)}` : ''})`);
+      const params = Object.entries(diodeModelParams(dU)).map(([key, v]) => `${key}=${num(v)}`).join(' ');
+      models.push(`.model D${k}_m D(${params})`);
       L.push(`D${k} ${a} ${kk} D${k}_m`);
     }
   }
@@ -325,8 +371,11 @@ export function inferDiodeConvention(parts: { ref: string; kind: DiodeSpec['kind
 }
 
 /** Pin map for a unit on a concrete footprint, honouring the board diode convention. */
-function boardPins(u: UnitSpec, conv: DiodeConvention | undefined, twoPin: boolean): UnitSpec {
-  if (!twoPin || !('A' in u.pins) || !conv) return u;
+function boardPins(u: UnitSpec, conv: DiodeConvention | undefined, twoPin: boolean, known?: Record<string, string>): UnitSpec {
+  if (!twoPin || !('A' in u.pins)) return u;
+  // the board's own anode / cathode pads (KiCad, built-in boards) beat any inferred convention
+  if (known?.A !== undefined && known.K !== undefined && known.A !== known.K) return { ...u, pins: { A: known.A, K: known.K } } as UnitSpec;
+  if (!conv) return u;
   return { ...u, pins: conv.pad1 === 'A' ? { A: '1', K: '2' } : { K: '1', A: '2' } } as UnitSpec;
 }
 
@@ -335,9 +384,9 @@ function boardPins(u: UnitSpec, conv: DiodeConvention | undefined, twoPin: boole
  * (a MOSFET gate must not share a net with its own drain/source, a BJT base not with its emitter).
  * Returns the PartSpec or the reason it was rejected.
  */
-export function resolveDevice(dev: DeviceDef, fp: PadNets, conv?: DiodeConvention): { spec?: PartSpec; reason?: string } {
+export function resolveDevice(dev: DeviceDef, fp: PadNets, conv?: DiodeConvention, known?: Record<string, string>): { spec?: PartSpec; reason?: string } {
   const twoPin = fp.padNames.length === 2;
-  const units = dev.units.map((u) => boardPins(u, conv, twoPin));
+  const units = dev.units.map((u) => boardPins(u, conv, twoPin, known));
   for (const u of units) {
     if (u.kind === 'nmos' || u.kind === 'pmos') {
       const g = fp.netOf(u.pins.G), d = fp.netOf(u.pins.D), s = fp.netOf(u.pins.S);

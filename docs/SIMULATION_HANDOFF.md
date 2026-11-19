@@ -1,4 +1,4 @@
-# DEADBOARD — handoff (updated 2026-11-19, after the simulation-accuracy session)
+# DEADBOARD — handoff (updated 2026-11-19, after the part-data session)
 
 Goal: make DEADBOARD (formerly PCB//FIX) a realistic board-repair trainer, as close to a real bench as possible,
 **universal** (any board, not just the MacBook), with honest provenance for every value.
@@ -45,14 +45,49 @@ No reference hardware is available, so realism is validated against *design inte
      ROHM links redirect to a web page (open in a browser). Jetson demo now 13/13 part numbers
      found. Digi-Key does not carry SISA12DN (discontinued) or CSD58873Q3D (custom). Mouser key
      (`MOUSER_API_KEY`) not set: optional; its parser is only tested on documented shapes.
-  2. **Proposed, not started (ask first):** (a) a datasheet table extractor that drafts device-
-     library entries from `pdftotext -layout` output, keeping Min/Typ/Max apart, for review;
-     (b) more parts of real boards in the library (Jetson: 13/13 part numbers found, only 2
-     with checked data — BSS138PW, NCP380 load switch, PESD / TPD ESD arrays, level shifters);
-     (c) vendor SPICE models used locally (many are level 3 MOS: needs engine support or
-     ngspice); (d) **plan step 7, provenance-tier UI** (badge per reading: datasheet-verified /
-     published board values / bench-measured / estimate, regulator confidence; English + Russian,
-     gated mobile text).
+  2. **Done 2026-11-19, late (user chose (a) + (b); not committed yet unless the log says so):**
+     - **The device library now runs on every board** (`boardDevices` in
+       `src/spice/resolveParts.ts`, used by `boardToCircuit`, option `devices`, default on). Before
+       this it was wired only into the test-only schematic path and the CLI: on an imported board a
+       library part was a generic diode or simply left out. Parts are matched by their printed
+       label (KiCad value, BOM, boardview text); `findDevice` now also strips `,115`, `-T1-E3`,
+       `-T1-GE3` and Nexperia's reel letter (`PMV50EPEAR` → PMV50EPEA). A single two-pin diode
+       becomes a plain `D` (board A/K roles, so reversal / overload / LED work); everything else a
+       subcircuit whose inner power is read back (`PartMap.prefix`, thermal camera). The ideal
+       ohmmeter (`diodesOpen`) leaves library junctions open.
+     - **Gate bleed:** every library MOSFET has 100 MΩ G–S. Without it an undriven gate (driver
+       chip not simulated: Reform's LTC6803 balancing P-FETs Q5–Q12) floated to ground through
+       the node shunt and switched fully on (0.54 W in each balancing resistor). Power-path FETs
+       keep the power tree's behavioral switch in parallel (not added to `simulatedRefs`): their
+       gate drivers are still not simulated.
+     - **Datasheet extractor:** `npm run parts -- extract <pdf|txt> [MPN]` (`src/io/datasheetTable.ts`)
+       prints the table rows (Min/Typ/Max apart, SI units, parsed conditions, hot rows flagged,
+       rows naming sister parts left out) and a draft entry with a review list; pins are never
+       guessed, `verified: false` until checked. Handles Nexperia, Vishay and Diodes Inc. layouts;
+       zener / TVS series tables are printed (header + the part's row) for mapping by hand.
+     - **Lookup ranks original makers** (`rankCatalogue`, `isOriginalMaker`): jlcparts had
+       returned clones (TECH PUBLIC BSS138PW, RUILON SMBJ33A); a full ordering code the catalogue
+       lacks goes to Digi-Key first (`-G3-08`, `-E3/61` are Vishay).
+     - **8 new verified entries** (library 25/30): BSS138PW, PMV50ENEA, PMV50EPEA, SI7850DP,
+       SI7461DP, BAT46WJ, SBR0560S1, 1N4148WS (graph-read points and limit-only values called
+       out in each note). Jetson 4/14 part numbers with checked data (was 2/13), Reform 9/44.
+     - **Readings that changed (deliberately, `test/demoboards.test.ts`):** Jetson BOOT1 LED now
+       lit in S0SW (T2 BSS138PW, gate on the pulled-up #RESET), supply 38.9 → 41.8 mA; Reform
+       LPC_VCC diode mode 0.513 → 0.155 V (the buck's SBR0560S1 catch Schottky through L5, as a
+       real board reads), 30V_GATE Ω OL → 385 kΩ (1 µA range through 100 kΩ and BAT46WJ D2's
+       datasheet reverse leakage). New suite `test/partdata.test.ts` (synthetic layouts only).
+     - **Known weakness, first thing next time (user: "we will get back to it later"):** the
+       level-1 MOSFET fit (`fitMos`) matches RDS(on) at the highest VGS only; at 4.5–5 V it is
+       2.1–2.5× too high on all five new FETs (PMV50EPEA 112 vs 49 mΩ; the two-point fit is
+       rejected because its threshold falls outside 0.3–2.5 × the datasheet VGS(th)). Older library
+       FETs likely share it. Options: a mobility-degradation term (THETA) if the engine has one,
+       or fitting VT from the two RDS points; check against ngspice. Diode fits are within 7 mV.
+     - **Next candidates:** PMEG60T10ELR (Reform D17–D28, Nexperia returned 403: ask the user
+       for the PDF); zeners / TVS (BZT52C6V2, BZX584C3V3, SMBJ33A, P4SMA24CA: their sheets give
+       no forward curve, so entries stay `verified: false`); ESD arrays (TPD4E05U06 ×3 on the
+       Jetson, TPD6E05U06, SP0503BAHT: multi-unit, pinout from the drawings); passing labels as
+       `partNumbers` to `discoverPowerTree` (fet-switch roles from the library); then (c) vendor
+       SPICE models, (d) provenance-tier UI (both still need the user's go-ahead).
   3. Other open items: re-record 3 walkthrough videos (Backwards Day, Smoke Test, Bridge Troll:
      quoted fast-mode readings changed); add `apt-get install ngspice` to `pages.yml` (the ngspice
      suite skips in CI); bench measurements of a real board (none published for the demos).
@@ -61,7 +96,7 @@ No reference hardware is available, so realism is validated against *design inte
     truncates it); `sqlite3`. Datasheet PDFs the user downloads land in `~/Downloads`; copy them
     into the scratchpad / `.parts-cache/datasheets/`, never into the repo. Scripted downloads with
     a browser user-agent are refused by the permission check: use the jlcparts links / APIs or ask.
-  - **Device library: 17/22 verified** (`src/spice/devicelib.ts`, every entry has `source` + note);
+  - **Device library: 25/30 verified** (`src/spice/devicelib.ts`, every entry has `source` + note);
     unverified: CSD58873Q3D (MacBook custom part, no public datasheet; sibling CSD87333Q3D is in
     the library), the debug LED (no part number); partial: MMBT3904LP, SDZT15R6.8, ESD112.
     Regulators with datasheet data: LMR16006(YQ3), TLV62568, LM62460, LM62440, SiC477.
