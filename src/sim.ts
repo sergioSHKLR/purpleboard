@@ -1,10 +1,14 @@
 // DC operating-point solver: nodal analysis with Norton-equivalent sources and
-// piecewise-linear diodes (iterated until the on/off states are consistent).
+// piecewise-linear diodes (iterated until every diode sits on a consistent segment).
+// The diode curves are chords of the SPICE engine's own models (src/spice/board.ts), so both
+// solvers simulate the same parts and differ only in method (test/differential.test.ts).
 import { t } from './i18n';
 import type { Board, Component, SwitchMap } from './types';
 import { pinNet, type Conn } from './connectivity';
-import { LED_INFO, MODELED, batteryRint, twoRoles } from './model';
+import { MODELED, batteryRint, twoRoles } from './model';
 import { GENERIC_DMM } from './spice/dmm';
+import { DIODE_MODEL, ledModel } from './spice/board';
+import { VT_300K } from './spice/devices';
 
 export interface CompSim {
   /** Current through the part, + flowing from first role to second (A->K, through a resistor 1->2). For batteries: current delivered. */
@@ -28,17 +32,18 @@ export interface Sim {
   ammeterAmps?: number;
 }
 
-// Shunt from every solved node to ground: keeps the matrix regular and pulls a node that nothing
-// drives to 0 V, as a real 10 MΩ meter does. Open parts (open switch, off diode) are not stamped
-// at all: a conductance comparable to this shunt would form a divider with it and read a phantom
-// voltage on a floating net (an open switch from 3 V used to read exactly 1.000 V).
-const GMIN = 1e-9;
-const LED_RS = 15;
-const DIODE_VF = 0.7, DIODE_RS = 0.5;
+// Shunt from every solved node to ground (1 TΩ, as the SPICE engine's rshunt): keeps the matrix
+// regular and leaves a node that nothing drives at 0 V. The voltmeter's own 10 MΩ load is
+// stamped separately (`meters`). Open parts (open switch, off diode) are not stamped at all: a
+// conductance comparable to this shunt would form a divider with it and read a phantom voltage
+// on a floating net (an open switch from 3 V used to read exactly 1.000 V). A larger shunt also
+// read megohm resistances low in Ω mode (1 GΩ per node: −0.6 % on 2 MΩ).
+const GMIN = 1e-12;
 export const LED_MAX_I = 0.03;
 export const LED_ON_I = 0.002;
 
-interface El { c: Component; a: number; b: number; on: boolean }
+/** seg: diode segment in its PWL curve (-1 = off, no conduction). */
+interface El { c: Component; a: number; b: number; seg: number }
 
 function solve(A: Float64Array, b: Float64Array, n: number): Float64Array {
   for (let k = 0; k < n; k++) {
@@ -70,8 +75,38 @@ function solve(A: Float64Array, b: Float64Array, n: number): Float64Array {
   return x;
 }
 
-const vf = (c: Component) => (c.kind === 'led' ? LED_INFO[c.color ?? 'red'].vf : DIODE_VF);
-const rs = (c: Component) => (c.kind === 'led' ? LED_RS : DIODE_RS);
+/**
+ * Piecewise-linear I–V curve of a junction: chords of the Shockley curve with series resistance,
+ * V(I) = N·Vt·ln(1 + I/IS) + RS·I, through (0, 0) and currents from 1 pA doubling to beyond 10 A
+ * (chord error under 4 mV for N = 2). The curve is convex, so every segment's line lies below it
+ * and picking the segment that holds the last solution converges monotonically.
+ */
+interface Pwl { v: Float64Array; i: Float64Array; g: Float64Array }
+const pwlCache = new Map<string, Pwl>();
+function junctionPwl(c: Component): Pwl {
+  const model = c.kind === 'led' ? ledModel(c.color ?? 'red') : DIODE_MODEL;
+  let p = pwlCache.get(model.name);
+  if (p) return p;
+  const { is, n, rs } = model.params as { is: number; n: number; rs: number };
+  const cur = [0];
+  for (let x = 1e-12; x < 20; x *= 2) cur.push(x);
+  const i = Float64Array.from(cur);
+  const v = i.map((x) => n * VT_300K * Math.log1p(x / is) + rs * x);
+  const g = new Float64Array(i.length - 1).map((_, k) => (i[k + 1] - i[k]) / (v[k + 1] - v[k]));
+  pwlCache.set(model.name, (p = { v, i, g }));
+  return p;
+}
+/** Segment of the curve that holds vd (-1 below 0 V: off). */
+function segmentAt(p: Pwl, vd: number): number {
+  if (!(vd > 0)) return -1;
+  let lo = 0, hi = p.g.length - 1;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (p.v[mid] <= vd) lo = mid; else hi = mid - 1; }
+  return lo;
+}
+/** Diode current at vd on segment k (the line extended past its ends). */
+function segmentCurrent(p: Pwl, k: number, vd: number): number {
+  return k < 0 ? 0 : p.i[k] + p.g[k] * (vd - p.v[k]);
+}
 
 export interface SimOpts {
   switches?: SwitchMap;
@@ -108,7 +143,7 @@ export function simulate(board: Board, conn: Conn, opt: SimOpts = {}): Sim {
       caps.push({ c, aNet, bNet });
       continue;
     }
-    const el: El = { c, a: node(aNet), b: node(bNet), on: false };
+    const el: El = { c, a: node(aNet), b: node(bNet), seg: -1 };
     els.push(el);
     if (c.kind === 'battery' && !firstBattery) firstBattery = el;
   }
@@ -194,7 +229,7 @@ export function simulate(board: Board, conn: Conn, opt: SimOpts = {}): Sim {
 
   const outerSteps = opt.currentLimit && !probePair ? 6 : 1;
   for (let outer = 0; outer < outerSteps; outer++) {
-    for (let iter = 0; iter < 60; iter++) {
+    for (let iter = 0; iter < 100; iter++) {
       const G = new Float64Array(m * m);
       const I = new Float64Array(m);
       const stampG = (a: number, b: number, g: number) => {
@@ -219,7 +254,10 @@ export function simulate(board: Board, conn: Conn, opt: SimOpts = {}): Sim {
             if (sw?.[c.ref] ?? !!c.state.closed) stampG(e.a, e.b, 50);
             break;
           case 'led': case 'diode':
-            if (e.on && !opt.ohm) stampE(e.a, e.b, vf(c), 1 / rs(c));
+            if (e.seg >= 0 && !opt.ohm) {
+              const p = junctionPwl(c), k = e.seg;
+              stampE(e.a, e.b, p.v[k] - p.i[k] / p.g[k], p.g[k]);
+            }
             break;
           case 'battery':
             if (!probePair) stampE(e.a, e.b, batV.get(c.id) ?? c.value, 1 / batteryRint(c.value));
@@ -242,9 +280,8 @@ export function simulate(board: Board, conn: Conn, opt: SimOpts = {}): Sim {
       for (const e of activeEls) {
         if (e.c.kind !== 'led' && e.c.kind !== 'diode') continue;
         if (e.c.state.burnt) continue;
-        const vd = V[e.a] - V[e.b];
-        const on = e.on ? (vd - vf(e.c)) / rs(e.c) > 0 : vd > vf(e.c);
-        if (on !== e.on) { e.on = on; changed = true; }
+        const seg = segmentAt(junctionPwl(e.c), V[e.a] - V[e.b]);
+        if (seg !== e.seg) { e.seg = seg; changed = true; }
       }
       if (!changed) break;
     }
@@ -278,7 +315,7 @@ export function simulate(board: Board, conn: Conn, opt: SimOpts = {}): Sim {
       case 'resistor': i = c.state.burnt ? 0 : v / Math.max(c.value, 1e-3); break;
       case 'fuse': i = c.state.burnt ? 0 : v * 10; break;
       case 'switch': i = (sw?.[c.ref] ?? c.state.closed) && !c.state.burnt ? v * 50 : 0; break;
-      case 'led': case 'diode': i = e.on && !c.state.burnt ? (v - vf(c)) / rs(c) : 0; break;
+      case 'led': case 'diode': i = c.state.burnt || opt.ohm ? 0 : segmentCurrent(junctionPwl(c), e.seg, v); break;
       case 'battery': i = ((batV.get(c.id) ?? c.value) - v) / batteryRint(c.value); break;
     }
     const r: CompSim = { i, v, p: Math.abs(v * i), on: false, bright: 0, over: false };
@@ -310,6 +347,9 @@ export function netVoltage(s: Sim, net: number): number | null {
   return k === undefined ? null : s.V[k];
 }
 
+/** Ω readings at or above the meter's top range show OL (the DMM model's 60 MΩ range). */
+export const OHM_OL = GENERIC_DMM.ohmRanges[GENERIC_DMM.ohmRanges.length - 1].fullScale;
+
 /** In-circuit resistance between two nets with the supply disconnected (Infinity = open). */
 export function measureOhms(board: Board, conn: Conn, a: number, b: number): number {
   if (a < 0 || b < 0) return Infinity;
@@ -317,7 +357,7 @@ export function measureOhms(board: Board, conn: Conn, a: number, b: number): num
   const s = simulate(board, conn, { ohm: [a, b] });
   if (!s.source) return Infinity;
   const r = s.V[s.nodeOfNet.get(a)!] / 1e-3;
-  return r > 2e7 ? Infinity : r;
+  return r >= OHM_OL ? Infinity : r;
 }
 
 /**

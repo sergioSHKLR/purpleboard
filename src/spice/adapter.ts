@@ -4,7 +4,7 @@ import { t } from '../i18n';
 import type { Board } from '../types';
 import type { Conn } from '../connectivity';
 import { batteryRint } from '../model';
-import { DIODE_TEST, LED_MAX_I, LED_ON_I, type CompSim, type Sim, type SimOpts } from '../sim';
+import { DIODE_TEST, LED_MAX_I, OHM_OL, LED_ON_I, type CompSim, type Sim, type SimOpts } from '../sim';
 import { boardToCircuit, type BoardNetlist, type BoardSpiceOptions } from './board';
 import { Engine, type EngineOptions, type OpResult } from './engine';
 import { discoverPowerTree } from './powertree';
@@ -260,7 +260,7 @@ export function measureOhmsSpice(board: Board, conn: Conn, a: number, b: number,
   const k = s.nodeOfNet.get(a);
   if (k === undefined) return Infinity;
   const r = s.V[k] / 1e-3;
-  return r > 2e7 ? Infinity : r;
+  return r >= OHM_OL ? Infinity : r;
 }
 
 /** Diode-test mode (the DIODE_TEST source) with the supply removed. */
