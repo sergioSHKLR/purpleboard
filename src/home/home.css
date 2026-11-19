@@ -306,3 +306,12 @@ figcaption { margin-top: 12px; font: 13px/1.5 var(--mono); color: var(--muted); 
   .nav .btn .long { display: none; }
   .nav .btn .short { display: inline; }
 }
+
+/* ---------- live 3D board in the hero ---------- */
+.frame { position: relative; }
+.hero-3d { display: none; width: 100%; aspect-ratio: 2088 / 990; touch-action: pan-y; cursor: grab; background: #0b0c0e; }
+.hero-3d:active { cursor: grabbing; }
+.frame.live .hero-3d { display: block; }
+.frame.live img { display: none; }
+.frame-bar .frame-hint { margin-left: auto; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 640px) { .frame-bar > span:first-of-type { display: none; } }

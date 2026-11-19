@@ -23,7 +23,9 @@ async function setLanguage(code?: string) {
   document.title = lang() === 'en' ? TITLE : t('DEADBOARD — bring dead boards back');
   for (const b of document.querySelectorAll<HTMLButtonElement>('[data-lang]')) b.setAttribute('aria-pressed', String(b.dataset.lang === lang()));
   document.documentElement.classList.remove('i18n-wait');
+  relabelBoard?.();
 }
+let relabelBoard: (() => void) | undefined;
 for (const b of document.querySelectorAll<HTMLButtonElement>('[data-lang]')) {
   b.addEventListener('click', () => {
     if (b.dataset.lang === lang()) return;
@@ -57,4 +59,22 @@ if (log && !reduce && 'IntersectionObserver' in window) {
     next();
   }, { threshold: 0.4 });
   io.observe(log);
+}
+
+// The hero board in live 3D, loaded once it is on screen (not on Save-Data connections). The
+// screenshot stays when the board cannot load or the browser cannot draw it.
+const shot = document.querySelector<HTMLElement>('.hero-shot');
+const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;
+if (shot && !saveData && 'IntersectionObserver' in window) {
+  const io = new IntersectionObserver(async (entries) => {
+    if (!entries.some((e) => e.isIntersecting)) return;
+    io.disconnect();
+    try {
+      const { mountBoard3d } = await import('./board3d');
+      relabelBoard = await mountBoard3d(shot.querySelector('.frame')!, shot.querySelector('img')!, shot.querySelector('.frame-hint'), shot.querySelector('figcaption'));
+    } catch (e) {
+      console.warn('3D board unavailable, keeping the screenshot:', e);
+    }
+  }, { rootMargin: '200px' });
+  io.observe(shot);
 }
