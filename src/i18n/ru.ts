@@ -183,6 +183,7 @@ const ru: Catalog = {
   "Voltage injection: place the red probe on the shorted rail, then power on. The faulty part heats up — use Thermal view, freeze spray or IPA.": "Подача напряжения: поставьте красный щуп на линию с КЗ и включите питание. Неисправная деталь нагреется — ищите её тепловизором, охлаждающим спреем или спиртом.",
   "Loaded {title} ({parts} parts, {traces} traces)": "Загружено: {title} (деталей: {parts}, дорожек: {traces})",
   "Import error: {error}": "Ошибка импорта: {error}",
+  "Import check: {warning}": "Проверка импорта: {warning}",
   "Language": "Язык",
   "Switching the language reloads the bench: your changes to this board will be lost. Continue?": "При смене языка стенд перезагрузится, и ваши изменения на этой плате пропадут. Продолжить?",
   // ---- App: tool actions

@@ -2,6 +2,7 @@ import type { Board, Component, ComponentKind, Pad, PadLayers, PadShape, Scenari
 import { emptyBoard } from '../scenarios/builder';
 import { padShape } from '../model';
 import { shapeGap } from '../geom';
+import { buildConnectivity, netReport, netWarnings } from '../connectivity';
 
 const MIL_TO_MM = 0.0254;
 
@@ -576,6 +577,9 @@ export function buildBoardview(raw: RawBoard, title: string, author: string, qui
     });
   }
 
+  // pad shapes here are estimates: overlapping pads of different nets must not short (stacked
+  // pads, guessed sizes); trimming keeps the drawing tidy, the flag keeps the nets apart
+  board.estimatedPads = true;
   if (raw.parts.some((p) => p.pins.some((q) => q.pad))) clearPads(board.components);
 
   if (!quirks.supply?.(board, nextId, board.components)) addBridgeSupply(nextId, board.components, netPins);
@@ -585,6 +589,7 @@ export function buildBoardview(raw: RawBoard, title: string, author: string, qui
 
   board.nextId = next + 1000;
   const cleanTitle = title || 'Imported Boardview';
+  const importWarnings = netWarnings(netReport(buildConnectivity(board)));
   return {
     format: 'pcbfix/1',
     id: 'brd-' + Date.now().toString(36),
@@ -597,5 +602,6 @@ export function buildBoardview(raw: RawBoard, title: string, author: string, qui
     },
     board,
     objectives: [],
+    ...(importWarnings.length && { importWarnings }),
   };
 }

@@ -5,6 +5,7 @@ import { emptyBoard } from '../scenarios/builder';
 import { isBrdData, parseBrd } from './brd';
 import { parseTvw } from './tvw';
 import { addBenchSupply, chooseInputRail } from './benchSupply';
+import { buildConnectivity, netReport, netWarnings } from '../connectivity';
 
 type SExpr = string | SExpr[];
 
@@ -477,6 +478,7 @@ export function importScenarioOrPcb(filename: string, data: string | Uint8Array)
     if (choice && !board.components.some((c) => c.kind === 'battery' && c.pads.some((p) => p.net === choice.net))) {
       if (addBenchSupply(board, choice, () => board.nextId++)) supplyNote = ` Bench supply: ${choice.volts} V on ${choice.net} (${choice.why}).`;
     }
+    const importWarnings = netWarnings(netReport(buildConnectivity(board)));
     return {
       format: 'pcbfix/1',
       id,
@@ -489,6 +491,7 @@ export function importScenarioOrPcb(filename: string, data: string | Uint8Array)
       },
       board,
       objectives: [],
+      ...(importWarnings.length && { importWarnings }),
     };
   }
   return parseScenario(trimmed);

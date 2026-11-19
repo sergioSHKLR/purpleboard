@@ -67,6 +67,7 @@ export function buildConnectivity(board: Board): Conn {
   const blobItem = new Map<Blob, number>();
   const tracedNets = new Set<string>();
   const hiddenNets = new Set(board.hiddenCopperNets ?? []);
+  const estimated = !!board.estimatedPads;
 
   for (const c of board.components) {
     const idx: number[] = [];
@@ -124,6 +125,8 @@ export function buildConnectivity(board: Board): Conn {
       // track is a short, and the bench must show it. Only pours keep to their own net, because
       // an unfilled zone is stored as its outline and would swallow every track inside it.
       if (A.net && B.net && A.net !== B.net && (A.kind === 'zone' || B.kind === 'zone')) continue;
+      // estimated pad shapes (boardviews): overlapping pads of different nets are an artefact
+      if (estimated && A.net && B.net && A.net !== B.net && (A.kind === 'pad' || A.kind === 'via') && (B.kind === 'pad' || B.kind === 'via')) continue;
       if (A.kind === 'pad' && B.kind === 'pad' && A.comp === B.comp) continue; // same footprint, handled below
       let hit: boolean;
       if (A.kind === 'zone' && B.kind === 'zone') hit = false;
@@ -199,6 +202,50 @@ export function buildConnectivity(board: Board): Conn {
   });
 
   return { items, net, netCount: netItems.length, netNames, netItems, grid, padItem, traceItem, viaItem, blobItem };
+}
+
+/** How a board's conductors line up with the design's named nets (pad and via labels). */
+export interface NetReport {
+  /** Distinct net names on pads and vias. */
+  named: number;
+  /** Conductors carrying two or more names: shorts (real, or an importer's geometry error). */
+  merged: { nets: string[]; pads: string[] }[];
+  /** Names spread over two or more conductors: opens (unrouted, or copper the importer missed). */
+  split: { net: string; parts: number; pads: string[] }[];
+}
+
+/** Checks that every named net is exactly one conductor and no conductor carries two names. */
+export function netReport(conn: Conn): NetReport {
+  const label = (i: number) => {
+    const it = conn.items[i];
+    return it.kind === 'pad' ? `${it.comp!.ref}.${it.comp!.pads[it.pi!].name}` : `${it.kind}@${it.shape.pts[0].map((v) => v.toFixed(2)).join(',')}`;
+  };
+  const namesOf = new Map<number, Map<string, number>>(); // conductor → name → first item
+  const condOf = new Map<string, Map<number, number>>(); // name → conductor → first item
+  conn.items.forEach((it, i) => {
+    if ((it.kind !== 'pad' && it.kind !== 'via') || !it.net) return;
+    if (it.kind === 'pad' && (!it.comp!.state.populated || it.comp!.state.cold.includes(it.pi!))) return;
+    const k = conn.net[i];
+    const byName = namesOf.get(k) ?? namesOf.set(k, new Map()).get(k)!;
+    if (!byName.has(it.net)) byName.set(it.net, i);
+    const byCond = condOf.get(it.net) ?? condOf.set(it.net, new Map()).get(it.net)!;
+    if (!byCond.has(k)) byCond.set(k, i);
+  });
+  // KiCad names each no-connect pin's net `unconnected-(…)`: copper touching those is harmless,
+  // so a conductor counts as a short only when it joins two or more real nets
+  const nc = (n: string) => /^unconnected-/i.test(n);
+  const merged = [...namesOf.values()].filter((m) => [...m.keys()].filter((n) => !nc(n)).length > 1).map((m) => ({ nets: [...m.keys()].sort(), pads: [...m.values()].map(label) }));
+  const split = [...condOf].filter(([, m]) => m.size > 1).map(([net, m]) => ({ net, parts: m.size, pads: [...m.values()].map(label) }));
+  return { named: condOf.size, merged, split };
+}
+
+/** Readable import warnings from a report (English: technical detail, like mod errors). */
+export function netWarnings(r: NetReport): string[] {
+  const out: string[] = [];
+  const list = <T>(xs: T[], f: (x: T) => string) => xs.slice(0, 5).map(f).join('; ') + (xs.length > 5 ? `; … ${xs.length - 5} more` : '');
+  if (r.merged.length) out.push(`${r.merged.length} conductor(s) join different nets (a short in the file, or misread copper): ${list(r.merged, (m) => `${m.nets.join(' + ')} at ${m.pads.join(', ')}`)}`);
+  if (r.split.length) out.push(`${r.split.length} net(s) fall apart into separate pieces (unrouted, or copper not imported): ${list(r.split, (s) => `${s.net} ×${s.parts} (${s.pads.join(', ')})`)}`);
+  return out;
 }
 
 /**

@@ -121,6 +121,13 @@ export interface Board {
    */
   hiddenCopperNets?: string[];
   /**
+   * Pad shapes are an importer's estimate (boardviews store pin positions, not copper): pads and
+   * vias of different named nets never join by touching, since that overlap is an artefact of
+   * the estimate (stacked pads, guessed sizes), not a short. Solder blobs, jumpers and traces
+   * still join whatever they touch.
+   */
+  estimatedPads?: boolean;
+  /**
    * Inner-layer copper of a multilayer board, for display only (X-ray, selected-net overlay).
    * Electrically it is represented by hiddenCopperNets; tools never act on it.
    */
@@ -168,4 +175,6 @@ export interface Scenario {
   solver?: 'fast' | 'spice' | 'spice-power';
   /** Model calibration from bench measurements of a real board (see src/calibrate.ts). */
   calibration?: { loadScale?: number; source?: string };
+  /** Import checks that failed (nets joined or split, counts off); set by importers, not saved. */
+  importWarnings?: string[];
 }

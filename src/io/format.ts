@@ -7,6 +7,7 @@ export function normalizeBoard(b: Partial<Board>): Board {
     traces: arr(b.traces), vias: arr(b.vias), blobs: arr(b.blobs), jumpers: arr(b.jumpers),
     zones: arr(b.zones), silk: arr(b.silk), texts: arr(b.texts), nextId: num(b.nextId, 1),
     ...(Array.isArray(b.hiddenCopperNets) && { hiddenCopperNets: b.hiddenCopperNets.filter((n) => typeof n === 'string') }),
+    ...(b.estimatedPads === true && { estimatedPads: true }),
     ...(b.inner && typeof b.inner === 'object' && {
       inner: {
         traces: arr(b.inner.traces).filter((t) => t && Number.isInteger(t.layer) && isPt(t.a) && isPt(t.b) && typeof t.w === 'number'),
@@ -80,5 +81,6 @@ export function parseScenario(text: string): Scenario {
 }
 
 export function serializeScenario(s: Scenario): string {
-  return JSON.stringify(s);
+  const { importWarnings: _, ...saved } = s;
+  return JSON.stringify(saved);
 }

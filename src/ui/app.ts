@@ -1858,6 +1858,7 @@ export class PcbApp {
       this.scenarios.push(sc);
       this.loadScenario(sc);
       this.toast(t('Loaded {title} ({parts} parts, {traces} traces)', { title: t(sc.meta.title), parts: sc.board.components.length, traces: sc.board.traces.length }), 'success');
+      for (const w of sc.importWarnings ?? []) this.toast(t('Import check: {warning}', { warning: w }), 'warn');
     } catch (err) {
       this.toast(t('Import error: {error}', { error: err instanceof Error ? err.message : String(err) }), 'danger');
     }
