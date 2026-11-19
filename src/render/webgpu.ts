@@ -1,3 +1,4 @@
+import { requestAnyAdapter, NoAdapterError } from './gpuprobe';
 import type { Board, Component, Side, V2 } from '../types';
 import { tk } from '../i18n';
 import { DEG, triangulate, type V3 } from '../geom';
@@ -309,15 +310,16 @@ export class WebGPURenderer {
 
   static async create(canvas: HTMLCanvasElement): Promise<WebGPURenderer> {
     if (!navigator.gpu) throw new Error(tk('WebGPU is not supported in this browser.'));
-    const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
-    if (!adapter) throw new Error(tk('Could not acquire a WebGPU adapter.'));
+    const { adapter, via, tried } = await requestAnyAdapter();
+    if (!adapter) throw new NoAdapterError(tk('Could not acquire a WebGPU adapter.'), tried);
     const device = await adapter.requestDevice();
     const ctx = canvas.getContext('webgpu');
     if (!ctx) throw new Error(tk('Could not create a WebGPU canvas context.'));
 
     const r = new WebGPURenderer(canvas);
     const info = adapter.info;
-    r.adapterDescription = info ? [info.vendor, info.architecture, info.device, info.description].filter(Boolean).join(' / ') || 'unknown' : 'unknown';
+    r.adapterDescription = (info ? [info.vendor, info.architecture, info.device, info.description].filter(Boolean).join(' / ') || 'unknown' : 'unknown')
+      + (via !== 'high-performance' ? ` (${via} adapter; ${tried.join(', ')})` : '');
     r.device = device;
     r.ctx = ctx;
     r.format = navigator.gpu.getPreferredCanvasFormat();

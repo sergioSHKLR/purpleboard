@@ -29,6 +29,7 @@ import { fmtHz, sampleSignal, signalOn, type ScopeSignal } from '../scope';
 import type { PowerStateName } from '../spice/sequencer';
 import { HOTAIR_H, IRON_G, PREHEAT_H, ReworkMonitor, type ReworkEvent } from '../rework';
 import { WebGPURenderer, type VizMode } from '../render/webgpu';
+import { NoAdapterError, gpuDiagnosis, webGlInfo, type WebGlInfo } from '../render/gpuprobe';
 import { setSoundEnabled, sfxBeep, sfxBlow, sfxClick, sfxCut, sfxSolder, sfxWin, soundEnabled } from './audio';
 import { icon } from './icons';
 import { chromeIntentUrl, inAppBrowser } from './inapp';
@@ -292,7 +293,7 @@ export class PcbApp {
     try {
       this.renderer = await WebGPURenderer.create(this.canvas);
     } catch (err) {
-      this.showWebGpuError(err instanceof Error ? err.message : String(err));
+      this.showWebGpuError(err instanceof Error ? err.message : String(err), err instanceof NoAdapterError ? err.tried : []);
       return;
     }
 
@@ -345,7 +346,7 @@ export class PcbApp {
   }
 
   /** What the visitor can do about it, tuned to their browser (most reports come from Firefox). */
-  private webGpuHelp(): string {
+  private webGpuHelp(gl: WebGlInfo | null): string {
     const ua = navigator.userAgent;
     const ff = /Firefox\/(\d+)/.exec(ua);
     const general = t('DEADBOARD renders the bench with WebGPU: use Chrome or Edge 113+, Safari 26+, or Firefox 141+ (Windows) / 145+ (Mac with Apple silicon).');
@@ -367,6 +368,12 @@ export class PcbApp {
     if (!ff && /Linux/.test(ua) && !/Android|CrOS/.test(ua)) {
       return t('On Linux, Chrome and Edge turn WebGPU on only for some graphics drivers. Open chrome://flags, enable "Unsafe WebGPU Support" and "Vulkan", and restart the browser; or use Firefox with dom.webgpu.enabled set to true in about:config. Make sure your Vulkan driver is installed (vulkaninfo should list your GPU).');
     }
+    // Chrome / Edge with WebGPU, but it offered no adapter: the GPU is blocklisted, its driver is
+    // too old, or the browser is not using the graphics card at all
+    if (!ff && 'gpu' in navigator) {
+      if (gl?.software) return t('Your browser is drawing without the graphics card ({renderer}), so WebGPU has nothing to run on. Turn on hardware acceleration (Chrome / Edge: Settings → System → "Use graphics acceleration when available"), restart the browser, and update the graphics driver if it still fails.', { renderer: gl.renderer });
+      return t('Your browser has WebGPU but did not offer it for this graphics card{gpu}. Update the graphics driver (from Intel, AMD or NVIDIA, not only Windows Update), make sure hardware acceleration is on (Settings → System), and restart the browser. chrome://gpu shows the reason under WebGPU.', { gpu: gl ? ` (${gl.renderer})` : '' });
+    }
     if (!ff) return general;
     const ver = Number(ff[1]);
     if (!('gpu' in navigator)) {
@@ -377,7 +384,8 @@ export class PcbApp {
     return t('Firefox has WebGPU, but did not offer it for this graphics card or driver. Update the graphics driver and make sure hardware acceleration is on (Settings → Performance), or use Chrome. about:support → WebGPU shows the reason.');
   }
 
-  private showWebGpuError(msg: string) {
+  private showWebGpuError(msg: string, tried: string[] = []) {
+    const gl = webGlInfo();
     const app = inAppBrowser(navigator.userAgent);
     const android = /Android/.test(navigator.userAgent);
     // a social app's built-in browser: the fix is another browser, so say that first and offer it
@@ -396,7 +404,7 @@ export class PcbApp {
         <div class="card">
           <div class="card-title lg">${t('WebGPU is not available')}</div>
           <p class="text-2" style="margin:0">${this.esc(t(msg))}</p>
-          ${app === null ? `<p class="muted" style="margin:0">${this.webGpuHelp()}</p>` : ''}
+          ${app === null ? `<p class="muted" style="margin:0">${this.esc(this.webGpuHelp(gl))}</p>` : ''}
         </div>
         <div class="card">
           <div class="card-title">${t('Still stuck? Tell us')}</div>
@@ -410,7 +418,7 @@ export class PcbApp {
     });
     const host = this.mount.querySelector<HTMLElement>('#fb-host');
     // no bench to snapshot here: the report says what this browser offers instead
-    const gpu = `navigator.gpu: ${'gpu' in navigator ? 'yes' : 'no'}${app === null ? '' : `; in-app browser: ${app || 'Android WebView'}`}`;
+    const gpu = `${gpuDiagnosis(tried, gl)}${app === null ? '' : `; in-app browser: ${app || 'Android WebView'}`}`;
     if (host) mountFeedbackForm(host, () => ({ error: msg, gpu, view: 'WebGPU error screen (no bench, no snapshot)' }), { kind: 'bug' });
   }
 

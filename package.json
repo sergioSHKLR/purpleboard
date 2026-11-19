@@ -23,7 +23,8 @@
     "example-mod": "tsx scripts/build-example-mod.ts",
     "videos": "tsx scripts/videos/record.ts",
     "showcase": "tsx scripts/promo/showcase.ts",
-    "parts": "tsx scripts/parts.ts"
+    "parts": "tsx scripts/parts.ts",
+    "feedback": "tsx scripts/feedback.ts"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.51",
