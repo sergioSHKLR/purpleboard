@@ -31,7 +31,7 @@ No reference hardware is available, so realism is validated against *design inte
     traces still do). `netReport` / `netWarnings` check named nets = conductors; BRD/TVW/KiCad
     imports attach `Scenario.importWarnings` (not saved) → "Import check" toast (ru added). The
     Jetson file really has LED1 with both pads on one net (routed separately).
-  - **Device library** (`test/devicelib.test.ts`): 8/21 parts verified (11 after a follow-up) against manufacturer
+  - **Device library** (`test/devicelib.test.ts`): 8/21 parts verified (15 after follow-ups) against manufacturer
     datasheets (`source` = document + revision, `thetaJA`); many from-memory values were maxima or
     wrong (IRF9395 Rds(on) 16 → 5.3 mΩ, SI7137DP Ciss 9 → 20 nF). 3 checked against limits only;
     10 unverified (Diodes / TI / Rohm / ST sites serve bot pages to curl, or the PDF fonts were not
@@ -459,15 +459,15 @@ intermittents (`!I`, even dormant), like `!X` for burnt — a fault the objectiv
    Ω / supply-current rows; none are published for the open demos).
 0. **CI:** no PR workflow yet; `pages.yml` does not install ngspice, so `test/ngspice.test.ts`
    skips in CI (add `sudo apt-get install -y ngspice`). Private MacBook fixtures still local only.
-0. **Device library:** 11/21 verified (later on 2026-11-19, with poppler: DMN32D2LFB4, DMN5L06VK
-   and RB160M-60 added, typicals partly read from datasheet figures and noted as such). Still
-   unverified: SISA18DN (Vishay doc. 62579), SISA12DN, CSD58873Q3D, BC846BLP (probably Diodes
-   BC846BLP4, DS35751), RB521ES-30, BAT30CWFILM (ST DocID12564), the debug LED; MMBT3904LP (Vbe /
-   Early estimates), SDZT15R6.8 (Vz checked, no forward spec), ESD112 (limits only). Those vendors
-   serve bot pages to scripted downloads; downloading with a browser user-agent was refused, so
-   get the PDFs by hand (or a permission rule) and read them with `pdftotext -layout` /
-   `pdftoppm` (poppler now installed). `thetaJA` is recorded but the thermal model does not use it
-   yet (part body → board conductance is per area).
+0. **Device library:** 15/21 verified (follow-ups on 2026-11-19 with poppler and PDFs the user
+   downloaded into ~/Downloads: DMN32D2LFB4, DMN5L06VK, RB160M-60, SiSA18DN / SiSA12DN (measured
+   column of Vishay's SPICE-model documents), BAT30CWFILM, RB521ES-30; typicals partly read from
+   datasheet figures and noted as such). Still unverified: CSD58873Q3D (TI), BC846BLP (probably
+   Diodes BC846BLP4, DS35751), the debug LED (no part number); partial: MMBT3904LP (Vbe / Early
+   estimates), SDZT15R6.8 (Vz checked, no forward spec), ESD112 (limits only). Vendors serve bot
+   pages to scripted downloads (a browser user-agent was refused): the user downloads PDFs by hand;
+   read them with `pdftotext -layout` / `pdftoppm` (poppler installed). Never commit datasheets.
+   `thetaJA` is recorded but the thermal model does not use it yet.
 0. **Regulators:** only the demos' parts are listed; CURRENT_LIMIT per class, rail loads
    (decoupling caps × 20 mW) and dropout remain estimates. The power tree misses the Reform's
    LM62460 / TLV62568 FB dividers (targets come from rail names; within 0.5 % of design).
