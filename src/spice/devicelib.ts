@@ -2,8 +2,13 @@
 //
 // Each entry stores the *datasheet quantities* (Rds(on) at given Vgs, Vf at given If, hFE…)
 // and the pad→terminal map; SPICE parameters are fitted from them at build time, so a spec
-// correction automatically corrects the model. `verified` records whether the numbers were
-// checked against the manufacturer datasheet (transcribed typical values are `false`).
+// correction automatically corrects the model.
+//
+// Provenance: `verified: true` only when every number in the entry was read from the
+// manufacturer datasheet named in `source` (typical column; a value the datasheet gives only as
+// a limit, or derived from limits, is called out in `note`). Entries checked only against
+// datasheet limits, or whose datasheet was not read, stay `verified: false` and say so in
+// `note`. Numbers are facts transcribed from the documents; no datasheet text is copied.
 import type { PartSpec } from './board';
 import { VT_300K } from './devices';
 import { formatSpiceNumber as fmt } from './units';
@@ -38,6 +43,10 @@ export interface DeviceDef {
   pkg: string;
   units: UnitSpec[];
   verified: boolean;
+  /** Datasheet the numbers were read from: maker, document id, revision, date. */
+  source?: string;
+  /** Junction-to-ambient thermal resistance (°C/W) as the datasheet states it (condition in `note`). */
+  thetaJA?: number;
   note?: string;
 }
 
@@ -46,68 +55,97 @@ export interface DeviceDef {
 // diodes are the exception — libraries disagree on whether pad 1 is the anode or cathode —
 // so their mapping is resolved per board from netlist evidence (see inferDiodeConvention).
 const DEVICES: DeviceDef[] = [
-  { mpn: 'FDC638APZ', description: 'P-MOSFET −20 V −4.5 A', pkg: 'SuperSOT-6', verified: false,
-    units: [{ kind: 'pmos', vth: 0.8, rds: [[4.5, 0.035], [2.5, 0.048]], body: [0.8, 1.3], caps: [760e-12, 140e-12, 180e-12], pins: { D: '1', G: '3', S: '4' } }] },
+  { mpn: 'FDC638APZ', description: 'P-MOSFET −20 V −4.5 A', pkg: 'SuperSOT-6 (TSOT-23-6)', verified: true,
+    source: 'onsemi FDC638APZ/D Rev. 3, Nov 2023', thetaJA: 156,
+    note: 'θJA on the minimum pad (note 1b)',
+    units: [{ kind: 'pmos', vth: 0.8, rds: [[4.5, 0.037], [2.5, 0.052]], body: [0.8, 1.3], caps: [750e-12, 130e-12, 155e-12], pins: { D: '1', G: '3', S: '4' } }] },
   { mpn: 'DMN5L06VK', description: 'dual N-MOSFET 50 V 0.28 A', pkg: 'SOT-563', verified: false,
+    source: 'Diodes Inc. DS30769 Rev. 15, Nov 2024', thetaJA: 500,
+    note: 'datasheet gives limits only (VGS(th) 0.49–1.0 V, RDS(on) ≤ 2.0 Ω at 5 V / ≤ 2.5 Ω at 2.5 V, VSD 0.5–1.4 V at 115 mA, Ciss ≤ 50 pF); these estimates lie within them',
     units: [
       { kind: 'nmos', vth: 1.0, rds: [[10, 1.6], [5, 2.0]], body: [0.85, 0.1], caps: [50e-12, 5e-12, 10e-12], pins: { D: '6', G: '2', S: '1' } },
       { kind: 'nmos', vth: 1.0, rds: [[10, 1.6], [5, 2.0]], body: [0.85, 0.1], caps: [50e-12, 5e-12, 10e-12], pins: { D: '3', G: '5', S: '4' } },
     ] },
   { mpn: 'DMN32D2LFB4', description: 'N-MOSFET 30 V small signal', pkg: 'X2-DFN1006-3', verified: false,
+    note: 'Diodes Inc. DS31124 Rev. 9 (Aug 2015) downloaded, but its table values were not machine-readable: unverified estimates',
     units: [{ kind: 'nmos', vth: 0.9, rds: [[4.5, 1.2], [2.5, 1.8]], body: [0.8, 0.1], caps: [30e-12, 3e-12, 6e-12], pins: { G: '1', S: '2', D: '3' } }] },
-  { mpn: 'NTUD3169CZ', description: 'complementary N+P MOSFET 20 V', pkg: 'SOT-963', verified: false,
+  { mpn: 'NTUD3169CZ', description: 'complementary N+P MOSFET 20 V', pkg: 'SOT-963', verified: true,
+    source: 'onsemi NTUD3169CZ/D Rev. 2, Jun 2025', thetaJA: 1000,
+    note: 'VGS(th) has no typical (0.4–1.0 V): midpoint used. Pinout matches package style 9; which unit is N is net-checked per board. θJA on the minimum pad',
     units: [
-      { kind: 'nmos', vth: 0.7, rds: [[4.5, 1.5], [2.5, 2.0]], body: [0.8, 0.1], pins: { S: '1', G: '2', D: '6' } },
-      { kind: 'pmos', vth: 0.7, rds: [[4.5, 3.0], [2.5, 4.5]], body: [0.8, 0.1], pins: { D: '3', S: '4', G: '5' } },
+      { kind: 'nmos', vth: 0.7, rds: [[4.5, 0.75], [2.5, 1.0]], body: [0.6, 0.01], caps: [12.5e-12, 2.6e-12, 3.6e-12], pins: { S: '1', G: '2', D: '6' } },
+      { kind: 'pmos', vth: 0.7, rds: [[4.5, 2.0], [2.5, 2.6]], body: [0.6, 0.01], caps: [13.5e-12, 2.0e-12, 3.8e-12], pins: { D: '3', S: '4', G: '5' } },
     ] },
-  { mpn: 'SI5419DU', description: 'P-MOSFET −30 V (DC-in isolation)', pkg: 'PowerPAK 1212-8', verified: false,
-    units: [{ kind: 'pmos', vth: 1.5, rds: [[10, 0.018], [4.5, 0.028]], body: [0.8, 2], caps: [1500e-12, 200e-12, 300e-12], pins: { S: '1', G: '4', D: '5' } }] },
-  { mpn: 'SI7137DP', description: 'P-MOSFET −20 V (battery FET)', pkg: 'PowerPAK SO-8', verified: false,
-    units: [{ kind: 'pmos', vth: 1.0, rds: [[10, 0.0029], [4.5, 0.0037]], body: [0.7, 5], caps: [9000e-12, 1200e-12, 1500e-12], pins: { S: '1', G: '4', D: '5' } }] },
-  { mpn: 'SI8409DB', description: 'P-MOSFET −30 V load switch', pkg: 'MICRO FOOT 2x2', verified: false,
-    units: [{ kind: 'pmos', vth: 1.0, rds: [[4.5, 0.046], [2.5, 0.075]], body: [0.8, 1], caps: [600e-12, 90e-12, 120e-12], pins: { G: '1', D: '2', S: '4' } }] },
-  { mpn: 'IRF9395', description: 'dual P-MOSFET −30 V, common drain (inrush/back-to-back)', pkg: 'PQFN 3.3x3.3 dual', verified: false,
-    note: 'drains common on the thermal pads (no boardview net); body diodes oppose',
+  { mpn: 'SI5419DU', description: 'P-MOSFET −30 V (DC-in isolation)', pkg: 'PowerPAK ChipFET single', verified: true,
+    source: 'Vishay Si5419DU, doc. 69001 Rev. B, 07-Feb-2011', thetaJA: 34,
+    note: 'VGS(th) has no typical (1.2–2.5 V): midpoint used. Pinout not legible in the text extraction: pads net-checked per board. θJA typical, t ≤ 5 s on 1" × 1" FR4',
+    units: [{ kind: 'pmos', vth: 1.85, rds: [[10, 0.016], [4.5, 0.027]], body: [0.85, 7.9], caps: [1400e-12, 200e-12, 240e-12], pins: { S: '1', G: '4', D: '5' } }] },
+  { mpn: 'SI7137DP', description: 'P-MOSFET −20 V (battery FET)', pkg: 'PowerPAK SO-8', verified: true,
+    source: 'Vishay Si7137DP, doc. 69063 Rev. D, 18-May-2009', thetaJA: 15,
+    note: 'VGS(th) has no typical (0.5–1.4 V): midpoint used. θJA typical, t ≤ 10 s on 1" × 1" FR4 (54 °C/W max steady state)',
+    units: [{ kind: 'pmos', vth: 0.95, rds: [[10, 0.0016], [4.5, 0.002]], body: [0.64, 5], caps: [20000e-12, 2650e-12, 2150e-12], pins: { S: '1', G: '4', D: '5' } }] },
+  { mpn: 'SI8409DB', description: 'P-MOSFET −30 V load switch', pkg: 'MICRO FOOT 1.6x1.6', verified: true,
+    source: 'Vishay Si8409DB, doc. 73111 Rev. D, 20-Jul-2015', thetaJA: 72,
+    note: 'VGS(th) has no typical (0.6–1.4 V): midpoint used. Capacitances only as a graph: omitted. θJA typical, steady state',
+    units: [{ kind: 'pmos', vth: 1.0, rds: [[4.5, 0.038], [2.5, 0.052]], body: [0.8, 1], pins: { G: '1', D: '2', S: '4' } }] },
+  { mpn: 'IRF9395', description: 'dual P-MOSFET −30 V, common drain (inrush/back-to-back)', pkg: 'DirectFET MC dual', verified: true,
+    source: 'Infineon (IR) IRF9395MTRPbF datasheet, revision history to 2014-02-24',
+    note: 'drains common on the thermal pads (no boardview net); body diodes oppose. VSD given only as a maximum (1.2 V at 11 A). Package is DirectFET, not PQFN: pad numbers come from the board footprint (net-checked)',
     units: [
-      { kind: 'pmos', vth: 1.8, rds: [[10, 0.016], [4.5, 0.026]], body: [0.8, 2], caps: [1200e-12, 180e-12, 250e-12], pins: { S: '1', G: '3', D: '7' } },
-      { kind: 'pmos', vth: 1.8, rds: [[10, 0.016], [4.5, 0.026]], body: [0.8, 2], caps: [1200e-12, 180e-12, 250e-12], pins: { S: '4', G: '6', D: '7' } },
+      { kind: 'pmos', vth: 1.8, rds: [[10, 0.0053], [4.5, 0.009]], body: [1.2, 11], caps: [3241e-12, 466e-12, 820e-12], pins: { S: '1', G: '3', D: '7' } },
+      { kind: 'pmos', vth: 1.8, rds: [[10, 0.0053], [4.5, 0.009]], body: [1.2, 11], caps: [3241e-12, 466e-12, 820e-12], pins: { S: '4', G: '6', D: '7' } },
     ] },
   { mpn: 'SISA18DN', description: 'N-MOSFET 30 V (VR high side)', pkg: 'PowerPAK 1212-8S', verified: false,
+    note: 'datasheet not retrieved: unverified estimates',
     units: [{ kind: 'nmos', vth: 1.6, rds: [[10, 0.0054], [4.5, 0.0076]], body: [0.75, 5], caps: [1100e-12, 60e-12, 300e-12], pins: { S: '1', G: '4', D: '5' } }] },
   { mpn: 'SISA12DN', description: 'N-MOSFET 30 V (VR low side)', pkg: 'PowerPAK 1212-8S', verified: false,
+    note: 'datasheet not retrieved: unverified estimates',
     units: [{ kind: 'nmos', vth: 1.4, rds: [[10, 0.0026], [4.5, 0.0034]], body: [0.7, 5], caps: [2600e-12, 140e-12, 600e-12], pins: { S: '1', G: '4', D: '5' } }] },
   { mpn: 'CSD58873Q3D', description: 'synchronous buck power block 30 V', pkg: 'SON 3.3x3.3', verified: false,
-    note: 'TGR (pad 4) is the control-FET source sense, tied internally to VSW',
+    note: 'TGR (pad 4) is the control-FET source sense, tied internally to VSW. Datasheet not retrieved: unverified estimates',
     units: [
       { kind: 'nmos', vth: 1.4, rds: [[8, 0.0092], [4.5, 0.011]], body: [0.8, 5], caps: [900e-12, 50e-12, 250e-12], pins: { D: '1', G: '3', S: '6' } },
       { kind: 'nmos', vth: 1.2, rds: [[8, 0.0041], [4.5, 0.0049]], body: [0.7, 5], caps: [1900e-12, 90e-12, 500e-12], pins: { D: '6', G: '5', S: '9' } },
     ] },
-  { mpn: 'NTMFD4902NF', description: 'dual N-MOSFET power stage 30 V (charger)', pkg: 'SO-8FL dual', verified: false,
+  { mpn: 'NTMFD4902NF', description: 'dual N-MOSFET power stage 30 V (charger)', pkg: 'SO-8FL dual', verified: true,
+    source: 'onsemi NTMFD4902NF/D Rev. 5, May 2019', thetaJA: 65.9,
+    note: 'VGS(th) has no typical (1.2–2.2 V): midpoint used. Q2 has an integrated Schottky (VSD 0.37 V at 2 A). θJA of Q1 on 1 in² 2 oz Cu (Q2 62.8)',
     units: [
-      { kind: 'nmos', vth: 1.6, rds: [[10, 0.0064], [4.5, 0.0092]], body: [0.8, 5], caps: [1200e-12, 60e-12, 330e-12], pins: { D: '2', G: '1', S: '10' } },
-      { kind: 'nmos', vth: 1.4, rds: [[10, 0.0028], [4.5, 0.0039]], body: [0.45, 1], caps: [2600e-12, 130e-12, 700e-12], pins: { D: '10', G: '8', S: '5' } },
+      { kind: 'nmos', vth: 1.7, rds: [[10, 0.0052], [4.5, 0.008]], body: [0.75, 3], caps: [1150e-12, 105e-12, 360e-12], pins: { D: '2', G: '1', S: '10' } },
+      { kind: 'nmos', vth: 1.7, rds: [[10, 0.0033], [4.5, 0.005]], body: [0.37, 2], caps: [1590e-12, 83e-12, 813e-12], pins: { D: '10', G: '8', S: '5' } },
     ] },
   { mpn: 'BC846BLP', description: 'NPN 65 V (thermal-sense diode)', pkg: 'X2-DFN1006-3', verified: false,
+    note: 'datasheet not retrieved: unverified estimates',
     units: [{ kind: 'npn', hfe: 290, vbe: [0.66, 2e-3], vaf: 100, pins: { B: '1', E: '2', C: '3' } }] },
   { mpn: 'MMBT3904LP', description: 'NPN 40 V general purpose', pkg: 'X2-DFN1006-3', verified: false,
+    source: 'Diodes Inc. DS31835 Rev. 7, Aug 2023', thetaJA: 310,
+    note: 'datasheet gives hFE as limits (100–300 at 10 mA) and VBE(on) only as a graph; these estimates lie within the limits. Early voltage not specified',
     units: [{ kind: 'npn', hfe: 150, vbe: [0.65, 10e-3], vaf: 100, pins: { B: '1', E: '2', C: '3' } }] },
-  { mpn: 'RB160M-60', description: 'Schottky 60 V 1 A', pkg: 'SOD-123', verified: false,
+  { mpn: 'RB160M-60', description: 'Schottky 60 V 1 A', pkg: 'SOD-123 (PMDU)', verified: false,
+    note: 'datasheet not machine-readable here: unverified estimates',
     units: [{ kind: 'schottky', vf: [[0.32, 0.01], [0.42, 0.1], [0.55, 1]], bv: [60, 1e-3], cj: 50e-12, pins: { K: '1', A: '2' } }] },
   { mpn: 'RB521ES-30', description: 'Schottky 30 V 0.2 A', pkg: 'SOD-523', verified: false,
+    note: 'datasheet not retrieved: unverified estimates',
     units: [{ kind: 'schottky', vf: [[0.3, 0.01], [0.45, 0.2]], bv: [30, 1e-3], cj: 10e-12, pins: { K: '1', A: '2' } }] },
-  { mpn: 'NSR1020MW2', description: 'Schottky 20 V 1 A', pkg: 'SOD-323', verified: false,
-    units: [{ kind: 'schottky', vf: [[0.27, 0.01], [0.37, 0.1], [0.5, 1]], bv: [20, 1e-3], cj: 60e-12, pins: { K: '1', A: '2' } }] },
+  { mpn: 'NSR1020MW2', description: 'Schottky 20 V 1 A', pkg: 'SOD-323', verified: true,
+    source: 'onsemi NSR1020MW2/D Rev. 4, Oct 2025',
+    note: 'VF typical only at 10 mA (0.24 V); 0.1 A and 1 A points are the maximum limits. BV is the 20 V reverse rating, not a measured breakdown',
+    units: [{ kind: 'schottky', vf: [[0.24, 0.01], [0.33, 0.1], [0.54, 1]], bv: [20, 1e-3], cj: 25e-12, pins: { K: '1', A: '2' } }] },
   { mpn: 'BAT30CWFILM', description: 'dual Schottky 30 V, common cathode', pkg: 'SOT-323', verified: false,
+    note: 'datasheet not retrieved: unverified estimates',
     units: [
       { kind: 'schottky', vf: [[0.3, 0.01], [0.45, 0.1]], bv: [30, 1e-3], cj: 15e-12, pins: { A: '1', K: '3' } },
       { kind: 'schottky', vf: [[0.3, 0.01], [0.45, 0.1]], bv: [30, 1e-3], cj: 15e-12, pins: { A: '2', K: '3' } },
     ] },
-  { mpn: 'SDZT15R6.8', description: 'Zener 6.8 V', pkg: 'SOD-523', verified: false,
+  { mpn: 'SDZT15R6.8', description: 'Zener 6.8 V', pkg: 'SMD0603', verified: false,
+    note: 'ROHM part (package per distributor listing; was listed as SOD-523). Datasheet text not machine-readable: unverified estimates',
     units: [{ kind: 'zener', vf: [[0.7, 0.01], [0.8, 0.1]], bv: [6.8, 5e-3], pins: { K: '1', A: '2' } }] },
   { mpn: 'ESD112-B1-02ELS', description: 'bidirectional ESD protection (ultra-low C)', pkg: 'TSSLP-2', verified: false,
+    source: 'Infineon ESD112-B1-02 series data sheet Rev. 1.3, 2013-11-27',
+    note: 'line capacitance 0.2 pF typical (matches); breakdown given as 7 V without a typical, so the 9 V estimate is only checked to lie above it',
     units: [{ kind: 'tvs-bi', vf: [], bv: [9, 1e-3], cj: 0.2e-12, pins: { K: '1', A: '2' } }] },
   { mpn: 'GREEN-56MCD-2MA-2.65V', description: 'green LED (debug)', pkg: '0402', verified: false,
-    note: 'Vf/If taken from the part string',
+    note: 'Vf/If taken from the part string (no manufacturer part number to look up): unverified',
     units: [{ kind: 'led', vf: [[2.65, 2e-3]], pins: { K: '1', A: '2' } }] },
 ];
 
@@ -160,10 +198,13 @@ export function fitDiode(pts: [number, number][], nDefault = 1.05): DiodeFit {
     return { is: p[0][1] / Math.exp(p[0][0] / (n * VT_300K)), n, rs: 0 };
   }
   const [v1, i1] = p[0], [v2, i2] = p[1];
-  const n = Math.min(3, Math.max(0.9, (v2 - v1) / (VT_300K * Math.log(i2 / i1))));
-  const is = i1 / Math.exp(v1 / (n * VT_300K));
-  let rs = 0;
-  if (p.length >= 3) {
+  // N and IS through the first two points after the RS drop, RS through the last point;
+  // iterated so all three hold together (RS alone would lift the middle point)
+  let n = 1, is = 1e-14, rs = 0;
+  for (let k = 0; k < (p.length >= 3 ? 40 : 1); k++) {
+    n = Math.min(3, Math.max(0.9, (v2 - rs * i2 - (v1 - rs * i1)) / (VT_300K * Math.log(i2 / i1))));
+    is = i1 / Math.exp((v1 - rs * i1) / (n * VT_300K));
+    if (p.length < 3) break;
     const [v3, i3] = p[p.length - 1];
     rs = Math.max(0, (v3 - n * VT_300K * Math.log(i3 / is)) / i3);
   }
@@ -179,7 +220,8 @@ function unitCards(u: UnitSpec, k: number, port: (pad: string) => string, models
   if (u.kind === 'nmos' || u.kind === 'pmos') {
     const f = fitMos(u);
     const m = `M${k}`;
-    models.push(`.model ${m}_${u.kind} ${u.kind.toUpperCase()}(VTO=${num(f.vto)} KP=${num(f.kp)} LAMBDA=${num(f.lambda)})`);
+    // with a datasheet body diode (DB below) the level-1 bulk junction is switched off (IS=0)
+    models.push(`.model ${m}_${u.kind} ${u.kind.toUpperCase()}(VTO=${num(f.vto)} KP=${num(f.kp)} LAMBDA=${num(f.lambda)}${u.body ? ' IS=0' : ''})`);
     const d = port(u.pins.D), g = port(u.pins.G), s = port(u.pins.S);
     L.push(`${m} ${d} ${g} ${s} ${s} ${m}_${u.kind}`);
     if (u.body) {
@@ -227,7 +269,7 @@ export function deviceSpec(dev: DeviceDef, padNames: string[]): PartSpec | undef
     type: 'subckt',
     ports: used,
     spice: [`.subckt ${name} ${used.map(port).join(' ')}`, ...models, ...cards, '.ends'].join('\n'),
-    note: `${dev.mpn}: ${dev.description}${dev.verified ? '' : ' (typical datasheet values, unverified)'}`,
+    note: `${dev.mpn}: ${dev.description}${dev.verified ? ` (datasheet-verified: ${dev.source})` : ' (estimated values, unverified)'}`,
   };
 }
 

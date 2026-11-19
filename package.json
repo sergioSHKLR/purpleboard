@@ -15,7 +15,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "tsx test/solve.test.ts && tsx test/spice.test.ts && tsx test/differential.test.ts && tsx test/ngspice.test.ts && tsx test/schematic.test.ts && tsx test/powertree.test.ts && tsx test/realism.test.ts && tsx test/thermal.test.ts && tsx test/intermittent.test.ts && tsx test/rework.test.ts && tsx test/authoring.test.ts && tsx test/boot.test.ts && tsx test/scope.test.ts && tsx test/camera.test.ts && tsx test/calibrate.test.ts && tsx test/kicad.test.ts && tsx test/brd.test.ts && tsx test/tvw.test.ts && tsx test/importnets.test.ts && tsx test/snapshot.test.ts && tsx test/i18n.test.ts && tsx test/demos.test.ts && tsx test/videos.test.ts && tsx test/mods.test.ts && tsx test/touch.test.ts && tsx test/analytics.test.ts",
+    "test": "tsx test/solve.test.ts && tsx test/spice.test.ts && tsx test/differential.test.ts && tsx test/ngspice.test.ts && tsx test/devicelib.test.ts && tsx test/schematic.test.ts && tsx test/powertree.test.ts && tsx test/realism.test.ts && tsx test/thermal.test.ts && tsx test/intermittent.test.ts && tsx test/rework.test.ts && tsx test/authoring.test.ts && tsx test/boot.test.ts && tsx test/scope.test.ts && tsx test/camera.test.ts && tsx test/calibrate.test.ts && tsx test/kicad.test.ts && tsx test/brd.test.ts && tsx test/tvw.test.ts && tsx test/importnets.test.ts && tsx test/snapshot.test.ts && tsx test/i18n.test.ts && tsx test/demos.test.ts && tsx test/videos.test.ts && tsx test/mods.test.ts && tsx test/touch.test.ts && tsx test/analytics.test.ts",
     "spice": "tsx src/spice/cli.ts",
     "schematic": "tsx src/io/schematic-cli.ts",
     "calibrate": "tsx src/calibrate-cli.ts",
