@@ -7,7 +7,35 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
-- **NEXT SESSION — start here (written end of 2026-11-19).**
+- **Feedback / reach session (2026-11-19, all pushed and live on deadboard.org).** Two threads
+  are open: this one and the simulation one below; ask the user which to continue.
+  1. **Feedback reports:** `npm run feedback` (scripts/feedback.ts) pulls every report from the
+     FormSubmit API (`FORMSUBMIT_API_KEY` in `.env.local`) into `.feedback/` (git-ignored: may
+     hold contacts) and prints a table + Gaps tally; `-- --repro` runs scripts/repro.ts on each
+     snapshot. First pull: 61 reports, **0 snapshots**, 51 players stuck on the WebGPU error
+     screen (27 Chrome/Windows "no adapter"), ~22 empty/test reports. **First thing next
+     session: run `npm run feedback`** and compare: did "player stuck: no WebGPU" stop since the
+     WebGL2 fallback (live 2026-11-19 ~13:00)? Error-screen reports now carry a GPU line with
+     each adapter try + the WebGL renderer (software flag); app reports name the backend
+     ("WebGL2: …; WebGPU: <why>").
+  2. **Renderer = WebGPU or WebGL2:** src/render/renderer.ts builds the scene (was webgpu.ts);
+     backends gpu-webgpu.ts / gpu-webgl2.ts behind backend.ts. Order: WebGPU on hardware →
+     WebGL2 on hardware → software. `?renderer=webgl2|webgpu` forces one. **Shaders exist
+     twice** (shaders.ts WGSL, GLSL in gpu-webgl2.ts): change both. Verified in headless Chrome
+     only (pixel diff vs WebGPU tiny); not yet on real Windows / Android / iOS < 26 / Firefox.
+  3. **Homepage:** EN / RU switch (src/home/translate.ts: `data-t` / `data-t-attr` marks in
+     index.html, keys in ru.ts, checked by the i18n test). Hero board is live 3D
+     (src/home/board3d.ts): turn + zoom only, loads when on screen, screenshot stays as
+     fallback; touch takes every gesture on the board (`touch-action: none`), user confirmed it
+     works on their phone.
+  4. **Open:** the WebGPU error screen's help text is still WebGPU-specific (now shown only when
+     WebGL2 fails too; the iOS "update to 26" advice is wrong there); iOS app and desktop
+     builds need a rebuild to get the fallback; improve the report form once new reports show
+     what is still missing (e.g. say why a snapshot failed instead of dropping it,
+     src/ui/feedback.ts `.catch(() => undefined)`); duplicate sends (same report 3–5× within
+     seconds) suggest the Send button needs clearer "sent" feedback.
+
+- **NEXT SESSION (simulation thread) — start here (written end of 2026-11-19).**
   The user's direction: **1:1 realistic testing of any board people upload**. Nothing is
   redistributed, so datasheets and vendor SPICE models may be downloaded and used **locally**
   (`.parts-cache/`, git-ignored), never committed.
