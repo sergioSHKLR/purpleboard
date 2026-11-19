@@ -5,6 +5,7 @@ import { parseSpice } from '../src/spice/netlist';
 import { Engine } from '../src/spice/engine';
 import { allRegulators, findRegulator } from '../src/spice/regulators';
 import { looksLikePartNumber, searchPrefixes } from '../src/io/partNumbers';
+import { cleanUrl, parseDigikey, parseMouser } from '../src/io/distributors';
 
 function assert(c: unknown, m: string): asserts c { if (!c) throw new Error(m); }
 
@@ -66,6 +67,24 @@ function run() {
   for (const v of ['TLV62568DBV', 'SIC477ED-T1-GE3', 'LM62440-Q1', 'BSS138PW', 'PCA9517ADP']) assert(looksLikePartNumber(v), `${v} is a part number`);
   for (const v of ['10k', '100nF', 'C_100n_0402', 'R0402', 'DNP', 'LED_G_0603_LG', 'Inductor', '4.7uH']) assert(!looksLikePartNumber(v), `${v} is a generic value`);
   assert(JSON.stringify(searchPrefixes('SIC477ED-T1-GE3')) === JSON.stringify(['SIC477ED-T1-GE3', 'SIC477ED-T1', 'SIC477ED']), 'ordering suffixes cut at "-"');
+  // distributor API responses (npm run parts fallback): parsed, best match picked, errors surfaced
+  {
+    const dk = parseDigikey({ Product: { ManufacturerProductNumber: 'SISA18DN-T1-GE3', Manufacturer: { Name: 'Vishay Siliconix' }, DatasheetUrl: '//www.vishay.com/docs/62579/sisa18dn.pdf',
+      Description: { ProductDescription: 'MOSFET N-CH 30V' }, ProductVariations: [{ DigiKeyProductNumber: 'SISA18DN-T1-GE3CT-ND' }],
+      Parameters: [{ ParameterText: 'Supplier Device Package', ValueText: 'PowerPAK® 1212-8S' }, { ParameterText: 'Vgs(th) (Max) @ Id', ValueText: '2.4V @ 250µA' }] } }, 'SISA18DN');
+    assert(dk?.source === 'digikey' && dk.mfr === 'SISA18DN-T1-GE3' && dk.datasheet === 'https://www.vishay.com/docs/62579/sisa18dn.pdf' && dk.package.startsWith('PowerPAK') && dk.id.endsWith('-ND'), `Digi-Key product parsed: ${JSON.stringify(dk)}`);
+    const kw = parseDigikey({ Products: [{ ManufacturerProductNumber: 'XSISA18', DatasheetUrl: 'a' }, { ManufacturerProductNumber: 'SISA18DN-T1-GE3' }] }, 'SISA18DN');
+    assert(kw?.mfr === 'SISA18DN-T1-GE3', 'keyword results: the part that starts with the number wins, not a lookalike');
+    const mo = parseMouser({ Errors: [], SearchResults: { Parts: [
+      { ManufacturerPartNumber: 'BAT30CWFILMX', Manufacturer: 'ST', DataSheetUrl: '', MouserPartNumber: '511-X' },
+      { ManufacturerPartNumber: 'BAT30CWFILM', Manufacturer: 'STMicroelectronics', DataSheetUrl: 'https://www.mouser.com/datasheet/2/389/bat30.pdf', MouserPartNumber: '511-BAT30CWFILM', Description: 'Schottky' },
+    ] } }, 'BAT30CWFILM');
+    assert(mo?.source === 'mouser' && mo.mfr === 'BAT30CWFILM' && mo.id === '511-BAT30CWFILM' && mo.datasheet.endsWith('bat30.pdf'), `Mouser: exact part number preferred: ${JSON.stringify(mo)}`);
+    let threw = '';
+    try { parseMouser({ Errors: [{ Code: 'Invalid', Message: 'Invalid unique identifier.' }] }, 'X1234'); } catch (e) { threw = String(e); }
+    assert(/Invalid unique identifier/.test(threw), 'Mouser errors (bad key) are reported, not silently empty');
+    assert(parseMouser({ SearchResults: { Parts: [] } }, 'X1234') === null && cleanUrl(' //a b.pdf') === 'https://a%20b.pdf', 'empty result and URL clean-up');
+  }
   // regulators: longest part-number match, datasheet source on every entry
   assert(findRegulator('LMR16006YQ3')?.fixedOut === 3.3 && findRegulator('LMR16006XDDCR')?.vref === 0.765, 'fixed LMR16006YQ3 vs adjustable LMR16006');
   assert(findRegulator('TLV62568DBV')?.vref === 0.6 && findRegulator('SIC477ED-T1-GE3')?.vref === 0.8 && !findRegulator('LM317'), 'board values match by prefix only');

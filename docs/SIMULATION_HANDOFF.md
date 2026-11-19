@@ -54,7 +54,10 @@ No reference hardware is available, so realism is validated against *design inte
     downloaded and used **locally** (`.parts-cache/`, never committed). Catalogue = jlcparts
     (yaqwsx, MIT; JLCPCB/LCSC list, 4.6 M parts, datasheet links download without bot walls). Its
     attributes mix typical and maximum values (FDC638APZ: 43 mΩ / 1.5 V / 1 nF are the maxima), so
-    library numbers still come from the PDFs. Jetson demo: 12/13 part numbers found, 2 with
+    library numbers still come from the PDFs. Fallback for parts jlcparts lacks (or has no
+    datasheet link for): Digi-Key Product Information v4 then Mouser Search API
+    (`src/io/distributors.ts`, keys `DIGIKEY_CLIENT_ID` / `DIGIKEY_CLIENT_SECRET` / `MOUSER_API_KEY`
+    in `.env.local`, no VITE_ prefix so never bundled; the APIs only see part numbers). Jetson demo: 12/13 part numbers found, 2 with
     checked library data: the next coverage work (BSS138PW, NCP380 load switch, ESD arrays…).
   - **Lesson:** `tsc` covers the tests: run `npm run build` before every commit (the `26d3e7b`
     deploy failed on a test type error; fixed in `ad13a10`).
