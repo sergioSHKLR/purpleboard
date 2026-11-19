@@ -105,10 +105,17 @@ const DEVICES: DeviceDef[] = [
     note: 'values from the measured column of Vishay\'s SPICE model document (the product datasheet was not read); VGS(th) only in the simulated column. That document has no pinout: pads per the PowerPAK 1212-8 layout, net-checked per board',
     units: [{ kind: 'nmos', vth: 1.5, rds: [[10, 0.0032], [4.5, 0.0044]], body: [0.86, 10], caps: [2070e-12, 51e-12, 600e-12], pins: { S: '1', G: '4', D: '5' } }] },
   { mpn: 'CSD58873Q3D', description: 'synchronous buck power block 30 V', pkg: 'SON 3.3x3.3', verified: false,
-    note: 'TGR (pad 4) is the control-FET source sense, tied internally to VSW. Datasheet not retrieved: unverified estimates',
+    note: 'TGR (pad 4) is the control-FET source sense, tied internally to VSW. No public datasheet (apparently a custom part: not in TI\'s catalogue or jlcparts): unverified estimates. Its public sibling CSD87333Q3D below has the same package and pinout but different FETs',
     units: [
       { kind: 'nmos', vth: 1.4, rds: [[8, 0.0092], [4.5, 0.011]], body: [0.8, 5], caps: [900e-12, 50e-12, 250e-12], pins: { D: '1', G: '3', S: '6' } },
       { kind: 'nmos', vth: 1.2, rds: [[8, 0.0041], [4.5, 0.0049]], body: [0.7, 5], caps: [1900e-12, 90e-12, 500e-12], pins: { D: '6', G: '5', S: '9' } },
+    ] },
+  { mpn: 'CSD87333Q3D', description: 'synchronous buck power block 30 V (5 V gate drive)', pkg: 'SON 3.3x3.3 (DPB0008A)', verified: true,
+    source: 'TI SLPS350A, Feb 2014, revised Jan 2017', thetaJA: 150,
+    note: 'control and sync FET have identical specs. Pins 1-2 VIN, 3 TG, 4 TGR (control-FET source return, tied internally to VSW), 5 BG, 6-8 VSW, 9 PGND. θJA on minimum copper (80 °C/W on 1 in² of 2 oz Cu)',
+    units: [
+      { kind: 'nmos', vth: 0.95, rds: [[8, 0.0119], [4.5, 0.0134]], body: [0.8, 4], caps: [509e-12, 8.2e-12, 222e-12], pins: { D: '1', G: '3', S: '6' } },
+      { kind: 'nmos', vth: 0.95, rds: [[8, 0.0119], [4.5, 0.0134]], body: [0.8, 4], caps: [509e-12, 8.2e-12, 222e-12], pins: { D: '6', G: '5', S: '9' } },
     ] },
   { mpn: 'NTMFD4902NF', description: 'dual N-MOSFET power stage 30 V (charger)', pkg: 'SO-8FL dual', verified: true,
     source: 'onsemi NTMFD4902NF/D Rev. 5, May 2019', thetaJA: 65.9,

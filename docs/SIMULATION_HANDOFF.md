@@ -469,10 +469,12 @@ intermittents (`!I`, even dormant), like `!X` for burnt — a fault the objectiv
    Ω / supply-current rows; none are published for the open demos).
 0. **CI:** no PR workflow yet; `pages.yml` does not install ngspice, so `test/ngspice.test.ts`
    skips in CI (add `sudo apt-get install -y ngspice`). Private MacBook fixtures still local only.
-0. **Device library:** 16/21 verified (BC846BLP = Diodes BC846BLP4, via the parts pipeline; follow-ups on 2026-11-19 with poppler and PDFs the user
+0. **Device library:** 17/22 verified (BC846BLP = Diodes BC846BLP4, via the parts pipeline; CSD87333Q3D
+   added from TI SLPS350A — the MacBook's CSD58873Q3D is a different, apparently custom part with no
+   public datasheet; follow-ups on 2026-11-19 with poppler and PDFs the user
    downloaded into ~/Downloads: DMN32D2LFB4, DMN5L06VK, RB160M-60, SiSA18DN / SiSA12DN (measured
    column of Vishay's SPICE-model documents), BAT30CWFILM, RB521ES-30; typicals partly read from
-   datasheet figures and noted as such). Still unverified: CSD58873Q3D (TI, not in jlcparts), the
+   datasheet figures and noted as such). Still unverified: CSD58873Q3D (no public datasheet), the
    debug LED (no part number); partial: MMBT3904LP (Vbe / Early
    estimates), SDZT15R6.8 (Vz checked, no forward spec), ESD112 (limits only). Vendors serve bot
    pages to scripted downloads (a browser user-agent was refused): the user downloads PDFs by hand;
