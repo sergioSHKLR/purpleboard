@@ -16,8 +16,7 @@ import { buildConnectivity } from '../src/connectivity';
 import { lockFlag, topology } from '../src/crypto';
 import { verifyScenario } from '../src/verify';
 import { injectFault, rng, seedOf } from '../src/faults';
-import { installPart, toggleCold } from '../src/ops';
-import { cleanWithIpa } from '../src/residue';
+import { DEMO_REPAIRS } from '../src/scenarios/demoRepairs';
 
 interface Demo {
   id: string;
@@ -66,11 +65,7 @@ const DEMOS: Demo[] = [
       injectFault(part('C173'), 'mlcc-dead-short', rng(seedOf(sc.id + 'C173')), { severity: 0.08 });
       injectFault(part('C97'), 'liquid-leakage', rng(seedOf(sc.id + 'C97')), { severity: 150 });
     },
-    repair: (sc, part) => {
-      installPart(part('C173'), { value: 22e-6 });
-      const c97 = part('C97');
-      for (let k = 0; k < 6 && c97.state.residue; k++) cleanWithIpa(sc.board, c97.at[0], c97.at[1], 2);
-    },
+    repair: DEMO_REPAIRS['demo-mnt-reform2-mb30'],
   },
   {
     id: 'demo-antmicro-jetson-nano-bb',
@@ -99,10 +94,7 @@ const DEMOS: Demo[] = [
       injectFault(part('U2'), 'open-part', rng(seedOf(sc.id + 'U2')));
       injectFault(part('FB1'), 'flex-open-joint', rng(seedOf(sc.id + 'FB1')), { pad: 0, severity: 0.5 });
     },
-    repair: (_sc, part) => {
-      installPart(part('U2'), {});
-      toggleCold(part('FB1'), 0);
-    },
+    repair: DEMO_REPAIRS['demo-antmicro-jetson-nano-bb'],
   },
 ];
 

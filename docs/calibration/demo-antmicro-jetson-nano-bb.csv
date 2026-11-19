@@ -1,0 +1,14 @@
+# Calibration data for the Antmicro Jetson Nano baseboard demo (public/demos/demo-antmicro-jetson-nano-bb.pcbfix.json):
+#   npm run calibrate -- public/demos/demo-antmicro-jetson-nano-bb.pcbfix.json docs/calibration/demo-antmicro-jetson-nano-bb.csv --repair
+# Tier: "matches published board values" (design intent), NOT bench measurements. No meter was used:
+# each value is the regulator's output set point from the published KiCad design
+# (github.com/antmicro/jetson-nano-baseboard @ d8d0b2d, fitted parts only) and the regulator's
+# datasheet. The board README recommends a 12 V 2 A supply (6–36 V input range); it publishes no rail
+# currents or meter readings, so there are no diode / ohm / amps rows.
+kind,net,value,state,tol
+# U6 SiC477, VFB 0.800 V (±0.5 % at 25 °C, ±1 % over temperature; Vishay doc. 77113 Rev. I, 17-Nov-2025);
+# R117 52.3k / R120 10k → 0.8 × (1 + 52.3/10)
+volt,5V0_SYS,4.984,S0,0.02
+# U2 LM62440 with FB tied to VOUT (R48 0 Ω fitted, divider R118/R119 not fitted) = fixed 3.3 V trim option,
+# 3.2587–3.3413 V (TI SNVSAW8E, rev. Apr 2022)
+volt,3V3_SYS,3.300,S0,0.0125

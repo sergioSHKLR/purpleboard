@@ -1,0 +1,17 @@
+# Calibration data for the MNT Reform 2 motherboard rev 3.0 demo (public/demos/demo-mnt-reform2-mb30.pcbfix.json):
+#   npm run calibrate -- public/demos/demo-mnt-reform2-mb30.pcbfix.json docs/calibration/demo-mnt-reform2-mb30.csv --repair
+# Tier: "matches published board values" (design intent), NOT bench measurements. No meter was used:
+# each value is the regulator's output set point computed from the feedback divider in the published
+# KiCad design (source.mnt.re/reform/reform @ c3b7fad, values as fitted on the board) and the
+# reference voltage in the regulator's datasheet. Tolerance = datasheet reference accuracy plus 1 %
+# resistors. No published diode-mode, resistance or supply-current measurements of this board were
+# found (2026-11-19), so there are no diode / ohm / amps rows; add bench readings when someone has them.
+kind,net,value,state,tol
+# U7 LM62460 (adjustable), VFB 1.0 V ±1 % (TI SNVSBZ4A, rev. Nov 2021); R90 100k / R93 24.9k → 1.0 × (1 + 100/24.9)
+volt,+5V,5.016,S0,0.03
+# U9 LM62460 (adjustable), same reference; R100 100k / R106 43.2k → 1.0 × (1 + 100/43.2)
+volt,+3V3,3.315,S0,0.03
+# U13 TLV62568, VFB 0.6 V ±2 % (TI SLVSD89B, rev. Nov 2017); R178 100k / R179 100k → 0.6 × 2
+volt,+1V2,1.200,S0,0.04
+# U19 TLV62568, same reference; R180 150k / R181 100k → 0.6 × 2.5
+volt,+1V5,1.500,S0,0.04

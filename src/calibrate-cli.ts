@@ -1,12 +1,15 @@
 // Compares bench measurements of a real board with the simulation and fits the rail-load scale.
 //
-//   npm run calibrate -- <board.brd | scenario.pcbfix.json> <measurements.csv> [--gnd GND] [-o report.json]
+//   npm run calibrate -- <board.brd | scenario.pcbfix.json> <measurements.csv> [--gnd GND] [--repair] [-o report.json]
+//
+// --repair: for a shipped demo (public/demos), calibrate its known-good board (faults repaired).
 //
 // Measurements format: see src/calibrate.ts. The suggested `loadScale` goes into the scenario's
 // "calibration" block ({ "loadScale": …, "source": "…" }), which the simulator then applies.
 import { buildConnectivity } from './connectivity';
 import { importScenarioOrPcb } from './io/kicad';
 import { compareMeasurements, fitLoadScale, parseMeasurements, TOLERANCE } from './calibrate';
+import { repairedDemo } from './scenarios/demoRepairs';
 
 interface Fs { readFileSync(p: string): Uint8Array; writeFileSync(p: string, d: string): void }
 interface Proc { argv: string[]; exitCode?: number; stdout: { write(s: string): void } }
@@ -18,6 +21,8 @@ async function main() {
   const args = proc.argv.slice(2);
   const take = (k: string) => { const i = args.indexOf(k); if (i < 0) return undefined; const v = args[i + 1]; args.splice(i, 2); return v; };
   const gnd = take('--gnd');
+  const repair = args.includes('--repair');
+  if (repair) args.splice(args.indexOf('--repair'), 1);
   const outFile = take('-o') ?? take('--out');
   const [boardPath, csvPath] = args;
   if (!boardPath || !csvPath) {
@@ -26,7 +31,12 @@ async function main() {
     return;
   }
   const bytes = fs.readFileSync(boardPath);
-  const sc = await importScenarioOrPcb(boardPath.replace(/^.*[\\/]/, ''), bytes);
+  let sc = await importScenarioOrPcb(boardPath.replace(/^.*[\\/]/, ''), bytes);
+  if (repair) {
+    const fixed = repairedDemo(sc);
+    if (!fixed) { out(`--repair: ${sc.id} is not a shipped demo with a known repair`); proc.exitCode = 1; return; }
+    sc = fixed;
+  }
   const rows = parseMeasurements(new TextDecoder().decode(fs.readFileSync(csvPath)));
   const conn = buildConnectivity(sc.board);
   const res = compareMeasurements(sc.board, conn, rows, { groundNet: gnd, loadScale: sc.calibration?.loadScale });
@@ -34,7 +44,7 @@ async function main() {
   out(`${sc.meta.title}: ${rows.length} measurements\n`);
   out(`  ${'kind'.padEnd(6)} ${'net'.padEnd(30)} ${'state'.padEnd(5)} ${'measured'.padStart(10)} ${'simulated'.padStart(10)} ${'error'.padStart(8)}  flag`);
   for (const r of res) {
-    out(`  ${r.kind.padEnd(6)} ${(r.net || '(supply)').padEnd(30)} ${(r.kind === 'volt' || r.kind === 'amps' ? r.state : '').padEnd(5)} ${fmt(r.value).padStart(10)} ${fmt(r.sim).padStart(10)} ${(r.error === null ? '' : `${(r.error * 100).toFixed(1)}%`).padStart(8)}  ${r.flag === 'ok' ? 'ok' : r.flag.toUpperCase()}`);
+    out(`  ${r.kind.padEnd(6)} ${(r.net || '(supply)').padEnd(30)} ${(r.kind === 'volt' || r.kind === 'amps' ? r.state : '').padEnd(5)} ${fmt(r.value).padStart(10)} ${fmt(r.sim).padStart(10)} ${(r.error === null ? '' : `${(r.error * 100).toFixed(1)}%`).padStart(8)}  ${r.flag === 'ok' ? 'ok' : r.flag.toUpperCase()}${r.tol !== undefined ? ` (±${+(r.tol * 100).toPrecision(3)}%)` : ''}`);
   }
   const off = res.filter((r) => r.flag !== 'ok');
   out(`\n${res.length - off.length}/${res.length} within tolerance (${Object.entries(TOLERANCE).map(([k, v]) => `${k} ±${v * 100}%`).join(', ')})`);

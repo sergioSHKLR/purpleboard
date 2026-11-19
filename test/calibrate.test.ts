@@ -78,6 +78,14 @@ amps,,0.010,G3H   # standby`);
   const sc = parseScenario(serializeScenario({ format: 'pcbfix/1', id: 'x', meta: { title: 't', author: 'a', difficulty: 1, description: '', hints: [] }, board: b, objectives: [], calibration: { loadScale: scale, source: 'bench.csv' } }));
   assert(sc.calibration?.loadScale === scale && sc.calibration.source === 'bench.csv', 'calibration survives save / load');
 
+  // per-reading tolerance (5th column): overrides the per-kind default, rejects nonsense
+  {
+    const rows = parseMeasurements('kind,net,value,state,tol\nvolt,+1V2,1.200,S0,0.03\nvolt,+5V,5.0\n');
+    assert(rows[0].tol === 0.03 && rows[1].tol === undefined, 'tol column parsed, optional');
+    let threw = false;
+    try { parseMeasurements('volt,+1V2,1.2,S0,abc'); } catch { threw = true; }
+    assert(threw, 'bad tolerance rejected');
+  }
   console.log(`CALIBRATE TESTS PASSED (measurement parsing, model vs bench comparison with tolerances, load scale fit ×${scale}, scenario round-trip)`);
 }
 

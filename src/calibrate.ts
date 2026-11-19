@@ -8,6 +8,7 @@
 //   ohm,PP3V3_S5,120            resistance to GND, power off (Ω; OL = open)
 //   volt,PP3V3_S5,3.31,S5       rail voltage (V) with the board in a power state (default S0)
 //   amps,,0.018,G3H             bench-supply current (A) in a power state
+//   volt,+1V2,1.200,S0,0.03     optional 5th column: this reading's relative tolerance (else TOLERANCE)
 import type { Board } from './types';
 import type { Conn } from './connectivity';
 import { measureDiodeDmm, measureOhmsDmm } from './spice/dmm';
@@ -15,7 +16,7 @@ import { simulateSpice } from './spice/adapter';
 import { POWER_STATES, type PowerStateName } from './spice/sequencer';
 
 export type MeasureKind = 'diode' | 'ohm' | 'volt' | 'amps';
-export interface Measurement { kind: MeasureKind; net: string; value: number | null; state: PowerStateName; line: number }
+export interface Measurement { kind: MeasureKind; net: string; value: number | null; state: PowerStateName; line: number; tol?: number }
 
 export interface Compared extends Measurement {
   sim: number | null;
@@ -31,14 +32,16 @@ export function parseMeasurements(text: string): Measurement[] {
   text.split(/\r?\n/).forEach((raw, i) => {
     const line = raw.replace(/#.*/, '').trim();
     if (!line) return;
-    const [kind, net = '', val = '', st = ''] = line.split(',').map((x) => x.trim());
+    const [kind, net = '', val = '', st = '', tolText = ''] = line.split(',').map((x) => x.trim());
     if (kind === 'kind') return; // header
     if (!['diode', 'ohm', 'volt', 'amps'].includes(kind)) throw new Error(`line ${i + 1}: unknown kind "${kind}"`);
     const value = /^(OL|open)$/i.test(val) ? null : Number(val);
     if (value !== null && !Number.isFinite(value)) throw new Error(`line ${i + 1}: bad value "${val}"`);
     if (st && !STATES.has(st)) throw new Error(`line ${i + 1}: unknown power state "${st}"`);
     if (kind !== 'amps' && !net) throw new Error(`line ${i + 1}: net missing`);
-    out.push({ kind: kind as MeasureKind, net, value, state: (st || 'S0') as PowerStateName, line: i + 1 });
+    const tol = tolText ? Number(tolText) : undefined;
+    if (tol !== undefined && !(tol > 0 && tol < 10)) throw new Error(`line ${i + 1}: bad tolerance "${tolText}" (relative, e.g. 0.03)`);
+    out.push({ kind: kind as MeasureKind, net, value, state: (st || 'S0') as PowerStateName, line: i + 1, ...(tol !== undefined && { tol }) });
   });
   return out;
 }
@@ -77,7 +80,7 @@ export function compareMeasurements(board: Board, conn: Conn, rows: Measurement[
       return { ...m, sim, error: null, flag: m.value === null && sim === null ? 'ok' : 'mismatch' };
     }
     const error = m.value === 0 ? (sim === 0 ? 0 : Infinity) : (sim - m.value) / Math.abs(m.value);
-    return { ...m, sim, error, flag: Math.abs(error) <= TOLERANCE[m.kind] ? 'ok' : 'off' };
+    return { ...m, sim, error, flag: Math.abs(error) <= (m.tol ?? TOLERANCE[m.kind]) ? 'ok' : 'off' };
   });
 }
 
