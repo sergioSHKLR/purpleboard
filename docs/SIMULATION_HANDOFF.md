@@ -49,6 +49,13 @@ No reference hardware is available, so realism is validated against *design inte
     MacBook coverage (structure, net invariant, power tree, faulted → thermal hot spot, repair →
     flag after save, rails, calibration rows, meter / current snapshot). Demo repairs are shared
     in `src/scenarios/demoRepairs.ts`.
+  - **Parts pipeline** (`scripts/parts.ts`, `src/io/partNumbers.ts`): the user wants 1:1 realistic
+    testing of any board people upload; nothing is distributed, so datasheets / vendor models may be
+    downloaded and used **locally** (`.parts-cache/`, never committed). Catalogue = jlcparts
+    (yaqwsx, MIT; JLCPCB/LCSC list, 4.6 M parts, datasheet links download without bot walls). Its
+    attributes mix typical and maximum values (FDC638APZ: 43 mΩ / 1.5 V / 1 nF are the maxima), so
+    library numbers still come from the PDFs. Jetson demo: 12/13 part numbers found, 2 with
+    checked library data: the next coverage work (BSS138PW, NCP380 load switch, ESD arrays…).
   - **Lesson:** `tsc` covers the tests: run `npm run build` before every commit (the `26d3e7b`
     deploy failed on a test type error; fixed in `ad13a10`).
 
@@ -381,6 +388,9 @@ npm run showcase         # re-record the showcase video (needs a running site; s
 npm run videos           # re-render walkthrough videos (needs the dev server; docs/VIDEOS.md)
 npm run demos -- --fetch # rebuild the open-hardware demo boards (docs/DEMOS.md)
 npm run calibrate -- <board.brd> <measurements.csv>   # model vs bench readings (template: docs/measurements.template.csv)
+npm run parts -- fetch-db                       # local parts catalogue (jlcparts, ~330 MB, needs 7zz) → .parts-cache/ (git-ignored)
+npm run parts -- lookup <board | MPN…>          # board part numbers → catalogue match, datasheet link, library coverage
+npm run parts -- datasheets <board | MPN…>      # download matched datasheets into .parts-cache/datasheets/ (read with poppler)
 npm run calibrate -- public/demos/demo-mnt-reform2-mb30.pcbfix.json docs/calibration/demo-mnt-reform2-mb30.csv --repair
 npm run build            # typecheck + production build
 npx vite --port 5199     # dev server → http://localhost:5199 (WebGPU: use Chrome)
@@ -459,11 +469,11 @@ intermittents (`!I`, even dormant), like `!X` for burnt — a fault the objectiv
    Ω / supply-current rows; none are published for the open demos).
 0. **CI:** no PR workflow yet; `pages.yml` does not install ngspice, so `test/ngspice.test.ts`
    skips in CI (add `sudo apt-get install -y ngspice`). Private MacBook fixtures still local only.
-0. **Device library:** 15/21 verified (follow-ups on 2026-11-19 with poppler and PDFs the user
+0. **Device library:** 16/21 verified (BC846BLP = Diodes BC846BLP4, via the parts pipeline; follow-ups on 2026-11-19 with poppler and PDFs the user
    downloaded into ~/Downloads: DMN32D2LFB4, DMN5L06VK, RB160M-60, SiSA18DN / SiSA12DN (measured
    column of Vishay's SPICE-model documents), BAT30CWFILM, RB521ES-30; typicals partly read from
-   datasheet figures and noted as such). Still unverified: CSD58873Q3D (TI), BC846BLP (probably
-   Diodes BC846BLP4, DS35751), the debug LED (no part number); partial: MMBT3904LP (Vbe / Early
+   datasheet figures and noted as such). Still unverified: CSD58873Q3D (TI, not in jlcparts), the
+   debug LED (no part number); partial: MMBT3904LP (Vbe / Early
    estimates), SDZT15R6.8 (Vz checked, no forward spec), ESD112 (limits only). Vendors serve bot
    pages to scripted downloads (a browser user-agent was refused): the user downloads PDFs by hand;
    read them with `pdftotext -layout` / `pdftoppm` (poppler installed). Never commit datasheets.

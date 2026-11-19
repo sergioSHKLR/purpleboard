@@ -4,6 +4,7 @@ import { allDevices, deviceSpec, type DiodeSpec, type MosSpec } from '../src/spi
 import { parseSpice } from '../src/spice/netlist';
 import { Engine } from '../src/spice/engine';
 import { allRegulators, findRegulator } from '../src/spice/regulators';
+import { looksLikePartNumber, searchPrefixes } from '../src/io/partNumbers';
 
 function assert(c: unknown, m: string): asserts c { if (!c) throw new Error(m); }
 
@@ -61,6 +62,10 @@ function run() {
     });
   }
   assert(verified >= 8, `datasheet-verified entries: ${verified}`);
+  // part numbers on boards (npm run parts): real MPNs pass, generic values do not
+  for (const v of ['TLV62568DBV', 'SIC477ED-T1-GE3', 'LM62440-Q1', 'BSS138PW', 'PCA9517ADP']) assert(looksLikePartNumber(v), `${v} is a part number`);
+  for (const v of ['10k', '100nF', 'C_100n_0402', 'R0402', 'DNP', 'LED_G_0603_LG', 'Inductor', '4.7uH']) assert(!looksLikePartNumber(v), `${v} is a generic value`);
+  assert(JSON.stringify(searchPrefixes('SIC477ED-T1-GE3')) === JSON.stringify(['SIC477ED-T1-GE3', 'SIC477ED-T1', 'SIC477ED']), 'ordering suffixes cut at "-"');
   // regulators: longest part-number match, datasheet source on every entry
   assert(findRegulator('LMR16006YQ3')?.fixedOut === 3.3 && findRegulator('LMR16006XDDCR')?.vref === 0.765, 'fixed LMR16006YQ3 vs adjustable LMR16006');
   assert(findRegulator('TLV62568DBV')?.vref === 0.6 && findRegulator('SIC477ED-T1-GE3')?.vref === 0.8 && !findRegulator('LM317'), 'board values match by prefix only');

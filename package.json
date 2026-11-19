@@ -22,7 +22,8 @@
     "demos": "tsx scripts/build-demos.ts",
     "example-mod": "tsx scripts/build-example-mod.ts",
     "videos": "tsx scripts/videos/record.ts",
-    "showcase": "tsx scripts/promo/showcase.ts"
+    "showcase": "tsx scripts/promo/showcase.ts",
+    "parts": "tsx scripts/parts.ts"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.51",

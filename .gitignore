@@ -17,3 +17,4 @@ docs/media/*.mp4
 # Personal CV and grant application drafts (stay local only)
 docs/GRANT_APPLICATIONS.md
 docs/grants/
+.parts-cache/
