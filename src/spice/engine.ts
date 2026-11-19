@@ -159,8 +159,7 @@ export class Engine {
         case 'M': {
           const m = findModel(e.model);
           if (m.type !== 'NMOS' && m.type !== 'PMOS') throw new SpiceError(`${name}: model ${m.name} is not a MOSFET`);
-          dev = new Mosfet(name, N(0), N(1), N(2), m.type === 'PMOS', mosParams(m.params, e.w, e.l));
-          N(3); // bulk node exists in the netlist; body effect not modelled
+          dev = new Mosfet(name, N(0), N(1), N(2), m.type === 'PMOS', mosParams(m.params, e.w, e.l), N(3)); // bulk junctions, no body effect
           break;
         }
         case 'Q': {

@@ -372,11 +372,14 @@ export class Diode extends Device {
 }
 
 // ---------- MOSFET (Shichman–Hodges level 1, no body effect) ----------
+// With the bulk junctions of ngspice level 1 (IS, N = 1): drain–bulk and source–bulk diodes. With
+// bulk tied to source, as on a discrete part, the drain–bulk one is the body diode (S → D on an
+// NMOS) that a diode test across D–S reads and that back-feeds an off load switch.
 
-export interface MosParams { VTO: number; KP: number; LAMBDA: number; W: number; L: number }
+export interface MosParams { VTO: number; KP: number; LAMBDA: number; W: number; L: number; IS: number }
 
 export function mosParams(p: Record<string, number>, w?: number, l?: number): MosParams {
-  return { VTO: p.vto ?? 0, KP: p.kp ?? 2e-5, LAMBDA: p.lambda ?? 0, W: w ?? p.w ?? 1, L: l ?? p.l ?? 1 };
+  return { VTO: p.vto ?? 0, KP: p.kp ?? 2e-5, LAMBDA: p.lambda ?? 0, W: w ?? p.w ?? 1, L: l ?? p.l ?? 1, IS: p.is ?? 1e-14 };
 }
 
 export class Mosfet extends Device {
@@ -385,11 +388,24 @@ export class Mosfet extends Device {
   private readonly sign: number;
   private readonly beta: number;
   private readonly vto: number;
-  constructor(name: string, readonly d: number, readonly g: number, readonly s: number, pmos: boolean, readonly P: MosParams) {
+  /** Bulk junctions (anode → cathode by polarity); none toward a terminal tied to the bulk. */
+  private readonly bd: Diode | null;
+  private readonly bs: Diode | null;
+  constructor(name: string, readonly d: number, readonly g: number, readonly s: number, pmos: boolean, readonly P: MosParams, readonly b = s) {
     super(name);
     this.sign = pmos ? -1 : 1;
     this.beta = (P.KP * P.W) / P.L;
     this.vto = this.sign * P.VTO;
+    const jp: DiodeParams = { IS: P.IS, N: 1, RS: 0, BV: Infinity, IBV: 1e-3, CJO: 0 };
+    const junction = (t: number, tag: string) => (t === b || !(P.IS > 0) ? null : pmos ? new Diode(`${name}#${tag}`, t, t, b, jp) : new Diode(`${name}#${tag}`, b, b, t, jp));
+    this.bd = junction(d, 'bd');
+    this.bs = junction(s, 'bs');
+  }
+  /** Current the bulk junction carries into terminal t (NMOS: bulk → t; PMOS: t → bulk). */
+  private junctionInto(j: Diode | null, x: Float64Array): number {
+    if (!j) return 0;
+    const i = j.report(x).i;
+    return this.sign > 0 ? -i : i;
   }
   private ids(vgs: number, vds: number): [number, number, number] {
     const vgst = vgs - this.vto, b = this.beta, lam = this.P.LAMBDA;
@@ -439,12 +455,14 @@ export class Mosfet extends Device {
     ];
     stampNL(ctx, dE, iReal, terms);
     stampNL(ctx, sE, -iReal, terms.map(([g, p, m, v0]) => [-g, p, m, v0] as [number, number, number, number]));
+    this.bd?.load(ctx);
+    this.bs?.load(ctx);
   }
   report(x: Float64Array): DevReport {
     const { vgs, vds } = this.evalAt(x);
     const rev = vds < 0;
     const [id] = this.ids(rev ? vgs - vds : vgs, rev ? -vds : vds);
-    const i = this.sign * (rev ? -id : id); // real current into drain
+    const i = this.sign * (rev ? -id : id) + this.junctionInto(this.bd, x); // real current into drain
     const v = V(x, this.d) - V(x, this.s);
     return { i, p: v * i, v, extra: { vgs: this.sign * vgs, vds: this.sign * vds } };
   }
