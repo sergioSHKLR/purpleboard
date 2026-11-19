@@ -7,7 +7,7 @@ const id = '94db1cb1-74f4-4a40-ad6c-962362670409';
 assert(analyticsEnabled(id, SITE_HOST), 'public site with an id: tracked');
 assert(!analyticsEnabled('', SITE_HOST), 'no id (forks, unset variable): not tracked');
 assert(!analyticsEnabled('nonsense', SITE_HOST), 'malformed id: not tracked');
-for (const host of ['localhost', '127.0.0.1', '', 'someone-else.github.io', 'deadboard.local']) {
+for (const host of ['localhost', '127.0.0.1', '', 'tholtman1-del.github.io', 'someone-else.github.io', 'deadboard.local']) {
   assert(!analyticsEnabled(id, host), `${host || 'app (file:// / custom scheme)'}: not tracked`);
 }
 

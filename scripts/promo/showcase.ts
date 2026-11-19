@@ -258,7 +258,7 @@ async function script(s: Show, prep: Prep) {
   await s.hold(1.6);
   await s.pr('bullets', ['Free & open source', 'Runs in the browser (WebGPU)', 'Build and share your own repair challenges'], 150);
   await s.hold(1.2);
-  await s.pr('link', 'tholtman1-del.github.io/deadboard', 215, 'try it ▸ ');
+  await s.pr('link', 'deadboard.org', 215, 'try it ▸ ');
   await s.hold(1.6);
   await s.pr('link', 'github.com/tholtman1-del/deadboard', 275, 'source ▸ ');
   await s.hold(4.2);

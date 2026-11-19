@@ -12,7 +12,7 @@ you can make a mod.
 
 ## Try a mod first
 
-1. Download the example mod: [starter-kit.zip](https://tholtman1-del.github.io/deadboard/examples/starter-kit.zip).
+1. Download the example mod: [starter-kit.zip](https://deadboard.org/examples/starter-kit.zip).
 2. Open the bench and click the board name at the top left to open the board list. Click **Mods**,
    then **Install mod (.zip)**, and pick the file. Dropping the `.zip` onto the bench works too.
 3. The new boards show up under **Community Mods** in the board list. Open **Night light (sandbox)**

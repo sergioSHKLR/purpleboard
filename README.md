@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <b><a href="https://tholtman1-del.github.io/deadboard/">▶ Try it in your browser</a></b> ·
+  <b><a href="https://deadboard.org/">▶ Try it in your browser</a></b> ·
   <a href="https://github.com/tholtman1-del/deadboard/releases/latest">Watch the 1-minute showcase (MP4)</a>
 </p>
 

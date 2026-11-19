@@ -22,5 +22,5 @@ export const BRAND = {
   name: 'DEADBOARD',
   tagline: 'Bring dead boards back.',
   descriptor: tk('Board-level repair trainer'),
-  site: 'https://tholtman1-del.github.io/deadboard/',
+  site: 'https://deadboard.org/',
 } as const;

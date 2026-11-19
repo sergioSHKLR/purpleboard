@@ -9,7 +9,7 @@
 // Each event fires once per page load when that much active time is reached, so the Events view
 // reads as a funnel ("1 min: 400, 5 min: 210, 30 min: 40") and Umami's visit duration is right.
 
-export const SITE_HOST = 'tholtman1-del.github.io';
+export const SITE_HOST = 'deadboard.org';
 const SCRIPT = 'https://cloud.umami.is/script.js';
 /** Active-time milestones in minutes. Sparse on purpose: a 4-hour session costs 13 events. */
 export const MILESTONES = [1, 2, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240];

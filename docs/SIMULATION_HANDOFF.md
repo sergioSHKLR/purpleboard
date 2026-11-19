@@ -31,7 +31,7 @@ No reference hardware is available, so realism is validated against *design inte
     traces still do). `netReport` / `netWarnings` check named nets = conductors; BRD/TVW/KiCad
     imports attach `Scenario.importWarnings` (not saved) → "Import check" toast (ru added). The
     Jetson file really has LED1 with both pads on one net (routed separately).
-  - **Device library** (`test/devicelib.test.ts`): 8/21 parts verified against manufacturer
+  - **Device library** (`test/devicelib.test.ts`): 8/21 parts verified (11 after a follow-up) against manufacturer
     datasheets (`source` = document + revision, `thetaJA`); many from-memory values were maxima or
     wrong (IRF9395 Rds(on) 16 → 5.3 mΩ, SI7137DP Ciss 9 → 20 nF). 3 checked against limits only;
     10 unverified (Diodes / TI / Rohm / ST sites serve bot pages to curl, or the PDF fonts were not
@@ -56,7 +56,7 @@ No reference hardware is available, so realism is validated against *design inte
   Plausible / GoatCounter / GA4): no cookies, no consent banner. `src/analytics.ts`, loaded from
   `src/main.ts` (bench) and `src/home/main.ts` (homepage, modding, privacy). Enabled only when
   **both** the build has `VITE_UMAMI_ID` (repo variable **`UMAMI_ID`** = `f87071cc-…`, passed in
-  `pages.yml`) **and** the host is `tholtman1-del.github.io`, so dev, forks, iOS and desktop never
+  `pages.yml`) **and** the host is `deadboard.org`, so dev, forks, iOS and desktop never
   send anything. App Store answer stays "Data Not Collected"; never enable it in the apps.
   Honours Do Not Track. **Time spent:** Umami's visit duration is near 0 on a one-page app, so we send
   `active N min` events at 1, 2, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240 min of *active*
@@ -192,7 +192,7 @@ No reference hardware is available, so realism is validated against *design inte
 - **Fixed 2026-11-19:** the floating-net `+1.000 V` reading (see the 2026-11-19 status entry).
 
 - **Released 2026-11-16 as v0.1.0**: public repo https://github.com/tholtman1-del/deadboard
-  (Apache-2.0), live site https://tholtman1-del.github.io/deadboard/ (homepage `index.html` +
+  (Apache-2.0), live site https://deadboard.org/ (homepage `index.html` +
   bench `app.html`). `.github/workflows/pages.yml` runs `npm test` + `npm run build` and deploys
   on every push to `main`. The release carries the showcase MP4 (`docs/media/*.mp4` is
   git-ignored; upload with `gh release upload v0.1.0 <file> --clobber`).
@@ -459,10 +459,15 @@ intermittents (`!I`, even dormant), like `!X` for burnt — a fault the objectiv
    Ω / supply-current rows; none are published for the open demos).
 0. **CI:** no PR workflow yet; `pages.yml` does not install ngspice, so `test/ngspice.test.ts`
    skips in CI (add `sudo apt-get install -y ngspice`). Private MacBook fixtures still local only.
-0. **Device library:** 10 parts unverified (DMN32D2LFB4, SISA18DN, SISA12DN, CSD58873Q3D,
-   BC846BLP, RB160M-60, RB521ES-30, BAT30CWFILM, SDZT15R6.8, the debug LED); limits-only parts
-   (DMN5L06VK, MMBT3904LP, ESD112) need typical curves read from graphs. `thetaJA` is recorded but
-   the thermal model does not use it yet (part body → board conductance is per area).
+0. **Device library:** 11/21 verified (later on 2026-11-19, with poppler: DMN32D2LFB4, DMN5L06VK
+   and RB160M-60 added, typicals partly read from datasheet figures and noted as such). Still
+   unverified: SISA18DN (Vishay doc. 62579), SISA12DN, CSD58873Q3D, BC846BLP (probably Diodes
+   BC846BLP4, DS35751), RB521ES-30, BAT30CWFILM (ST DocID12564), the debug LED; MMBT3904LP (Vbe /
+   Early estimates), SDZT15R6.8 (Vz checked, no forward spec), ESD112 (limits only). Those vendors
+   serve bot pages to scripted downloads; downloading with a browser user-agent was refused, so
+   get the PDFs by hand (or a permission rule) and read them with `pdftotext -layout` /
+   `pdftoppm` (poppler now installed). `thetaJA` is recorded but the thermal model does not use it
+   yet (part body → board conductance is per area).
 0. **Regulators:** only the demos' parts are listed; CURRENT_LIMIT per class, rail loads
    (decoupling caps × 20 mW) and dropout remain estimates. The power tree misses the Reform's
    LM62460 / TLV62568 FB dividers (targets come from rail names; within 0.5 % of design).

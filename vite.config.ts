@@ -34,7 +34,7 @@ function moddingGuide(): Plugin {
       const page = Object.keys(docPages).find((p) => ctx.filename.endsWith(p));
       if (!page) return html;
       // site-relative links: the download sits next to the page
-      const src = readFileSync(docPages[page].md, 'utf8').replaceAll('https://tholtman1-del.github.io/deadboard/', './');
+      const src = readFileSync(docPages[page].md, 'utf8').replaceAll('https://deadboard.org/', './');
       return html.replace(docPages[page].slot, md.parse(src) as string);
     },
     configureServer(server) {
