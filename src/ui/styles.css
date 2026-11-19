@@ -1104,6 +1104,8 @@ body.is-mobile {
 /* tutorial card: full width at the top, folds to its header */
 .layout.mobile .hud-top-left { top: 8px; left: 8px; right: 60px; max-width: none; }
 .layout.mobile .tut-card { width: 100%; max-height: 36dvh; overflow-y: auto; overscroll-behavior: contain; }
+/* the card scrolls on a short screen: Back / Next stay in sight at its bottom edge */
+.layout.mobile .tut-card .tut-foot { position: sticky; bottom: 0; z-index: 1; }
 .layout.mobile .tut-head { cursor: pointer; padding: 6px 6px 6px 12px; }
 .layout.mobile .tut-step { min-width: 0; }
 .layout.mobile .tut-step > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1356,38 +1358,46 @@ body.is-mobile .schem-head { cursor: default; }
 .layout.mobile .btn.primary:hover { background: var(--accent); border-color: var(--accent); }
 .layout.mobile .btn.ghost:hover:not(.active) { background: transparent; color: var(--text-2); }
 
-/* Phone in portrait: suggest landscape. Only on phone-sized screens; rotating hides it. */
+/* Phone in portrait: a small hint to turn sideways, above the bench readouts (never blocks the board).
+   Only on phone-sized screens; rotating hides it. */
 .m-rotate { display: none; }
 @media (orientation: portrait) and (max-width: 600px) {
   body.is-mobile .m-rotate {
-    position: fixed;
-    inset: 0;
-    z-index: 70;
     display: flex;
     align-items: center;
-    justify-content: center;
-    padding: 24px;
-    background: rgba(9, 12, 10, 0.94);
+    gap: 8px;
+    align-self: flex-start;
+    padding: 4px 4px 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+    color: var(--text-2);
+    font-size: 13px;
+    pointer-events: auto;
+    transition: opacity 0.4s ease;
   }
 }
-.m-rotate-card {
+.m-rotate.fade { opacity: 0; }
+.m-rotate-t { white-space: nowrap; }
+.m-rotate-ico { display: flex; color: var(--accent); animation: m-rotate-turn 2.4s ease-in-out 3; }
+.m-rotate-x {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  max-width: 300px;
-  text-align: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
 }
-.m-rotate-card p { margin: 0 0 6px; color: var(--text-2); font-size: 14px; line-height: 1.5; }
-.m-rotate-card .btn { height: 44px; padding: 0 20px; font-size: 14px; }
-.m-rotate-t { font-size: 18px; font-weight: 600; color: var(--text); }
-.m-rotate-ico { color: var(--accent); margin-bottom: 6px; animation: m-rotate-turn 2.4s ease-in-out infinite; }
 @keyframes m-rotate-turn {
   0%, 20% { transform: rotate(0deg); }
   45%, 75% { transform: rotate(-90deg); }
   100% { transform: rotate(0deg); }
 }
-@media (prefers-reduced-motion: reduce) { .m-rotate-ico { animation: none; transform: rotate(-90deg); } }
+@media (prefers-reduced-motion: reduce) { .m-rotate-ico { animation: none; } }
 
 /* Phone text: less at once, the rest one tap away (not smaller type) */
 .layout.mobile .m-tut .tut-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

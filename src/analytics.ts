@@ -16,8 +16,28 @@ export const MILESTONES = [1, 2, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240];
 const IDLE_MS = 2 * 60_000;
 const TICK_MS = 15_000;
 
+type UmamiPayload = Record<string, unknown>;
 declare global {
-  interface Window { umami?: { track: (name: string, data?: Record<string, string | number>) => void } }
+  interface Window {
+    umami?: { track: (nameOrPayload: string | ((props: UmamiPayload) => UmamiPayload), data?: Record<string, string | number>) => void };
+  }
+}
+
+/**
+ * The bench's own events: which board was opened and fixed, and finishing the tutorial. Ids only
+ * for boards that ship with the game; anything the player imported or made is just "custom".
+ * No-ops wherever analytics is off (the Umami script then never loaded): dev, forks, the apps.
+ */
+export function trackEvent(name: string, data?: Record<string, string | number>): void {
+  if (typeof window !== 'undefined') window.umami?.track(name, data);
+}
+
+/**
+ * Opening another board counts as a page view ("/board/<id>"): the bench is one page, so without
+ * this Umami calls every visit that stays on the bench a bounce, however long the player stays.
+ */
+export function trackBoardView(boardId: string, title: string): void {
+  if (typeof window !== 'undefined') window.umami?.track((p) => ({ ...p, url: `/board/${boardId}`, title }));
 }
 
 /** Should this page load be tracked? */

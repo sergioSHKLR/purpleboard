@@ -1,5 +1,5 @@
 // Website analytics: only the public site with a real id is tracked; active-time milestones fire once each.
-import { analyticsEnabled, milestonesCrossed, MILESTONES, SITE_HOST } from '../src/analytics';
+import { analyticsEnabled, milestonesCrossed, MILESTONES, SITE_HOST, trackBoardView, trackEvent } from '../src/analytics';
 
 function assert(c: unknown, m: string): asserts c { if (!c) throw new Error(m); }
 
@@ -19,5 +19,19 @@ assert(JSON.stringify(milestonesCrossed(100, 650)) === '[2,5,10]', 'a long jump 
 const fired: number[] = [];
 for (let s = 0; s < 5 * 3600; s += 15) fired.push(...milestonesCrossed(s, s + 15));
 assert(JSON.stringify(fired) === JSON.stringify(MILESTONES), `all milestones once: ${fired}`);
+
+// bench events: no-ops without the Umami script (apps, dev); a board change is a page view of /board/<id>
+const g = globalThis as { window?: unknown };
+const hadWindow = 'window' in g, oldWindow = g.window;
+g.window = {};
+trackEvent('board fixed', { board: 'x' }); // no umami: must not throw
+const sent: unknown[] = [];
+g.window = { umami: { track: (a: unknown, b?: unknown) => sent.push(typeof a === 'function' ? a({ website: 'w', url: '/app.html' }) : [a, b]) } };
+trackEvent('board fixed', { board: 'builtin-first-light' });
+trackBoardView('builtin-first-light', 'First Light');
+if (hadWindow) g.window = oldWindow; else delete g.window;
+assert(JSON.stringify(sent[0]) === '["board fixed",{"board":"builtin-first-light"}]', `event sent: ${JSON.stringify(sent[0])}`);
+const view = sent[1] as Record<string, string>;
+assert(view.url === '/board/builtin-first-light' && view.title === 'First Light' && view.website === 'w', `board view: ${JSON.stringify(view)}`);
 
 console.log('analytics: ok');

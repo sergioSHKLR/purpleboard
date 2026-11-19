@@ -30,7 +30,9 @@ replying to the developer's answer, or through the contact below.
 records the page, the referring site, the country, the browser, the operating system, the device type
 and the screen size. It also records how long you used the bench, as milestones such as "active 5
 min". Active time only counts while the tab is visible and you have used the mouse, keyboard or screen
-in the last two minutes. Umami combines this into totals, so the developer can see roughly how
+in the last two minutes. On the bench it also records which of the boards that come with DEADBOARD
+you open and fix, and when you finish the tutorial (a board you imported or made yourself is only
+counted as "custom", never by name). Umami combines this into totals, so the developer can see roughly how
 many people use DEADBOARD and for how long. You can't be identified, and you aren't followed across
 sites or from one month to the next. If your browser sends Do Not Track, nothing is counted.
 Content blockers usually block it too.

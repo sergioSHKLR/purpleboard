@@ -34,6 +34,7 @@ import { setSoundEnabled, sfxBeep, sfxBlow, sfxClick, sfxCut, sfxSolder, sfxWin,
 import { icon } from './icons';
 import { chromeIntentUrl, inAppBrowser } from './inapp';
 import { LANGUAGES, lang, saveLanguage, t, t as translate, tk } from '../i18n';
+import { trackBoardView, trackEvent } from '../analytics';
 import { APP_BUILD, mountFeedbackForm, type FeedbackContext } from './feedback';
 import { boardDiff, encodeSnapshot, type BenchSnapshot } from '../snapshot';
 import { BRAND, markSvg } from './logo';
@@ -135,6 +136,12 @@ export class PcbApp {
   private redoStack: Board[] = [];
   private moves = 0;
   private solvedIds = new Set<string>(JSON.parse(localStorage.getItem('pcbfix_solved') ?? '[]'));
+  /** Boards that ship with the game (analytics names only these; imports and mods are "custom"). */
+  private shippedIds = new Set<string>();
+  /** The bench is up: boards opened from here on are the player's choice (for analytics). */
+  private started = false;
+  /** Boards whose fix was already counted this page load. */
+  private trackedFixes = new Set<string>();
 
   private activeTool: ToolId = 'inspect';
   private activeTab: PanelTab = 'mission';
@@ -309,6 +316,7 @@ export class PcbApp {
     }
     if (params.has('feedback')) this.showFeedback = true;
 
+    this.shippedIds = new Set(this.scenarios.map((s) => s.id));
     // Load from URL hash if present (#s=...)
     const loadedHash = await this.tryLoadFromHash();
     if (!loadedHash) {
@@ -324,6 +332,7 @@ export class PcbApp {
     }
 
     this.bindEvents();
+    this.started = true;
     if (this.showBoards || this.showFeedback) this.renderModal();
     void this.loadVideoIndex();
     if (params.has('automation')) this.exposeAutomation();
@@ -634,7 +643,7 @@ export class PcbApp {
             <button class="m-vbtn" id="m-mode" title="2D / 3D"></button>
             <button class="m-vbtn" id="m-flip" title="${t('Top / Bottom side')}"></button>
           </div>
-          <div class="m-hud"><div id="scope-box"></div><div id="psu-box"></div><div id="dmm-box"></div></div>` : `
+          <div class="m-hud">${this.rotateHintHtml()}<div id="scope-box"></div><div id="psu-box"></div><div id="dmm-box"></div></div>` : `
           <div class="hud-bottom-left"><div id="dmm-box"></div></div>
           <div class="hud-bottom-right"><div id="scope-box"></div><div id="psu-box"></div></div>`}
           <div class="toast-stack" id="toasts"></div>
@@ -663,7 +672,7 @@ export class PcbApp {
         </footer>
       </div>
       <div id="modal-root"></div>
-      ${m ? this.mobileMoreHtml() + this.rotateHintHtml() : ''}
+      ${m ? this.mobileMoreHtml() : ''}
       <div class="drop-overlay" id="drop-overlay" style="display:none">${t('Drop a .brd, .tvw, .kicad_pcb, .pcbfix.json, or mod .zip to import')}</div>
     `;
 
@@ -732,22 +741,21 @@ export class PcbApp {
   }
 
   /**
-   * Phone in portrait: suggest landscape (shown by CSS only in portrait on a phone-sized screen,
-   * so rotating hides it). "Keep portrait" is remembered.
+   * Phone in portrait: a small dismissible hint to turn sideways, at the top of the bench readouts
+   * (shown by CSS only in portrait on a phone-sized screen, so rotating hides it). It never covers
+   * the board: a full-screen prompt here was the first thing new phone visitors saw, and many left.
+   * Closing it is remembered; otherwise it fades out on its own after a while.
    */
   private rotateHintHtml(): string {
     let ok = false;
     try { ok = localStorage.getItem('pcbfix_portrait_ok') === '1'; } catch { /* storage unavailable */ }
     if (ok) return '';
     return `
-      <div class="m-rotate" id="m-rotate" role="dialog" aria-labelledby="m-rotate-t">
-        <div class="m-rotate-card">
-          <div class="m-rotate-ico">${icon('phone', 56)}</div>
-          <div class="m-rotate-t" id="m-rotate-t">${t('Turn your phone sideways')}</div>
-          <p>${t('The bench has more room in landscape: the board, tools and meter fit side by side.')}</p>
-          <button class="btn" id="m-rotate-keep">${t('Keep portrait')}</button>
-        </div>
-      </div>`;
+            <div class="m-rotate" id="m-rotate" role="status">
+              <span class="m-rotate-ico">${icon('phone', 16)}</span>
+              <span class="m-rotate-t">${t('Turn sideways for more room')}</span>
+              <button class="m-rotate-x" id="m-rotate-keep" title="${t('Keep portrait')}" aria-label="${t('Keep portrait')}">${icon('x', 14)}</button>
+            </div>`;
   }
 
   /** Moves the desktop top-bar controls into the More sheet (their listeners move with them). */
@@ -977,6 +985,14 @@ export class PcbApp {
       }
     }
     this.loadScenario(sc);
+    if (this.started) {
+      const id = this.analyticsId(sc);
+      trackBoardView(id, id === 'custom' ? 'Custom board' : sc.meta.title);
+    }
+  }
+
+  private analyticsId(sc: Scenario): string {
+    return this.shippedIds.has(sc.id) ? sc.id : 'custom';
   }
 
   private refreshScenarioSelect() {
@@ -1556,10 +1572,20 @@ export class PcbApp {
     }
   }
 
+  /** Analytics: a board fixed (once per board per page load); fixing the last lesson finishes the tutorial. */
+  private trackFix() {
+    const id = this.analyticsId(this.activeScenario);
+    if (this.trackedFixes.has(this.activeScenario.id)) return;
+    this.trackedFixes.add(this.activeScenario.id);
+    trackEvent('board fixed', { board: id });
+    if (this.activeScenario.id === TUTORIAL_SCENARIO_IDS[TUTORIAL_SCENARIO_IDS.length - 1]) trackEvent('tutorial finished');
+  }
+
   private async runVerify() {
     this.recompute(false);
     const res = await verifyScenario(this.activeScenario, this.board, this.solver);
     this.lastVerify = res;
+    if (res.flag || (res.allPassed && !res.topologyMismatch && !this.activeScenario.lock)) this.trackFix();
     if (res.flag) {
       this.revealedFlag = res.flag;
       this.solvedIds.add(this.activeScenario.id);
@@ -1800,6 +1826,12 @@ export class PcbApp {
       try { localStorage.setItem('pcbfix_portrait_ok', '1'); } catch { /* storage unavailable */ }
       q('#m-rotate')?.remove();
     });
+    setTimeout(() => {
+      const r = q('#m-rotate');
+      if (!r) return;
+      r.classList.add('fade');
+      setTimeout(() => r.remove(), 400);
+    }, 20_000);
     // iOS Safari zooms the page on a pinch outside the canvas: the board has its own pinch zoom
     document.addEventListener('gesturestart', (e) => e.preventDefault());
   }

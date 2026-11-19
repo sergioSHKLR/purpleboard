@@ -131,8 +131,7 @@ const ru: Catalog = {
   "Board": "Плата",
   "Import a board or mod": "Импорт платы или мода",
   "App": "Приложение",
-  "Turn your phone sideways": "Поверните телефон горизонтально",
-  "The bench has more room in landscape: the board, tools and meter fit side by side.": "В альбомной ориентации на стенде больше места: плата, инструменты и мультиметр помещаются рядом.",
+  "Turn sideways for more room": "Поверните телефон: так больше места",
   "Keep portrait": "Оставить вертикально",
   // ---- App: videos, schematics, mods, loading boards
   "How to approach": "Как подступиться",
@@ -913,6 +912,7 @@ const ru: Catalog = {
   "&gt; board-level repair trainer": "&gt; тренажёр ремонта плат",
   "Bring dead boards back.": "Оживляйте мёртвые платы.",
   "DEADBOARD is a repair bench in your browser. Probe a real open-hardware board with a multimeter, read boot current off the bench supply, scope the switch nodes, find the short with a thermal camera, then fix it with an iron that obeys physics.": "DEADBOARD — ремонтный стенд в браузере. Прозвоните мультиметром настоящую open-hardware плату, прочитайте ток загрузки на лабораторном блоке питания, посмотрите осциллографом на узлы переключения, найдите КЗ тепловизором и почините плату паяльником, который подчиняется физике.",
+  "A repair bench in your browser: find the fault on a real board, then fix it.": "Ремонтный стенд в браузере: найдите неисправность на настоящей плате и почините её.",
   "Open the bench <span aria-hidden=\"true\">→</span>": "Открыть стенд <span aria-hidden=\"true\">→</span>",
   "Learn the basics · 5 min": "Основы · 5 мин",
   "Runs in any recent browser: Chrome, Edge, Safari, Firefox. Nothing to install.": "Работает в любом современном браузере: Chrome, Edge, Safari, Firefox. Ничего не нужно устанавливать.",
