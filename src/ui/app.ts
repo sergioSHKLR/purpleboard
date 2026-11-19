@@ -1145,7 +1145,7 @@ export class PcbApp {
     const opts = {
       ...(this.ocpAmps > 0 && { currentLimit: this.ocpAmps }),
       ...(this.bootSequenced && this.boot.state !== 'OFF' && { powerState: this.boot.state, loadScale: this.activeScenario.calibration?.loadScale }),
-      meters: this.solver !== 'fast' && this.dmmMode === 'V' && this.probeRed && this.probeRed.net >= 0 ? [[this.probeRed.net, this.probeBlack?.net ?? -1] as [number, number]] : [],
+      meters: this.dmmMode === 'V' && this.probeRed && this.probeRed.net >= 0 ? [[this.probeRed.net, this.probeBlack?.net ?? -1] as [number, number]] : [],
     };
     this.solveWorker.postMessage({ id, board: this.board, solver: this.solver, opts });
     this.solveFor = this.conn;
@@ -1192,10 +1192,10 @@ export class PcbApp {
     this.thermal.setPower(p);
   }
 
-  /** Runs the selected solver. In SPICE mode the DMM's 10 MΩ input loads the probed net. */
+  /** Runs the selected solver. The DMM's 10 MΩ input loads the probed net (both solvers). */
   private solve(): Sim {
     const meters: [number, number][] =
-      this.solver !== 'fast' && this.dmmMode === 'V' && this.probeRed && this.probeRed.net >= 0
+      this.dmmMode === 'V' && this.probeRed && this.probeRed.net >= 0
         ? [[this.probeRed.net, this.probeBlack?.net ?? -1]]
         : [];
     if (this.psuInject && this.probeRed && this.probeRed.net >= 0) {
@@ -2658,7 +2658,7 @@ export class PcbApp {
       } else if (this.probeRed && this.probeBlack) {
         if (this.probeRed.net < 0 || this.probeBlack.net < 0) {
           reading = 'OL';
-          sub = t('Open or reverse-biased (> 3.3 V)');
+          sub = t('Open or reverse-biased (OL)');
         } else {
           const res = this.diodeTest(this.probeRed.net, this.probeBlack.net);
           this.diodeLitIds = res.litIds;
@@ -2668,7 +2668,7 @@ export class PcbApp {
             sub = dd.value === null ? t('Open or reverse-biased (OL)') : dd.value < 0.05 ? t('Shorted junction') : dd.value < 0.3 ? t('Low drop: Schottky / partial short') : t('Forward junction drop (ESD / body diode / PN)');
           } else if (!Number.isFinite(res.volts)) {
             reading = 'OL';
-            sub = t('Open or reverse-biased (> 3.3 V)');
+            sub = t('Open or reverse-biased (OL)');
           } else if (res.volts < 0.05) {
             reading = `${res.volts.toFixed(3)} V`;
             sub = t('Shorted junction');

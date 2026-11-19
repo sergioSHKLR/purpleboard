@@ -4,7 +4,7 @@ import { t } from '../i18n';
 import type { Board } from '../types';
 import type { Conn } from '../connectivity';
 import { batteryRint } from '../model';
-import { LED_MAX_I, LED_ON_I, type CompSim, type Sim, type SimOpts } from '../sim';
+import { DIODE_TEST, LED_MAX_I, LED_ON_I, type CompSim, type Sim, type SimOpts } from '../sim';
 import { boardToCircuit, type BoardNetlist, type BoardSpiceOptions } from './board';
 import { Engine, type EngineOptions, type OpResult } from './engine';
 import { discoverPowerTree } from './powertree';
@@ -27,10 +27,6 @@ export interface SpiceSim extends Sim {
 export interface SpiceSimOpts extends SimOpts {
   library?: BoardSpiceOptions['library'];
   engine?: Partial<EngineOptions>;
-  /** Voltmeters attached during the solve: [red net, black net (-1 = supply ground)]. */
-  meters?: [number, number][];
-  /** Voltmeter input impedance (default 10 MΩ). */
-  meterOhms?: number;
   /** Add behavioral regulators discovered from the board's power tree (needs only net names). */
   powerTree?: boolean;
   /**
@@ -46,8 +42,6 @@ export interface SpiceSimOpts extends SimOpts {
    * board's own supply removed — the standard way to make a shorted rail's culprit heat up.
    */
   inject?: { net: number; volts: number; amps: number };
-  /** Ammeter between two nets (red, black): a low-ohm shunt; its current is returned as `ammeterAmps`. */
-  ammeter?: { a: number; b: number; ohms: number };
 }
 
 const ENGINE_DEFAULTS: Partial<EngineOptions> = { gshunt: 1e-12 };
@@ -75,8 +69,8 @@ export function simulateSpice(board: Board, conn: Conn, opt: SpiceSimOpts = {}):
     if (opt.ohm) {
       ckt.elements.push({ kind: 'I', name: 'I_OHMMETER', n: ['0', aNode], wave: { type: 'dc', v: 1e-3 } });
     } else {
-      ckt.elements.push({ kind: 'V', name: 'V_DIODETEST', n: ['dmm_src', '0'], wave: { type: 'dc', v: 3.3 } });
-      ckt.elements.push({ kind: 'R', name: 'R_DIODETEST', n: ['dmm_src', aNode], value: 3300 });
+      ckt.elements.push({ kind: 'V', name: 'V_DIODETEST', n: ['dmm_src', '0'], wave: { type: 'dc', v: DIODE_TEST.voc } });
+      ckt.elements.push({ kind: 'R', name: 'R_DIODETEST', n: ['dmm_src', aNode], value: DIODE_TEST.rsrc });
     }
   } else if (opt.inject) {
     const n = nl.netNode.get(opt.inject.net);
@@ -269,15 +263,15 @@ export function measureOhmsSpice(board: Board, conn: Conn, a: number, b: number,
   return r > 2e7 ? Infinity : r;
 }
 
-/** Diode-test mode (3.3 V through 3.3 kΩ) with the supply removed. */
+/** Diode-test mode (the DIODE_TEST source) with the supply removed. */
 export function measureDiodeSpice(board: Board, conn: Conn, a: number, b: number, library?: SpiceSimOpts['library']): { volts: number; litIds: string[] } {
   if (a < 0 || b < 0) return { volts: Infinity, litIds: [] };
   if (a === b) return { volts: 0, litIds: [] };
   const s = simulateSpice(board, conn, { diode: [a, b], library });
   if (!s.source) return { volts: Infinity, litIds: [] };
   const k = s.nodeOfNet.get(a);
-  const v = k === undefined ? 3.3 : s.V[k];
+  const v = k === undefined ? DIODE_TEST.voc : s.V[k];
   const litIds: string[] = [];
   for (const c of board.components) if (c.kind === 'led' && (s.comps.get(c.id)?.i ?? 0) > 1e-4) litIds.push(c.id);
-  return { volts: v >= 3.25 ? Infinity : Math.max(0, v), litIds };
+  return { volts: v >= DIODE_TEST.olVolts ? Infinity : Math.max(0, v), litIds };
 }

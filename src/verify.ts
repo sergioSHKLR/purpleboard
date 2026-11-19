@@ -9,7 +9,7 @@ import { t } from './i18n';
 /** 'fast' = piecewise-linear DC solver, 'spice' = SPICE engine, 'spice-power' = SPICE + behavioral regulators from the power tree. */
 export type Solver = 'fast' | 'spice' | 'spice-power';
 
-export function runSolver(solver: Solver, board: Board, conn: Conn, opt: SimOpts & { meters?: [number, number][]; powerState?: PowerStateName; ammeter?: { a: number; b: number; ohms: number }; loadScale?: number } = {}): Sim {
+export function runSolver(solver: Solver, board: Board, conn: Conn, opt: SimOpts & { powerState?: PowerStateName; loadScale?: number } = {}): Sim {
   if (solver === 'fast') return simulate(board, conn, opt);
   return simulateSpice(board, conn, { ...opt, powerTree: solver === 'spice-power' });
 }

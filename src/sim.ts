@@ -4,6 +4,7 @@ import { t } from './i18n';
 import type { Board, Component, SwitchMap } from './types';
 import { pinNet, type Conn } from './connectivity';
 import { LED_INFO, MODELED, batteryRint, twoRoles } from './model';
+import { GENERIC_DMM } from './spice/dmm';
 
 export interface CompSim {
   /** Current through the part, + flowing from first role to second (A->K, through a resistor 1->2). For batteries: current delivered. */
@@ -23,9 +24,15 @@ export interface Sim {
   comps: Map<string, CompSim>;
   source: boolean;
   ccLimited?: boolean;
+  /** Current through the ammeter (red → black), when one was attached. */
+  ammeterAmps?: number;
 }
 
-const OPEN = 1e-9;
+// Shunt from every solved node to ground: keeps the matrix regular and pulls a node that nothing
+// drives to 0 V, as a real 10 MΩ meter does. Open parts (open switch, off diode) are not stamped
+// at all: a conductance comparable to this shunt would form a divider with it and read a phantom
+// voltage on a floating net (an open switch from 3 V used to read exactly 1.000 V).
+const GMIN = 1e-9;
 const LED_RS = 15;
 const DIODE_VF = 0.7, DIODE_RS = 0.5;
 export const LED_MAX_I = 0.03;
@@ -66,7 +73,18 @@ function solve(A: Float64Array, b: Float64Array, n: number): Float64Array {
 const vf = (c: Component) => (c.kind === 'led' ? LED_INFO[c.color ?? 'red'].vf : DIODE_VF);
 const rs = (c: Component) => (c.kind === 'led' ? LED_RS : DIODE_RS);
 
-export interface SimOpts { switches?: SwitchMap; ohm?: [number, number]; diode?: [number, number]; currentLimit?: number }
+export interface SimOpts {
+  switches?: SwitchMap;
+  ohm?: [number, number];
+  diode?: [number, number];
+  currentLimit?: number;
+  /** Ammeter between two nets (red, black): a low-ohm shunt; its current is returned as `ammeterAmps`. */
+  ammeter?: { a: number; b: number; ohms: number };
+  /** Voltmeters attached during the solve: [red net, black net (-1 = supply ground)]. */
+  meters?: [number, number][];
+  /** Voltmeter input impedance (default 10 MΩ). */
+  meterOhms?: number;
+}
 
 export function simulate(board: Board, conn: Conn, opt: SimOpts = {}): Sim {
   const nodeOfNet = new Map<number, number>();
@@ -95,10 +113,23 @@ export function simulate(board: Board, conn: Conn, opt: SimOpts = {}): Sim {
     if (c.kind === 'battery' && !firstBattery) firstBattery = el;
   }
 
+  const probePair = opt.ohm ?? opt.diode;
+  const amm = opt.ammeter && !probePair && opt.ammeter.a >= 0 && opt.ammeter.b >= 0 && opt.ammeter.a !== opt.ammeter.b
+    ? { a: node(opt.ammeter.a), b: node(opt.ammeter.b), g: 1 / Math.max(opt.ammeter.ohms, 1e-6) }
+    : null;
+
+  // A real DMM loads the node it measures (10 MΩ): on a node held only by a junction or a
+  // high-value resistor, that load sets the reading. Black = -1 means supply ground.
+  const meterEls: { a: number; b: number | 'gnd' }[] = [];
+  if (!probePair) for (const [red, black] of opt.meters ?? []) {
+    if (red < 0 || red === black) continue;
+    meterEls.push({ a: node(red), b: black < 0 ? 'gnd' : node(black) });
+  }
+  const gMeter = 1 / (opt.meterOhms ?? GENERIC_DMM.vInputOhms);
+
   const comps = new Map<string, CompSim>();
   const empty = (source: boolean): Sim => ({ nodeOfNet, V: new Float64Array(nn), ground: -1, comps, source });
 
-  const probePair = opt.ohm ?? opt.diode;
   let ground: number;
   if (probePair) {
     const gb = nodeOfNet.get(probePair[1]);
@@ -119,6 +150,8 @@ export function simulate(board: Board, conn: Conn, opt: SimOpts = {}): Sim {
     adj[e.a].push(e.b);
     adj[e.b].push(e.a);
   }
+  if (amm) { adj[amm.a].push(amm.b); adj[amm.b].push(amm.a); }
+  for (const me of meterEls) if (me.b !== 'gnd') { adj[me.a].push(me.b); adj[me.b].push(me.a); }
   const q: number[] = [];
   const seed = (idx: number | undefined) => {
     if (idx !== undefined && idx !== ground && !reachable[idx]) {
@@ -176,31 +209,30 @@ export function simulate(board: Board, conn: Conn, opt: SimOpts = {}): Sim {
         if (row[a] >= 0) I[row[a]] += g * E;
         if (row[b] >= 0) I[row[b]] -= g * E;
       };
-      for (let i = 0; i < m; i++) G[i * m + i] += OPEN;
+      for (let i = 0; i < m; i++) G[i * m + i] += GMIN;
       for (const e of activeEls) {
-        const c = e.c;
+        const c = e.c; // activeEls holds no burnt parts
         switch (c.kind) {
-          case 'resistor': stampG(e.a, e.b, c.state.burnt ? OPEN : 1 / Math.max(c.value, 1e-3)); break;
-          case 'fuse': stampG(e.a, e.b, c.state.burnt ? OPEN : 10); break;
-          case 'switch': {
-            const closed = sw?.[c.ref] ?? !!c.state.closed;
-            stampG(e.a, e.b, closed && !c.state.burnt ? 50 : OPEN);
+          case 'resistor': stampG(e.a, e.b, 1 / Math.max(c.value, 1e-3)); break;
+          case 'fuse': stampG(e.a, e.b, 10); break;
+          case 'switch':
+            if (sw?.[c.ref] ?? !!c.state.closed) stampG(e.a, e.b, 50);
             break;
-          }
           case 'led': case 'diode':
-            if (!c.state.burnt && e.on && !opt.ohm) stampE(e.a, e.b, vf(c), 1 / rs(c));
-            else stampG(e.a, e.b, OPEN);
+            if (e.on && !opt.ohm) stampE(e.a, e.b, vf(c), 1 / rs(c));
             break;
           case 'battery':
             if (!probePair) stampE(e.a, e.b, batV.get(c.id) ?? c.value, 1 / batteryRint(c.value));
             break;
         }
       }
+      if (amm) stampG(amm.a, amm.b, amm.g);
+      for (const me of meterEls) stampG(me.a, me.b === 'gnd' ? ground : me.b, gMeter);
       if (opt.ohm) { const ra = row[nodeOfNet.get(opt.ohm[0])!]; if (ra >= 0) I[ra] += 1e-3; }
       if (opt.diode) {
         const na = nodeOfNet.get(opt.diode[0])!;
         const nb = nodeOfNet.get(opt.diode[1])!;
-        stampE(na, nb, 3.3, 1 / 3300);
+        stampE(na, nb, DIODE_TEST.voc, 1 / DIODE_TEST.rsrc);
       }
       const x = solve(G, I, m);
       V = new Float64Array(n);
@@ -269,7 +301,7 @@ export function simulate(board: Board, conn: Conn, opt: SimOpts = {}): Sim {
     const v = (na !== undefined ? V[na] : 0) - (nb !== undefined ? V[nb] : 0);
     comps.set(cap.c.id, { i: 0, v, p: 0, on: false, bright: 0, over: false });
   }
-  return { nodeOfNet, V, ground, comps, source: true, ccLimited };
+  return { nodeOfNet, V, ground, comps, source: true, ccLimited, ...(amm && { ammeterAmps: (V[amm.a] - V[amm.b]) * amm.g }) };
 }
 
 export function netVoltage(s: Sim, net: number): number | null {
@@ -288,7 +320,18 @@ export function measureOhms(board: Board, conn: Conn, a: number, b: number): num
   return r > 2e7 ? Infinity : r;
 }
 
-/** Multimeter diode-check mode (3.3 V / 1 mA limited probe) with supply disconnected. */
+/**
+ * The meter's diode-test source, shared by both solvers and the realistic DMM model: open-circuit
+ * voltage and a source resistance that gives the profile's test current into a 0.6 V junction;
+ * readings at or above `olVolts` show OL (typical handheld values, estimates: src/spice/dmm.ts).
+ */
+export const DIODE_TEST = {
+  voc: GENERIC_DMM.diode.voc,
+  rsrc: (GENERIC_DMM.diode.voc - 0.6) / GENERIC_DMM.diode.itest,
+  olVolts: GENERIC_DMM.diode.olVolts,
+};
+
+/** Multimeter diode-check mode (DIODE_TEST source) with supply disconnected. */
 export function measureDiode(board: Board, conn: Conn, a: number, b: number): { volts: number; litIds: string[] } {
   if (a < 0 || b < 0) return { volts: Infinity, litIds: [] };
   if (a === b) return { volts: 0, litIds: [] };
@@ -299,5 +342,5 @@ export function measureDiode(board: Board, conn: Conn, a: number, b: number): { 
   for (const c of board.components) {
     if (c.kind === 'led' && (s.comps.get(c.id)?.i ?? 0) > 1e-4) litIds.push(c.id);
   }
-  return { volts: v >= 3.25 ? Infinity : Math.max(0, v), litIds };
+  return { volts: v >= DIODE_TEST.olVolts ? Infinity : Math.max(0, v), litIds };
 }

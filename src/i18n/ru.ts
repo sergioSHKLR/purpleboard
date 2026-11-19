@@ -251,7 +251,6 @@ const ru: Catalog = {
   "Continuity (< 5 Ω)": "Прозвонка (< 5 Ом)",
   "In-circuit resistance": "Сопротивление в схеме",
   "Disable power before diode test": "Выключите питание перед проверкой диода",
-  "Open or reverse-biased (> 3.3 V)": "Обрыв или обратное включение (> 3,3 В)",
   "Open or reverse-biased (OL)": "Обрыв или обратное включение (OL)",
   "Shorted junction": "Пробитый переход",
   "Low drop: Schottky / partial short": "Малое падение: Шоттки / частичное КЗ",
