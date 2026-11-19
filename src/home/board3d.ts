@@ -4,8 +4,10 @@
 // when the browser cannot draw it.
 //
 // Input keeps the page scrollable: a mouse drags to turn and zooms with Ctrl / ⌘ + wheel (a
-// trackpad pinch sends the same); on touch, a sideways swipe turns the board, a vertical one
-// scrolls the page, and a pinch zooms. Double-click or double-tap puts the view back.
+// trackpad pinch sends the same). On touch the board takes every gesture that starts on it (a
+// drag in any direction turns it, a pinch zooms) so turning never scrolls the page; on a phone
+// the board is a short strip, and the page scrolls from anywhere else. Double-click or
+// double-tap puts the view back.
 import { t } from '../i18n';
 import { parseScenario } from '../io/format';
 import { buildConnectivity } from '../connectivity';
@@ -131,7 +133,7 @@ export async function mountBoard3d(frame: HTMLElement, img: HTMLImageElement, hi
   caption?.removeAttribute('data-t');
   const relabel = () => {
     const touch = matchMedia('(pointer: coarse)').matches;
-    if (hint) hint.textContent = touch ? t('Swipe to turn · pinch to zoom') : /Mac/.test(navigator.platform) ? t('Drag to turn · ⌘ + scroll or pinch to zoom') : t('Drag to turn · Ctrl + scroll to zoom');
+    if (hint) hint.textContent = touch ? t('Drag to turn · pinch to zoom') : /Mac/.test(navigator.platform) ? t('Drag to turn · ⌘ + scroll or pinch to zoom') : t('Drag to turn · Ctrl + scroll to zoom');
     if (caption) caption.textContent = t('MNT Reform 2 laptop mainboard (open hardware, 530 parts), live in 3D on the bench\'s own renderer. Double-click or double-tap to reset the view.');
     canvas.setAttribute('aria-label', img.alt);
   };

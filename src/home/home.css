@@ -309,7 +309,7 @@ figcaption { margin-top: 12px; font: 13px/1.5 var(--mono); color: var(--muted); 
 
 /* ---------- live 3D board in the hero ---------- */
 .frame { position: relative; }
-.hero-3d { display: none; width: 100%; aspect-ratio: 2088 / 990; touch-action: pan-y; cursor: grab; background: #0b0c0e; }
+.hero-3d { display: none; width: 100%; aspect-ratio: 2088 / 990; touch-action: none; cursor: grab; background: #0b0c0e; }
 .hero-3d:active { cursor: grabbing; }
 .frame.live .hero-3d { display: block; }
 .frame.live img { display: none; }

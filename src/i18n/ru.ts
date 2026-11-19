@@ -965,7 +965,7 @@ const ru: Catalog = {
   "A simulated power-up": "Смоделированное включение",
   "Fault types": "Типы неисправностей",
   "Example challenge": "Пример задачи",
-  "Swipe to turn · pinch to zoom": "Вбок — поворот · щипок — масштаб",
+  "Drag to turn · pinch to zoom": "Тяните — поворот · щипок — масштаб",
   "Drag to turn · Ctrl + scroll to zoom": "Тяните, чтобы повернуть · Ctrl + колесо для масштаба",
   "Drag to turn · ⌘ + scroll or pinch to zoom": "Тяните, чтобы повернуть · ⌘ + прокрутка или щипок для масштаба",
   "MNT Reform 2 laptop mainboard (open hardware, 530 parts), live in 3D on the bench's own renderer. Double-click or double-tap to reset the view.": "Материнская плата ноутбука MNT Reform 2 (open hardware, 530 деталей) вживую в 3D, тем же движком, что и на стенде. Двойной щелчок или двойное касание возвращает вид.",
