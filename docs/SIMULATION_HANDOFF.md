@@ -1,4 +1,4 @@
-# DEADBOARD — handoff (updated 2026-11-18, after boardview import, translations, bug snapshots and website analytics)
+# DEADBOARD — handoff (updated 2026-11-19, after the simulation-accuracy session)
 
 Goal: make DEADBOARD (formerly PCB//FIX) a realistic board-repair trainer, as close to a real bench as possible,
 **universal** (any board, not just the MacBook), with honest provenance for every value.
@@ -6,6 +6,51 @@ No reference hardware is available, so realism is validated against *design inte
 (schematic/BOM values, rail names, datasheets) and physics checks — not measurements.
 
 ## Status (start here)
+
+- **2026-11-19: simulation accuracy (all pushed; `1e67f0b` → `f1412cd`).** Goal set by the user:
+  meter / scope / thermal readings closer to a real board, every value with honest provenance.
+  Plan steps 1–6 done; step 7 (provenance-tier UI) proposed, **not started: ask the user first**.
+  - **Solvers agree** (`test/differential.test.ts`): the fast solver read a floating net as
+    exactly +1.000 V (open switch stamped with the same 1 nS as the node shunt → divider); open
+    parts are now unstamped. It also now uses the **SPICE diode curves** (PWL chords of the same
+    Shockley models, < 4 mV), the **10 MΩ meter load**, a 1 pS shunt (1 nS read 2 MΩ 0.6 % low)
+    and the generic DMM's diode-test source (3.0 V, OL ≥ 2.5 V; a blue LED was 3.0 V fast / OL
+    SPICE). 13 boards × V, part currents (± current limit), series A, Ω, diode, F agree within the
+    tolerances in the test header. By design: fast-mode Ω is an ideal meter (junctions open, no
+    leads); F and A use SPICE in both modes. **Consequence: fast-mode readings quoted in three
+    walkthrough videos changed** (Backwards Day 2.006 → 1.954 V, Smoke Test 0.700 → 0.654 V and
+    +4.293 → ~4.27 V, Bridge Troll 2.105 → ~2.05 V, supply mA): re-record (`npm run videos`); the
+    user chose "unify, re-record later".
+  - **SPICE vs ngspice** (`test/ngspice.test.ts`, 20 decks, 7.5k values; skips without ngspice;
+    installed here with Homebrew, **not in CI**). Fixed: MOSFETs had no bulk junctions (no body
+    diode on a reverse-biased drain); `Mosfet` now has ngspice level-1 drain/source–bulk diodes
+    (IS, default 1e-14). Library MOSFETs keep their datasheet body diode and set IS=0.
+  - **Importers** (`test/importnets.test.ts`): stacked boardview pads of different nets could not
+    be trimmed apart and shorted (the NM-D562 3,441 vs 3,442 case). Boardview boards carry
+    `Board.estimatedPads`: pad/via contact across named nets does not join (blobs, jumpers,
+    traces still do). `netReport` / `netWarnings` check named nets = conductors; BRD/TVW/KiCad
+    imports attach `Scenario.importWarnings` (not saved) → "Import check" toast (ru added). The
+    Jetson file really has LED1 with both pads on one net (routed separately).
+  - **Device library** (`test/devicelib.test.ts`): 8/21 parts verified against manufacturer
+    datasheets (`source` = document + revision, `thetaJA`); many from-memory values were maxima or
+    wrong (IRF9395 Rds(on) 16 → 5.3 mΩ, SI7137DP Ciss 9 → 20 nF). 3 checked against limits only;
+    10 unverified (Diodes / TI / Rohm / ST sites serve bot pages to curl, or the PDF fonts were not
+    machine-readable). Datasheet text was read with a stdlib-only extractor (scratchpad; poppler
+    install was refused). `fitDiode` now fits three points consistently.
+  - **Regulators** (`src/spice/regulators.ts`): datasheet Vref / fixed output / current limit / Iq
+    for the demos' regulators (LMR16006(YQ3), TLV62568, LM62460, LM62440, SiC477). The Reform's
+    LPC_VCC (fixed-3.3 V LMR16006YQ3) was 0 V and now reads 3.300 V; the Jetson 5V0_SYS reads its
+    design 4.984 V.
+  - **Calibration** (`docs/calibration/<demo>.csv`): rail set points from the published designs'
+    dividers × datasheet Vref (tier "matches published board values", not bench data). No diode /
+    Ω / current measurements of these boards are published, so none were invented. Optional
+    per-row `tol` column; `npm run calibrate -- <demo> <csv> --repair` uses the known-good board.
+  - **Full-board regression** (`test/demoboards.test.ts`) on both open demos replaces the private
+    MacBook coverage (structure, net invariant, power tree, faulted → thermal hot spot, repair →
+    flag after save, rails, calibration rows, meter / current snapshot). Demo repairs are shared
+    in `src/scenarios/demoRepairs.ts`.
+  - **Lesson:** `tsc` covers the tests: run `npm run build` before every commit (the `26d3e7b`
+    deploy failed on a test type error; fixed in `ad13a10`).
 
 - **2026-11-18 evening: website analytics (live, `5afa430`).** Umami Cloud (user's pick over
   Plausible / GoatCounter / GA4): no cookies, no consent banner. `src/analytics.ts`, loaded from
@@ -144,9 +189,7 @@ No reference hardware is available, so realism is validated against *design inte
   mods + the modding guide page `modding.html`, linked from the homepage). Earlier that day: Both-view
   X-ray (`826a8c0`), inverted left/right when looking up at the underside (`b031184`), issue #1
   closed, feedback form verified. No open issues.
-- **Possible bug to check first:** on a net nothing drives (night-light challenge from the starter
-  kit, SW1 open, probe R1.1), the multimeter reads exactly `+1.000 V`; a real meter shows about 0 V.
-  Probably how the fast solver reports a floating node. Reproduce, fix, add a test.
+- **Fixed 2026-11-19:** the floating-net `+1.000 V` reading (see the 2026-11-19 status entry).
 
 - **Released 2026-11-16 as v0.1.0**: public repo https://github.com/tholtman1-del/deadboard
   (Apache-2.0), live site https://tholtman1-del.github.io/deadboard/ (homepage `index.html` +
@@ -333,11 +376,12 @@ No reference hardware is available, so realism is validated against *design inte
 ## How to run
 
 ```bash
-npm test                 # 18 suites, all passing (private-fixture parts skip when absent)
+npm test                 # 28 suites, all passing (private-fixture parts skip when absent; ngspice suite skips without ngspice)
 npm run showcase         # re-record the showcase video (needs a running site; see Status)
 npm run videos           # re-render walkthrough videos (needs the dev server; docs/VIDEOS.md)
 npm run demos -- --fetch # rebuild the open-hardware demo boards (docs/DEMOS.md)
 npm run calibrate -- <board.brd> <measurements.csv>   # model vs bench readings (template: docs/measurements.template.csv)
+npm run calibrate -- public/demos/demo-mnt-reform2-mb30.pcbfix.json docs/calibration/demo-mnt-reform2-mb30.csv --repair
 npm run build            # typecheck + production build
 npx vite --port 5199     # dev server → http://localhost:5199 (WebGPU: use Chrome)
 npm run spice -- "board_schemas/J113  820-00165.brd" --quiet --behavioral --states --supply PPVBAT_G3H_CONN=8.4:0.05
@@ -356,7 +400,7 @@ scripts lived in the session scratchpad; recreate as needed.
 | SPICE engine | `src/spice/{engine,devices,sparse,netlist,expr,units,types}.ts` | MNA + sparse Markowitz LU; .op/.dc/.tran; R C L V I D M Q S E G X B; ngspice-compatible decks; gmin/source stepping + pseudo-transient continuation; warm start |
 | Board → SPICE | `src/spice/board.ts`, `adapter.ts` | game faults honoured (burnt, cold, reversed, leak, drift, resistive cold joints), ESD pin model, injection supply, meter loading |
 | Schematic / BOM import | `src/io/{pdf,schematic,schematicLibrary,bom,schematic-cli}.ts` | Concept-HDL PDFs (Apple style) incl. BOM configurations / NO STUFF; universal CSV BOM path |
-| Device library | `src/spice/{devicelib,resolveParts}.ts` | datasheet specs → fitted models; pins = datasheet numbers; 2-pin diode convention inferred per board; net-checked pinouts. **Specs are typical values from memory: `verified: false`** |
+| Device library | `src/spice/{devicelib,resolveParts}.ts` | datasheet specs → fitted models; pins = datasheet numbers; 2-pin diode convention inferred per board; net-checked pinouts. 8/21 parts **datasheet-verified** (`source`, `thetaJA`), 3 checked against limits, 10 unverified estimates (each says why); `src/spice/regulators.ts`: datasheet Vref / fixed output / current limit for listed regulators |
 | Power tree | `src/spice/{powertree,powermodels,sequencer}.ts` | converters/switches/LDOs from topology + net names; behavioral regulators (B sources); FB-divider check; ACPI state sequencing (MacBook: 83.6 % agreement with rail names) |
 | Faults & meter | `src/faults.ts`, `src/spice/dmm.ts` | severity ranges (estimates, as data); generic 6000-count DMM (ranges, test current, contact resistance, diode test) |
 | Thermal | `src/thermal.ts` | 2D plate + part nodes; injection, freeze spray, IPA; plane heat-sinking; rework heat sources |
@@ -370,7 +414,7 @@ scripts lived in the session scratchpad; recreate as needed.
 | Oscilloscope | `src/scope.ts` (tool O) | Roll = real simulated data per frame (ramps, sequencing, boot loops); Auto = **synthesized** switch node (duty Vout/Vin, fsw 600 kHz est.), ripple (0.8 % est.), clocks from net-name frequency when a chip on the net is powered |
 | Thermal camera | `src/thermal.ts` | apparent temperature ⁴√(εT⁴+(1−ε)Ta⁴): bare metal ε 0.1, mask/packages 0.9; rosin method (tool R): film melts clear above 60 °C (estimate) |
 | Meter F / A | `src/spice/dmm.ts` | capacitance by charge time: parallel R inflates / OL in circuit (lift to measure); 10 A shunt in series |
-| Calibration | `src/calibrate.ts`, `src/calibrate-cli.ts` | measurements CSV → per-reading comparison with tolerances, fitted `loadScale` → scenario `calibration` block applied by the simulator. **No real measurements yet** |
+| Calibration | `src/calibrate.ts`, `src/calibrate-cli.ts` | measurements CSV → per-reading comparison with tolerances, fitted `loadScale` → scenario `calibration` block applied by the simulator; optional per-row `tol`; `--repair` for demos. `docs/calibration/` = published design values of the open demos. **No bench measurements yet** |
 | Airwires | `src/airwires.ts` | follow design nets (pad net names), not live connectivity, so they do not reveal damage |
 | KiCad import (real boards) | `src/io/{kicad,benchSupply}.ts`, `src/connectivity.ts`, `src/geom.ts` | rotation sign fixed (KiCad CCW kept); inner-layer copper → `Board.hiddenCopperNets` (vias / TH pads joined by design) plus display-only `Board.inner` (tracks + fills, pours simplified to 0.05 mm; drawn in X-ray and as the selected net's overlay); arcs; multi-layer + multi-island pours; thermal-relief contact; `dnp` → not fitted; bidirectional ESD/TVS + multi-pin diodes → no DC path; L/FB/NT → low-ohm paths; `C_100n_0402` values; coin cells 3 V; bench supply (`J_BENCH`) on the power tree's input rail (12 V assumed if unnamed); earcut triangulation cached per pour; part bodies sized from the F.Fab/B.Fab outline (SMD parts as chips/boxes, offset outlines kept in `body.off`); bodies that cover ≥2 other parts on their side (module sockets, shields) render as open frames with a light tint so parts beneath stay visible and clickable (`occluders()` in `src/render/webgpu.ts`) |
 | Open-hardware demos | `scripts/build-demos.ts`, `public/demos/`, `docs/DEMOS.md` | MNT Reform 2 motherboard (CERN-OHL-S-2.0) and Antmicro Jetson Nano baseboard (Apache-2.0) at pinned commits; build verifies healthy-pass / faulted-fail / repair-unlocks; lazy-loaded; `Scenario.solver`, `meta.credits/license/source` |
@@ -380,7 +424,7 @@ scripts lived in the session scratchpad; recreate as needed.
 | Bug snapshots | `src/snapshot.ts`, `scripts/repro.ts`, `src/ui/feedback.ts` | `DBSNAP1:…:END` in feedback emails; repro rebuilds shipped boards and flags shorts / mismatches |
 | Game integration | `src/ui/app.ts`, `src/render/webgpu.ts`, `src/verify.ts` | solver choice (Fast DC / SPICE / SPICE+PWR) in **Bench** dropdown; tools 9 freeze, 0 IPA, H hot air, B press; realistic rework mode; live thermal at 60 fps on the 2,030-part board |
 
-Tests: `test/{solve,spice,schematic,powertree,realism,thermal,intermittent,rework,authoring,boot,scope,camera,calibrate,kicad,brd,tvw,snapshot,i18n,demos,videos,mods,touch}.test.ts` (`npm test` runs all).
+Tests: `test/{solve,spice,differential,ngspice,devicelib,schematic,powertree,realism,thermal,intermittent,rework,authoring,boot,scope,camera,calibrate,kicad,brd,tvw,importnets,snapshot,i18n,demos,demoboards,videos,mods,touch,analytics}.test.ts` (`npm test` runs all).
 
 Flag lock: `topology()` (`src/crypto.ts`) adds per-part tokens for leak (`!L`, incl. thermal-leak), drift (`!D`) and
 intermittents (`!I`, even dormant), like `!X` for burnt — a fault the objectives miss must still be repaired.
@@ -404,10 +448,28 @@ intermittents (`!I`, even dormant), like `!X` for burnt — a fault the objectiv
    solder bead). With pad-only contact a single tip cannot melt a 0402; with a body share both
    pads reflow equally fast and flux melts in 0.05 s. Needs a redesigned contact model, then
    recalibration of the rework tests. The attempt is not in the tree.
-0. **Open source (released 2026-11-16, Apache-2.0):** Apple fixtures moved out of the shipped
-   app (see Data / licensing); the build contains no boardview or schematic data. Remaining:
-   give the open demo boards the full-board regression coverage the private MacBook tests have.
-0. Real bench data: run `npm run calibrate` with measurements of one known-good board.
+0. **Provenance-tier UI (plan step 7, proposed 2026-11-19, ask before building):** show each
+   value's tier ("datasheet-verified" / "matches published board values" / "bench-measured" /
+   "estimate") and regulator confidence next to meter readings and in the Inspector. Data exists:
+   `DeviceDef.verified/source`, `RegulatorDef.source`, power-tree `confidence` + `target` (setpoint /
+   rail-name / fb-divider), estimated rail loads. Needs English + Russian strings, gated mobile text.
+0. **Re-record the walkthrough videos** for Backwards Day, Smoke Test, Bridge Troll (quoted
+   fast-mode readings changed 2026-11-19; captions are checked live during recording).
+0. Real bench data: run `npm run calibrate` with measurements of one known-good board (diode /
+   Ω / supply-current rows; none are published for the open demos).
+0. **CI:** no PR workflow yet; `pages.yml` does not install ngspice, so `test/ngspice.test.ts`
+   skips in CI (add `sudo apt-get install -y ngspice`). Private MacBook fixtures still local only.
+0. **Device library:** 10 parts unverified (DMN32D2LFB4, SISA18DN, SISA12DN, CSD58873Q3D,
+   BC846BLP, RB160M-60, RB521ES-30, BAT30CWFILM, SDZT15R6.8, the debug LED); limits-only parts
+   (DMN5L06VK, MMBT3904LP, ESD112) need typical curves read from graphs. `thetaJA` is recorded but
+   the thermal model does not use it yet (part body → board conductance is per area).
+0. **Regulators:** only the demos' parts are listed; CURRENT_LIMIT per class, rail loads
+   (decoupling caps × 20 mW) and dropout remain estimates. The power tree misses the Reform's
+   LM62460 / TLV62568 FB dividers (targets come from rail names; within 0.5 % of design).
+0. **Engine:** transient step control has no truncation-error check (fast edges at default step
+   ~10 % off vs ngspice 4.5 %; only the CLI uses `.tran`).
+0. **Importers:** NM-D562 file never received (fix is generic, confirm when it arrives); `.tvw`
+   traces / vias / pours still not imported.
 0. MacBook S4 load switch U3210 (PP3V3RHV_S4_TBTAPWR) never powers (input rail unmodelled);
    PP3V3_S0SW_LCD_UF buck is low-confidence (unmodelled). Scenario load (first solve) still blocks ~0.5 s.
 
@@ -416,7 +478,7 @@ intermittents (`!I`, even dormant), like `!X` for burnt — a fault the objectiv
 2. Missing chip models: IC-internal LDOs (PCH/SMC), setpoints for VID rails (CPU VR),
    charger and backlight boost targets.
 3. Two-layer thermal model (surface vs planes) to drop the hot-air coefficient compensation.
-4. Verify device-library datasheet values (`verified: false` everywhere).
+4. (done 2026-11-19 for 8 parts; see above.)
 5. Voltage injection not yet exercised in the browser (covered by Node tests).
 6. Pre-existing: favicon 404 (harmless).
 
