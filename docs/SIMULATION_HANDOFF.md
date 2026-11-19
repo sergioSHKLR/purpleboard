@@ -19,7 +19,7 @@ No reference hardware is available, so realism is validated against *design inte
      (`MOUSER_API_KEY`) not set: optional; its parser is only tested on documented shapes.
   2. **Proposed, not started (ask first):** (a) a datasheet table extractor that drafts device-
      library entries from `pdftotext -layout` output, keeping Min/Typ/Max apart, for review;
-     (b) more parts of real boards in the library (Jetson: 12/13 part numbers found, only 2
+     (b) more parts of real boards in the library (Jetson: 13/13 part numbers found, only 2
      with checked data — BSS138PW, NCP380 load switch, PESD / TPD ESD arrays, level shifters);
      (c) vendor SPICE models used locally (many are level 3 MOS: needs engine support or
      ngspice); (d) **plan step 7, provenance-tier UI** (badge per reading: datasheet-verified /
