@@ -7,6 +7,39 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
+- **NEXT SESSION — start here (written end of 2026-11-19; live at `c241a53`).**
+  The user's direction: **1:1 realistic testing of any board people upload**. Nothing is
+  redistributed, so datasheets and vendor SPICE models may be downloaded and used **locally**
+  (`.parts-cache/`, git-ignored), never committed.
+  1. **Waiting on the user: Digi-Key / Mouser API keys** in `.env.local`
+     (`DIGIKEY_CLIENT_ID`, `DIGIKEY_CLIENT_SECRET`, `MOUSER_API_KEY`; Digi-Key app = Production +
+     Product Information V4). When they are there: run
+     `npm run parts -- lookup CSD58873Q3D SISA18DN SISA12DN RB521ES-30 SDZT15R6.8` and
+     `npm run parts -- lookup public/demos/demo-antmicro-jetson-nano-bb.pcbfix.json` to check the
+     live responses against `src/io/distributors.ts` (parsers were only tested on documented
+     shapes). Fix field names if the live JSON differs.
+  2. **Proposed, not started (ask first):** (a) a datasheet table extractor that drafts device-
+     library entries from `pdftotext -layout` output, keeping Min/Typ/Max apart, for review;
+     (b) more parts of real boards in the library (Jetson: 12/13 part numbers found, only 2
+     with checked data — BSS138PW, NCP380 load switch, PESD / TPD ESD arrays, level shifters);
+     (c) vendor SPICE models used locally (many are level 3 MOS: needs engine support or
+     ngspice); (d) **plan step 7, provenance-tier UI** (badge per reading: datasheet-verified /
+     published board values / bench-measured / estimate, regulator confidence; English + Russian,
+     gated mobile text).
+  3. Other open items: re-record 3 walkthrough videos (Backwards Day, Smoke Test, Bridge Troll:
+     quoted fast-mode readings changed); add `apt-get install ngspice` to `pages.yml` (the ngspice
+     suite skips in CI); bench measurements of a real board (none published for the demos).
+  - **Local tools on this Mac:** ngspice 47 and poppler (`pdftotext`, `pdftoppm`; the Read tool
+    renders PDF pages) via Homebrew; `7zz` (7-Zip) for the jlcparts archive (macOS `zip -s 0`
+    truncates it); `sqlite3`. Datasheet PDFs the user downloads land in `~/Downloads`; copy them
+    into the scratchpad / `.parts-cache/datasheets/`, never into the repo. Scripted downloads with
+    a browser user-agent are refused by the permission check: use the jlcparts links / APIs or ask.
+  - **Device library: 17/22 verified** (`src/spice/devicelib.ts`, every entry has `source` + note);
+    unverified: CSD58873Q3D (MacBook custom part, no public datasheet; sibling CSD87333Q3D is in
+    the library), the debug LED (no part number); partial: MMBT3904LP, SDZT15R6.8, ESD112.
+    Regulators with datasheet data: LMR16006(YQ3), TLV62568, LM62460, LM62440, SiC477.
+  - Always `npm test` **and** `npm run build` before committing (tsc covers `test/`).
+
 - **2026-11-19: simulation accuracy (all pushed; `1e67f0b` → `f1412cd`).** Goal set by the user:
   meter / scope / thermal readings closer to a real board, every value with honest provenance.
   Plan steps 1–6 done; step 7 (provenance-tier UI) proposed, **not started: ask the user first**.
