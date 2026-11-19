@@ -1,6 +1,6 @@
 import type { Board, Side, V2 } from '../types';
 import type { Conn } from '../connectivity';
-import type { VizMode } from '../render/webgpu';
+import type { VizMode } from '../render/renderer';
 import { t } from '../i18n';
 
 // Step texts and topics are English keys, translated where they are shown (app.ts); the i18n

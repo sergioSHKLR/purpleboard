@@ -28,7 +28,7 @@ import { discoverPowerTree, railVoltage, type PowerTree } from '../spice/powertr
 import { fmtHz, sampleSignal, signalOn, type ScopeSignal } from '../scope';
 import type { PowerStateName } from '../spice/sequencer';
 import { HOTAIR_H, IRON_G, PREHEAT_H, ReworkMonitor, type ReworkEvent } from '../rework';
-import { WebGPURenderer, type VizMode } from '../render/webgpu';
+import { Renderer, type RendererKind, type VizMode } from '../render/renderer';
 import { NoAdapterError, gpuDiagnosis, webGlInfo, type WebGlInfo } from '../render/gpuprobe';
 import { setSoundEnabled, sfxBeep, sfxBlow, sfxClick, sfxCut, sfxSolder, sfxWin, soundEnabled } from './audio';
 import { icon } from './icons';
@@ -121,7 +121,7 @@ function readSolverPref(): Solver {
 }
 
 export class PcbApp {
-  private renderer!: WebGPURenderer;
+  private renderer!: Renderer;
   private camera = Object.assign(new Camera(), { invertOrbit: readInvertOrbitPref() });
   private canvas!: HTMLCanvasElement;
 
@@ -291,7 +291,9 @@ export class PcbApp {
     this.buildDom();
 
     try {
-      this.renderer = await WebGPURenderer.create(this.canvas);
+      // ?renderer=webgl2 / webgpu forces one GPU interface (testing the fallback)
+      const force = new URLSearchParams(location.search).get('renderer');
+      this.renderer = await Renderer.create(this.canvas, force === 'webgl2' || force === 'webgpu' ? force as RendererKind : undefined);
     } catch (err) {
       this.showWebGpuError(err instanceof Error ? err.message : String(err), err instanceof NoAdapterError ? err.tried : []);
       return;

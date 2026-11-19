@@ -35,8 +35,9 @@ the meter reads what the circuit really does, not a scripted answer.
 
 ## Run it
 
-You need Node.js 20+ and a browser with WebGPU (recent Chrome or Edge; Safari and Firefox
-where WebGPU is enabled).
+You need Node.js 20+ and a recent browser. The bench draws with WebGPU where the browser offers
+it and falls back to WebGL2 otherwise (blocklisted GPUs, older Safari, Firefox without WebGPU);
+add `?renderer=webgl2` or `?renderer=webgpu` to the app URL to force one.
 
 ```bash
 npm install

@@ -1,13 +1,14 @@
-import { requestAnyAdapter, NoAdapterError } from './gpuprobe';
 import type { Board, Component, Side, V2 } from '../types';
-import { tk } from '../i18n';
 import { DEG, triangulate, type V3 } from '../geom';
 import { BAND_RGB, GOLD_RGB, LED_INFO, padWorld, resistorBands } from '../model';
 import type { Conn } from '../connectivity';
 import type { Sim } from '../sim';
 import type { PickHit } from '../pick';
-import { buildUnitMeshes, type MeshSlice, type PackedMeshes } from './meshes';
-import { GLOW_WGSL, SOLID_WGSL, ZONE_WGSL } from './shaders';
+import { buildUnitMeshes } from './meshes';
+import { GLOW_FLOATS, INSTANCE_FLOATS, type GpuBackend, type InstanceDraw } from './backend';
+import { WebGPUBackend } from './gpu-webgpu';
+import { WebGL2Backend } from './gpu-webgl2';
+import { webGlInfo } from './gpuprobe';
 import { textStrokes } from './font';
 import { BOTH_GAP, type Camera } from './camera';
 import { airwiresFor, type Airwire } from '../airwires';
@@ -70,9 +71,6 @@ const ZONE_RGB: [number, number, number] = [0.12, 0.45, 0.24];
 const INNER_RGB: [number, number, number][] = [
   [0.88, 0.55, 0.22], [0.60, 0.45, 0.92], [0.92, 0.40, 0.62], [0.86, 0.80, 0.30], [0.38, 0.50, 0.96], [0.92, 0.36, 0.30],
 ];
-
-const INSTANCE_FLOATS = 24;
-const GLOW_FLOATS = 8;
 
 class InstanceBucket {
   data = new Float32Array(256 * INSTANCE_FLOATS);
@@ -260,37 +258,18 @@ function placeLabels(labels: Label[]): Label[] {
   return kept;
 }
 
-export class WebGPURenderer {
-  private device!: GPUDevice;
-  /** WebGPU adapter as reported by the browser (vendor / architecture / device), for bug reports. */
+/** Which GPU interface draws the bench; `?renderer=webgl2` (or `webgpu`) forces one, for testing. */
+export type RendererKind = 'webgpu' | 'webgl2';
+
+/**
+ * Builds the bench scene on the CPU every frame and hands it to a GPU backend: WebGPU where the
+ * browser offers it, WebGL2 otherwise (see backend.ts).
+ */
+export class Renderer {
+  private backend!: GpuBackend;
+  /** Backend and GPU as reported by the browser, for bug reports. */
   adapterDescription = 'unknown';
-  private ctx!: GPUCanvasContext;
-  private format!: GPUTextureFormat;
-  private meshes!: PackedMeshes;
-
-  private vbo!: GPUBuffer;
-  private ibo!: GPUBuffer;
-  private uniformBuf!: GPUBuffer;
-  private bindGroup!: GPUBindGroup;
-
-  private instanceBuf!: GPUBuffer;
-  private instanceCap = 1024;
-
-  private zoneBuf!: GPUBuffer;
-  private zoneCap = 1024;
-
-  private glowBuf!: GPUBuffer;
-  private glowCap = 128;
-
-  private solidOpaque!: GPURenderPipeline;
-  private solidAlpha!: GPURenderPipeline;
-  private zonePipe!: GPURenderPipeline;
-  private glowPipe!: GPURenderPipeline;
-
-  private msaaTex: GPUTexture | null = null;
-  private depthTex: GPUTexture | null = null;
-  private texW = 0;
-  private texH = 0;
+  private meshes = buildUnitMeshes();
 
   private buckets: Record<'opaque' | 'alpha', Record<MeshKind, InstanceBucket>> = {
     opaque: { box: new InstanceBucket(), cyl: new InstanceBucket(), dome: new InstanceBucket(), sphere: new InstanceBucket() },
@@ -308,162 +287,38 @@ export class WebGPURenderer {
 
   private constructor(private canvas: HTMLCanvasElement) {}
 
-  static async create(canvas: HTMLCanvasElement): Promise<WebGPURenderer> {
-    if (!navigator.gpu) throw new Error(tk('WebGPU is not supported in this browser.'));
-    const { adapter, via, tried } = await requestAnyAdapter();
-    if (!adapter) throw new NoAdapterError(tk('Could not acquire a WebGPU adapter.'), tried);
-    const device = await adapter.requestDevice();
-    const ctx = canvas.getContext('webgpu');
-    if (!ctx) throw new Error(tk('Could not create a WebGPU canvas context.'));
-
-    const r = new WebGPURenderer(canvas);
-    const info = adapter.info;
-    r.adapterDescription = (info ? [info.vendor, info.architecture, info.device, info.description].filter(Boolean).join(' / ') || 'unknown' : 'unknown')
-      + (via !== 'high-performance' ? ` (${via} adapter; ${tried.join(', ')})` : '');
-    r.device = device;
-    r.ctx = ctx;
-    r.format = navigator.gpu.getPreferredCanvasFormat();
-    ctx.configure({ device, format: r.format, alphaMode: 'premultiplied' });
-    r.initResources();
+  /**
+   * WebGPU on a real GPU first; then WebGL2 on a real GPU; then whichever runs in software.
+   * When nothing works, throws the WebGPU error (the error screen explains that one).
+   */
+  static async create(canvas: HTMLCanvasElement, force?: RendererKind): Promise<Renderer> {
+    const r = new Renderer(canvas);
+    const gl = webGlInfo();
+    const hardwareGl = !!gl && !gl.software;
+    let gpuErr: unknown = null;
+    if (force !== 'webgl2') {
+      try {
+        r.backend = await WebGPUBackend.create(canvas, r.meshes, force === 'webgpu' || !hardwareGl);
+      } catch (e) {
+        gpuErr = e;
+        if (force === 'webgpu') throw e;
+      }
+    }
+    if (!r.backend && gl) {
+      try {
+        r.backend = await WebGL2Backend.create(canvas, r.meshes);
+      } catch (e) {
+        if (force === 'webgl2') throw e;
+      }
+    }
+    if (!r.backend) throw gpuErr ?? new Error('no renderer');
+    const why = gpuErr instanceof Error ? `; WebGPU: ${gpuErr.message}${'tried' in gpuErr ? ` (${(gpuErr as { tried: string[] }).tried.join(', ')})` : ''}` : '';
+    r.adapterDescription = r.backend.description + why;
     return r;
   }
 
-  private initResources() {
-    const d = this.device;
-    this.meshes = buildUnitMeshes();
-
-    this.vbo = d.createBuffer({ size: this.meshes.vertices.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
-    d.queue.writeBuffer(this.vbo, 0, this.meshes.vertices.buffer);
-
-    this.ibo = d.createBuffer({ size: this.meshes.indices.byteLength, usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST });
-    d.queue.writeBuffer(this.ibo, 0, this.meshes.indices.buffer);
-
-    this.uniformBuf = d.createBuffer({ size: 24 * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-    this.instanceBuf = d.createBuffer({ size: this.instanceCap * INSTANCE_FLOATS * 4, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
-    this.zoneBuf = d.createBuffer({ size: this.zoneCap * 10 * 4, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
-    this.glowBuf = d.createBuffer({ size: this.glowCap * GLOW_FLOATS * 4, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
-
-    const bgl = d.createBindGroupLayout({
-      entries: [{ binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }],
-    });
-    this.bindGroup = d.createBindGroup({ layout: bgl, entries: [{ binding: 0, resource: { buffer: this.uniformBuf } }] });
-    const layout = d.createPipelineLayout({ bindGroupLayouts: [bgl] });
-
-    const solidMod = d.createShaderModule({ code: SOLID_WGSL });
-    const solidVertexBuffers: GPUVertexBufferLayout[] = [
-      {
-        arrayStride: 6 * 4,
-        stepMode: 'vertex',
-        attributes: [
-          { shaderLocation: 0, offset: 0, format: 'float32x3' },
-          { shaderLocation: 1, offset: 12, format: 'float32x3' },
-        ],
-      },
-      {
-        arrayStride: INSTANCE_FLOATS * 4,
-        stepMode: 'instance',
-        attributes: [
-          { shaderLocation: 2, offset: 0, format: 'float32x4' },
-          { shaderLocation: 3, offset: 16, format: 'float32x4' },
-          { shaderLocation: 4, offset: 32, format: 'float32x4' },
-          { shaderLocation: 5, offset: 48, format: 'float32x4' },
-          { shaderLocation: 6, offset: 64, format: 'float32x4' },
-          { shaderLocation: 7, offset: 80, format: 'float32x4' },
-        ],
-      },
-    ];
-
-    this.solidOpaque = d.createRenderPipeline({
-      layout,
-      vertex: { module: solidMod, entryPoint: 'vs_main', buffers: solidVertexBuffers },
-      fragment: { module: solidMod, entryPoint: 'fs_main', targets: [{ format: this.format }] },
-      primitive: { topology: 'triangle-list', cullMode: 'back' },
-      depthStencil: { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less' },
-      multisample: { count: 4 },
-    });
-
-    this.solidAlpha = d.createRenderPipeline({
-      layout,
-      vertex: { module: solidMod, entryPoint: 'vs_main', buffers: solidVertexBuffers },
-      fragment: {
-        module: solidMod,
-        entryPoint: 'fs_main',
-        targets: [{
-          format: this.format,
-          blend: {
-            color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
-            alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
-          },
-        }],
-      },
-      primitive: { topology: 'triangle-list', cullMode: 'none' },
-      depthStencil: { format: 'depth24plus', depthWriteEnabled: false, depthCompare: 'less' },
-      multisample: { count: 4 },
-    });
-
-    const zoneMod = d.createShaderModule({ code: ZONE_WGSL });
-    this.zonePipe = d.createRenderPipeline({
-      layout,
-      vertex: {
-        module: zoneMod,
-        entryPoint: 'vs_zone',
-        buffers: [{
-          arrayStride: 10 * 4,
-          stepMode: 'vertex',
-          attributes: [
-            { shaderLocation: 0, offset: 0, format: 'float32x3' },
-            { shaderLocation: 1, offset: 12, format: 'float32x3' },
-            { shaderLocation: 2, offset: 24, format: 'float32x4' },
-          ],
-        }],
-      },
-      fragment: {
-        module: zoneMod,
-        entryPoint: 'fs_zone',
-        targets: [{
-          format: this.format,
-          blend: {
-            color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
-            alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
-          },
-        }],
-      },
-      primitive: { topology: 'triangle-list', cullMode: 'none' },
-      depthStencil: { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less' },
-      multisample: { count: 4 },
-    });
-
-    const glowMod = d.createShaderModule({ code: GLOW_WGSL });
-    this.glowPipe = d.createRenderPipeline({
-      layout,
-      vertex: {
-        module: glowMod,
-        entryPoint: 'vs_glow',
-        buffers: [{
-          arrayStride: GLOW_FLOATS * 4,
-          stepMode: 'instance',
-          attributes: [
-            { shaderLocation: 0, offset: 0, format: 'float32x4' },
-            { shaderLocation: 1, offset: 16, format: 'float32x4' },
-          ],
-        }],
-      },
-      fragment: {
-        module: glowMod,
-        entryPoint: 'fs_glow',
-        targets: [{
-          format: this.format,
-          blend: {
-            color: { srcFactor: 'src-alpha', dstFactor: 'one', operation: 'add' },
-            alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
-          },
-        }],
-      },
-      primitive: { topology: 'triangle-list', cullMode: 'none' },
-      depthStencil: { format: 'depth24plus', depthWriteEnabled: false, depthCompare: 'less-equal' },
-      multisample: { count: 4 },
-    });
-  }
+  /** 'webgl2' when the bench is drawn by the fallback. */
+  get kind(): RendererKind { return this.backend instanceof WebGL2Backend ? 'webgl2' : 'webgpu'; }
 
   spawnSmoke(x: number, y: number, side: Side, thickness: number, kind: 'flux' | 'burn' = 'flux') {
     const sgn = side === 'F' ? 1 : -1;
@@ -506,20 +361,6 @@ export class WebGPURenderer {
       const alpha = (1 - p.age / p.life) * 0.38;
       this.pushGlow(p.x, p.y, p.z, p.size, p.r, p.g, p.b, alpha);
     }
-  }
-
-  private ensureAttachments(w: number, h: number) {
-    if (this.texW === w && this.texH === h && this.msaaTex && this.depthTex) return;
-    this.msaaTex?.destroy();
-    this.depthTex?.destroy();
-    this.texW = w;
-    this.texH = h;
-    this.msaaTex = this.device.createTexture({
-      size: [w, h], sampleCount: 4, format: this.format, usage: GPUTextureUsage.RENDER_ATTACHMENT,
-    });
-    this.depthTex = this.device.createTexture({
-      size: [w, h], sampleCount: 4, format: 'depth24plus', usage: GPUTextureUsage.RENDER_ATTACHMENT,
-    });
   }
 
   private pushGlow(x: number, y: number, z: number, radius: number, r: number, g: number, b: number, a: number) {
@@ -1639,7 +1480,6 @@ export class WebGPURenderer {
       this.canvas.width = w;
       this.canvas.height = h;
     }
-    this.ensureAttachments(w, h);
     this.buildScene(scene, camera);
     const nowMs = performance.now();
     const dtPart = Math.min(0.05, (nowMs - this.lastTickTime) / 1000);
@@ -1652,129 +1492,23 @@ export class WebGPURenderer {
     u.set(viewProj, 0);
     u[16] = eye[0]; u[17] = eye[1]; u[18] = eye[2]; u[19] = 1;
     u[20] = tSec; u[21] = camera.bothSides ? 1 : camera.side === 'F' ? 1 : -1; u[22] = scene.vizMode === 'xray' ? 1 : 0; u[23] = 0;
-    this.device.queue.writeBuffer(this.uniformBuf, 0, u.buffer);
 
-    // Count total instances across all buckets and resize GPU buffer if needed
-    const order: { pass: 'opaque' | 'alpha'; kind: MeshKind; slice: MeshSlice }[] = [
-      { pass: 'opaque', kind: 'box', slice: this.meshes.box },
-      { pass: 'opaque', kind: 'cyl', slice: this.meshes.cyl },
-      { pass: 'opaque', kind: 'dome', slice: this.meshes.dome },
-      { pass: 'opaque', kind: 'sphere', slice: this.meshes.sphere },
-      { pass: 'alpha', kind: 'box', slice: this.meshes.box },
-      { pass: 'alpha', kind: 'cyl', slice: this.meshes.cyl },
-      { pass: 'alpha', kind: 'dome', slice: this.meshes.dome },
-      { pass: 'alpha', kind: 'sphere', slice: this.meshes.sphere },
-    ];
-    let totalInst = 0;
-    for (const o of order) totalInst += this.buckets[o.pass][o.kind].count;
-    if (totalInst > this.instanceCap) {
-      this.instanceCap = Math.max(this.instanceCap * 2, totalInst);
-      this.instanceBuf.destroy();
-      this.instanceBuf = this.device.createBuffer({
-        size: this.instanceCap * INSTANCE_FLOATS * 4,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-      });
+    // opaque first, then translucent; one draw per mesh kind
+    const draws: InstanceDraw[] = [];
+    for (const pass of ['opaque', 'alpha'] as const) {
+      for (const kind of ['box', 'cyl', 'dome', 'sphere'] as const) {
+        const b = this.buckets[pass][kind];
+        if (b.count) draws.push({ pass, slice: this.meshes[kind], data: b.data, count: b.count });
+      }
     }
-
-    let instOffset = 0;
-    const drawRanges: { pass: 'opaque' | 'alpha'; slice: MeshSlice; firstInstance: number; instanceCount: number }[] = [];
-    for (const o of order) {
-      const b = this.buckets[o.pass][o.kind];
-      if (b.count === 0) continue;
-      this.device.queue.writeBuffer(
-        this.instanceBuf,
-        instOffset * INSTANCE_FLOATS * 4,
-        b.data.buffer,
-        0,
-        b.count * INSTANCE_FLOATS * 4,
-      );
-      drawRanges.push({ pass: o.pass, slice: o.slice, firstInstance: instOffset, instanceCount: b.count });
-      instOffset += b.count;
-    }
-
-    if (this.zoneVertCount > this.zoneCap) {
-      this.zoneCap = Math.max(this.zoneCap * 2, this.zoneVertCount);
-      this.zoneBuf.destroy();
-      this.zoneBuf = this.device.createBuffer({ size: this.zoneCap * 10 * 4, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
-    }
-    if (this.zoneVertCount > 0) {
-      this.device.queue.writeBuffer(this.zoneBuf, 0, this.zoneData.buffer, 0, this.zoneVertCount * 10 * 4);
-    }
-
-    if (this.glowCount > this.glowCap) {
-      this.glowCap = Math.max(this.glowCap * 2, this.glowCount);
-      this.glowBuf.destroy();
-      this.glowBuf = this.device.createBuffer({ size: this.glowCap * GLOW_FLOATS * 4, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
-    }
-    if (this.glowCount > 0) {
-      this.device.queue.writeBuffer(this.glowBuf, 0, this.glowData.buffer, 0, this.glowCount * GLOW_FLOATS * 4);
-    }
-
-    const enc = this.device.createCommandEncoder();
-    const pass = enc.beginRenderPass({
-      colorAttachments: [{
-        view: this.msaaTex!.createView(),
-        resolveTarget: this.ctx.getCurrentTexture().createView(),
-        clearValue: { r: 0.043, g: 0.047, b: 0.055, a: 1.0 },
-        loadOp: 'clear',
-        storeOp: 'discard',
-      }],
-      depthStencilAttachment: {
-        view: this.depthTex!.createView(),
-        depthClearValue: 1.0,
-        depthLoadOp: 'clear',
-        depthStoreOp: 'store',
-      },
+    this.backend.draw({
+      width: w, height: h, uniforms: u, draws,
+      zones: this.zoneData, zoneVerts: this.zoneVertCount,
+      glow: this.glowData, glowCount: this.glowCount,
     });
-
-    pass.setBindGroup(0, this.bindGroup);
-
-    // 1. Opaque Instanced Meshes
-    pass.setPipeline(this.solidOpaque);
-    pass.setVertexBuffer(0, this.vbo);
-    pass.setVertexBuffer(1, this.instanceBuf);
-    pass.setIndexBuffer(this.ibo, 'uint32');
-    for (const dr of drawRanges) {
-      if (dr.pass !== 'opaque') continue;
-      pass.drawIndexed(dr.slice.indexCount, dr.instanceCount, dr.slice.indexOffset, 0, dr.firstInstance);
-    }
-
-    // 2. Copper Zones
-    if (this.zoneVertCount > 0) {
-      pass.setPipeline(this.zonePipe);
-      pass.setVertexBuffer(0, this.zoneBuf);
-      pass.draw(this.zoneVertCount);
-    }
-
-    // 3. Translucent Meshes (LED epoxy, fuse glass, ghost outlines, xray substrate)
-    pass.setPipeline(this.solidAlpha);
-    pass.setVertexBuffer(0, this.vbo);
-    pass.setVertexBuffer(1, this.instanceBuf);
-    pass.setIndexBuffer(this.ibo, 'uint32');
-    for (const dr of drawRanges) {
-      if (dr.pass !== 'alpha') continue;
-      pass.drawIndexed(dr.slice.indexCount, dr.instanceCount, dr.slice.indexOffset, 0, dr.firstInstance);
-    }
-
-    // 4. Additive Glow (lit LEDs, probes, overloads)
-    if (this.glowCount > 0) {
-      pass.setPipeline(this.glowPipe);
-      pass.setVertexBuffer(0, this.glowBuf);
-      pass.draw(6, this.glowCount, 0, 0);
-    }
-
-    pass.end();
-    this.device.queue.submit([enc.finish()]);
   }
 
   destroy() {
-    this.msaaTex?.destroy();
-    this.depthTex?.destroy();
-    this.vbo?.destroy();
-    this.ibo?.destroy();
-    this.uniformBuf?.destroy();
-    this.instanceBuf?.destroy();
-    this.zoneBuf?.destroy();
-    this.glowBuf?.destroy();
+    this.backend?.destroy();
   }
 }

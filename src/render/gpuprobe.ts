@@ -16,11 +16,15 @@ const ATTEMPTS: Attempt[] = [
 
 export interface AdapterResult { adapter: GPUAdapter | null; via?: string; tried: string[] }
 
-/** First adapter any request gives; `tried` records each failed attempt for the bug report. */
-export async function requestAnyAdapter(): Promise<AdapterResult> {
+/**
+ * First adapter any request gives; `tried` records each failed attempt for the bug report.
+ * Without `allowFallback` the software adapter is not asked for.
+ */
+export async function requestAnyAdapter(allowFallback = true): Promise<AdapterResult> {
   const tried: string[] = [];
   if (!navigator.gpu) return { adapter: null, tried };
   for (const a of ATTEMPTS) {
+    if (a.label === 'fallback' && !allowFallback) continue;
     try {
       const adapter = await navigator.gpu.requestAdapter(a.opts);
       if (adapter) return { adapter, via: a.label, tried };
