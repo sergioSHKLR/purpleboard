@@ -5,6 +5,8 @@ import './home.css';
 import { markSvg } from '../ui/logo';
 import { icon } from '../ui/icons';
 import { initAnalytics } from '../analytics';
+import { initI18n, lang, saveLanguage, t } from '../i18n';
+import { translatePage } from './translate';
 
 initAnalytics();
 
@@ -13,6 +15,24 @@ if (location.hash.startsWith('#s=')) location.replace(`./app.html${location.hash
 
 for (const el of document.querySelectorAll<HTMLElement>('[data-mark]')) el.innerHTML = markSvg(el.closest('.small') ? 18 : 24);
 for (const el of document.querySelectorAll<HTMLElement>('[data-icon]')) el.innerHTML = icon(el.dataset.icon!, 18);
+// Language: the app's choice (?lang=, saved, browser), switchable in place from the header.
+const TITLE = document.title;
+async function setLanguage(code?: string) {
+  await initI18n(code);
+  translatePage();
+  document.title = lang() === 'en' ? TITLE : t('DEADBOARD — bring dead boards back');
+  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-lang]')) b.setAttribute('aria-pressed', String(b.dataset.lang === lang()));
+  document.documentElement.classList.remove('i18n-wait');
+}
+for (const b of document.querySelectorAll<HTMLButtonElement>('[data-lang]')) {
+  b.addEventListener('click', () => {
+    if (b.dataset.lang === lang()) return;
+    saveLanguage(b.dataset.lang!); // the app opens in the same language
+    void setLanguage(b.dataset.lang);
+  });
+}
+void setLanguage().catch(() => document.documentElement.classList.remove('i18n-wait'));
+
 for (const el of document.querySelectorAll<HTMLElement>('[data-year]')) el.textContent = String(new Date().getFullYear());
 
 // Power-up log: lines appear like a terminal as the block scrolls into view (static when reduced motion is on).

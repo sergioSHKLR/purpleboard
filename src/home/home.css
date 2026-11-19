@@ -281,3 +281,28 @@ figcaption { margin-top: 12px; font: 13px/1.5 var(--mono); color: var(--muted); 
   .doc-cta { position: sticky; top: 88px; grid-column: 2; grid-row: 1; }
   .doc { grid-column: 1; grid-row: 1; }
 }
+
+/* ---------- language switch ---------- */
+.lang-toggle { display: inline-flex; flex: none; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
+.lang-toggle button {
+  height: 34px; padding: 0 10px; border: 0; background: transparent; cursor: pointer;
+  color: var(--muted); font: 600 12px/1 var(--mono); letter-spacing: 0.04em;
+}
+.lang-toggle button + button { border-left: 1px solid var(--border-strong); }
+.lang-toggle button:hover { color: var(--text); }
+.lang-toggle button[aria-pressed='true'] { background: var(--accent-weak); color: var(--accent); }
+@media (max-width: 640px) {
+  .nav .lang-toggle { margin-left: auto; }
+  .nav .lang-toggle ~ .btn { margin-left: 0; }
+}
+/* narrow phones: only the language you can switch to */
+@media (max-width: 400px) {
+  .lang-toggle button[aria-pressed='true'] { display: none; }
+  .lang-toggle button + button { border-left: 0; }
+}
+/* the header button's short label, so logo, language and button fit a 320 px phone */
+.nav .btn .short { display: none; }
+@media (max-width: 380px) {
+  .nav .btn .long { display: none; }
+  .nav .btn .short { display: inline; }
+}

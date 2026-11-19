@@ -9,6 +9,7 @@ import ru from '../src/i18n/ru';
 import { builtinScenarios } from '../src/scenarios/builtin';
 import { TUTORIALS_BY_SCENARIO, TUTORIAL_TOPICS } from '../src/ui/tutorial';
 import { TOOL_SHORT, TOOL_TIP_PHONE } from '../src/ui/touch';
+import { homeKeys } from '../src/home/translate';
 
 function assert(c: unknown, m: string): asserts c { if (!c) throw new Error(m); }
 
@@ -64,6 +65,7 @@ for (const [id, steps] of Object.entries(TUTORIALS_BY_SCENARIO)) {
 }
 for (const topics of Object.values(TUTORIAL_TOPICS)) for (const x of topics) add(x, 'tutorial topics');
 for (const x of [...Object.values(TOOL_SHORT), ...Object.values(TOOL_TIP_PHONE)]) add(x, 'touch.ts');
+for (const k of homeKeys(readFileSync(join(root, 'index.html'), 'utf8'))) add(k, 'index.html');
 
 // ---- each maintained language ----
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
