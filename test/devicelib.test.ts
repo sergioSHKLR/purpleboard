@@ -23,8 +23,9 @@ function run() {
     else assert(d.note && /unverified|limits|estimate/i.test(d.note), `${d.mpn}: unverified entry says why`);
 
     const pads = [...new Set(d.units.flatMap((u) => Object.values(u.pins)))];
-    const spec = deviceSpec(d, pads)!;
-    assert(spec?.spice, `${d.mpn}: model emitted`);
+    const spec = deviceSpec(d, pads);
+    assert(spec?.spice && spec.ports, `${d.mpn}: model emitted`);
+    const sub = spec.spice;
     const node = (pad: string) => `n${pad}`;
     const portNodes = spec.ports.map(node);
     d.units.forEach((u, ui) => {
@@ -35,7 +36,7 @@ function run() {
         const ties = pads.map((p) => `RT${p} ${node(p)} 0 1G`).join('\n');
         // on-resistance at the highest datasheet VGS, 20 mV across D–S
         const [vgs, rds] = [...m.rds].sort((a, b) => b[0] - a[0])[0];
-        const on = op(spec.spice, portNodes, `${ties}\nVS ${node(m.pins.S)} 0 0\nVG ${node(m.pins.G)} 0 ${sg * vgs}\nVD ${node(m.pins.D)} 0 ${sg * 0.02}`);
+        const on = op(sub, portNodes, `${ties}\nVS ${node(m.pins.S)} 0 0\nVG ${node(m.pins.G)} 0 ${sg * vgs}\nVD ${node(m.pins.D)} 0 ${sg * 0.02}`);
         const id = Math.abs(on.branches.get('i(VD)')!);
         const r = 0.02 / id;
         // level 1 is fitted to the on-curve; a single-point fit lands on it, a two-point fit near it
@@ -43,7 +44,7 @@ function run() {
         if (m.body) {
           // gate off, drain pulled the "wrong" way: only the body diode conducts, and only once
           const [vsd, is] = m.body;
-          const bd = op(spec.spice, portNodes, `${ties}\nVS ${node(m.pins.S)} 0 0\nVG ${node(m.pins.G)} 0 0\nVD ${node(m.pins.D)} 0 ${-sg * vsd}`);
+          const bd = op(sub, portNodes, `${ties}\nVS ${node(m.pins.S)} 0 0\nVG ${node(m.pins.G)} 0 0\nVD ${node(m.pins.D)} 0 ${-sg * vsd}`);
           const ib = Math.abs(bd.branches.get('i(VD)')!);
           assert(ib > is * 0.5 && ib < is * 2, `${tag}: body diode at ${vsd} V carries ${ib.toPrecision(3)} A, datasheet ${is} A (one diode, not two)`);
         }
@@ -51,7 +52,7 @@ function run() {
         const dd = u as DiodeSpec;
         const [vf, i] = [...dd.vf].sort((a, b) => a[1] - b[1])[0];
         const ties = pads.map((p) => `RT${p} ${node(p)} 0 1G`).join('\n');
-        const f = op(spec.spice, portNodes, `${ties}\nVK ${node(dd.pins.K)} 0 0\nIA 0 ${node(dd.pins.A)} ${i}`);
+        const f = op(sub, portNodes, `${ties}\nVK ${node(dd.pins.K)} 0 0\nIA 0 ${node(dd.pins.A)} ${i}`);
         const v = f.nodes.get(node(dd.pins.A))!;
         assert(Math.abs(v - vf) < 0.03, `${tag}: VF at ${i} A is ${v.toFixed(3)} V, datasheet ${vf} V`);
       }
