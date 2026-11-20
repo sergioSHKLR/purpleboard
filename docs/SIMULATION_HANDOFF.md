@@ -1,4 +1,4 @@
-# DEADBOARD — handoff (updated end of 2026-11-20: problem generator, mod.io, first-board analytics)
+# DEADBOARD — handoff (updated end of 2026-11-20: mod platform phases 1–6 + docs; problem generator, mod.io, first-board analytics)
 
 Goal: make DEADBOARD (formerly PCB//FIX) a realistic board-repair trainer, as close to a real bench as possible,
 **universal** (any board, not just the MacBook), with honest provenance for every value.
@@ -7,9 +7,42 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
-- **START HERE — end of 2026-11-20 (everything pushed and live; last commit `adb65b4`).**
+- **START HERE — end of 2026-11-20 (everything pushed and live; last commit: the handoff after `7549c31`).**
   Ask the user which thread to continue. **iOS and desktop apps are on hold**: no work on them and
   no "rebuild the apps" reminders until the user brings them back.
+  - **Mod platform thread (newest; phases 1–6 built and live, `03f013a` + docs `7549c31`).**
+    Goal (the user's): *make forking pointless by making a mod the easier way to change anything*;
+    the shipped content is official mods, anything can be added or changed from a marketplace.
+    Design + phase table + security review: `docs/MOD_PLATFORM.md`; docs on the site:
+    modding.html (guide), mod-reference.html, code-mods.html, mod-safety.html,
+    mods-for-agents.html, `/llms.txt`; `AGENTS.md` for agents working on the repo.
+    Built: `deadboard-mod/2` (requires/conflicts, semver, packs), on/off + loadouts (Official / My
+    mods / custom) + safe mode (also automatic after a failed start); data items: patches (merge
+    patch, conflicts, undo), knowledge packs (Overview tab), puzzles (built on known-good boards,
+    `src/scenarios/reference.ts`), devices (overlay on `findDevice`, sent to the solve worker),
+    fault types (10 primitives; official ranges patchable), meters (Bench → Meter), rules +
+    **Where to look?** (official rules: planted part in top 3 for 115/120 faults; recall test);
+    bench check (Mods window + `npm run bench-check`); code mods (**experimental, off by default**):
+    plug-in API v1 (`src/mods/api/`, types → `packages/mod-api` via `npm run mod-api`), sandbox =
+    opaque iframe + strict CSP + worker, mod loaded as a **classic script** (importScripts; never
+    as an ES module: Chrome lets worker module loading bypass the CSP — two escapes found and
+    closed, see the security review), solvers, importers (`read`), declarative panels (Mods tab),
+    permissions `panel` / `storage` / `network:localhost` / `network:https://host`. Examples:
+    `examples/mods/{night-light-extras,repair-lab,ideal-dc,local-coach}` (zips in
+    `public/examples/`). Rarely used parts load on demand (main bundle 497 KB).
+    **Next:** phase 7 = mod.io marketplace (tags Type/Tier/Official/Bench-checked, a bot that
+    bench-checks uploads, in-app upload) — **waits on the user's approval**; the game is still
+    Hidden on mod.io. Doable without mod.io: a "Make my version" (remix) button. Before code mods
+    could be on by default: outside security review, the escape probe in Firefox + Safari, caps on
+    message size / memory. Not built: Russian as a language mod (languages load before mods),
+    built-in boards written out as data files, knowledge packs by board fingerprint.
+    **Gotchas:** `npm run example-mod` re-locks the starter-kit challenge with a new salt — restore
+    `examples/mods/starter-kit/boards/night-light-repair.pcbfix.json` and
+    `public/examples/starter-kit.zip` from git unless that was the point. Generated artefacts
+    (example zips, `packages/mod-api`, the docs' generated blocks via `npm run docs`) have
+    freshness tests. Browser checks of the sandbox were Playwright scripts in a session scratchpad
+    (escape probe, hang test, fake local LLM on 127.0.0.1:11434): rebuild them from the security
+    review section if needed.
   - **Analytics thread (do first, once 1–2 days of data exist):** read the new first-board events
     to find where new players stop. Umami snapshot 2026-11-18 → 20: 1561 visitors, bounce 39%,
     avg visit 212 s; phones 901 visits (51% bounce, 126 s), laptops 837 (26%, 315 s). Funnel:
@@ -44,7 +77,9 @@ No reference hardware is available, so realism is validated against *design inte
     website / support links yet. Creating the game accepted mod.io's game agreement v30 on the
     user's account; publishing mods needs the user's own "I agree" tick + click (auto mode
     blocks Claude from publishing under the user's account). Art in `launch/modio/` (local).
-    **Discussed, not started — puzzle marketplace:** split *boards* (known-good reference +
+    **Puzzle marketplace — partly built (mod platform, phases 2–3):** puzzles as recipes and the
+    bench check exist; the mod.io bot, locked "Bench-checked" tag and player signals are phase 7.
+    Original notes: split *boards* (known-good reference +
     BOM/schematic/licence) from *puzzles* = a recipe (faults from the `faults.ts` catalogue with
     in-range severities + story + objectives), so the physics always comes from the simulator;
     an automatic bench check (reference passes, each fault visible, no burn cascade, player-tool
