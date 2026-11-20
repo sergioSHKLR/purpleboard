@@ -1,0 +1,30 @@
+# DEADBOARD
+
+> A board-level repair trainer in the browser: probe, rework and repair simulated circuit boards on
+> a realistic bench (SPICE-based). Anyone can extend it with mods: boards, repair puzzles,
+> knowledge packs, device models, fault types, meter profiles, diagnostic rules, and (experimental,
+> sandboxed) code mods that add solvers, importers and panels.
+
+The documentation below is plain Markdown. To make a mod, start with "Making mods: a guide for AI
+agents"; it has the exact schemas, the hard rules and a validate-and-fix loop.
+
+## Mods
+
+- [Making mods: a guide for AI agents](https://deadboard.org/mods-for-agents.md): compact spec, schemas, templates, common errors
+- [Mod reference](https://deadboard.org/mod-reference.md): every mod.json field and item type, addresses of every shipped item
+- [Code mods](https://deadboard.org/code-mods.md): the plug-in API (solvers, importers, panels, events, permissions, sandbox rules) and its type definitions
+- [Make your own boards](https://deadboard.org/modding.md): the guide for people
+- [Are mods safe?](https://deadboard.org/mod-safety.md): what mods can and can't do
+
+## Examples
+
+- [starter-kit.zip](https://deadboard.org/examples/starter-kit.zip): a KiCad board with BOM and schematic, and a repair challenge
+- [night-light-extras.zip](https://deadboard.org/examples/night-light-extras.zip): a knowledge pack, a puzzle and a patch, no board files
+- [repair-lab.zip](https://deadboard.org/examples/repair-lab.zip): a fault type, a meter, a rule and a puzzle
+- [ideal-dc.zip](https://deadboard.org/examples/ideal-dc.zip): a code mod with a circuit solver
+- [local-coach.zip](https://deadboard.org/examples/local-coach.zip): a code mod with a panel that asks a local language model
+
+## Optional
+
+- [Source code](https://github.com/tholtman1-del/deadboard): Apache-2.0; AGENTS.md there is for agents changing the app itself
+- [The app](https://deadboard.org/app.html)

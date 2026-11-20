@@ -13,12 +13,22 @@ try { commit = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe'
 // GitHub-style heading anchors, so links like #where-mods-live work on the site as on GitHub
 const slug = (s: string) => s.toLowerCase().replace(/<[^>]+>/g, '').replace(/&[a-z#0-9]+;/g, '').replace(/[^\w\- ]/g, '').trim().replace(/ /g, '-');
 
-/** Site pages rendered from Markdown into the homepage design (one source for repo and site):
- *  modding.html ← docs/MODDING.md, privacy.html ← docs/PRIVACY.md. */
-const docPages: Record<string, { md: string; slot: string }> = {
-  'modding.html': { md: 'docs/MODDING.md', slot: '<!--MODDING-->' },
+/** Site pages rendered from Markdown into the homepage design (one source for repo and site).
+ *  The mod docs share a navigation (<!--DOCNAV-->) and are also published as raw Markdown
+ *  (/modding.md, …) for AI agents, with links between them pointing at the .md versions. */
+const docPages: Record<string, { md: string; slot: string; nav?: string }> = {
+  'modding.html': { md: 'docs/MODDING.md', slot: '<!--MODDING-->', nav: 'Make a mod' },
+  'mod-reference.html': { md: 'docs/MOD_REFERENCE.md', slot: '<!--DOC-->', nav: 'Mod reference' },
+  'code-mods.html': { md: 'docs/CODE_MODS.md', slot: '<!--DOC-->', nav: 'Code mods' },
+  'mod-safety.html': { md: 'docs/MOD_SAFETY.md', slot: '<!--DOC-->', nav: 'Are mods safe?' },
+  'mods-for-agents.html': { md: 'docs/MODS_FOR_AGENTS.md', slot: '<!--DOC-->', nav: 'For AI agents' },
   'privacy.html': { md: 'docs/PRIVACY.md', slot: '<!--PRIVACY-->' },
 };
+/** docs/X.md → page name, for links between the docs. */
+const docLinks: Record<string, string> = Object.fromEntries(Object.entries(docPages).map(([page, d]) => [d.md.replace('docs/', ''), page.replace('.html', '')]));
+const mapDocLinks = (src: string, to: (page: string) => string) =>
+  src.replace(/\]\(([A-Z_]+\.md)(#[^)\s]*)?\)/g, (m, file: string, hash?: string) => (docLinks[file] ? `](${to(docLinks[file])}${hash ?? ''})` : m));
+
 function moddingGuide(): Plugin {
   const md = new Marked({ gfm: true });
   md.use({
@@ -30,18 +40,37 @@ function moddingGuide(): Plugin {
       },
     },
   });
+  const docNav = (current: string) => [
+    '<nav class="doc-nav" aria-label="Mod documentation"><p class="eyebrow">&gt; mod docs</p>',
+    ...Object.entries(docPages).filter(([, d]) => d.nav).map(([page, d]) => `<a href="./${page}"${page === current ? ' aria-current="page"' : ''}>${d.nav}</a>`),
+    '<a href="./llms.txt" class="muted">llms.txt</a></nav>',
+  ].join('');
+  /** The doc as raw Markdown for agents: absolute links, other docs as .md. */
+  const rawDoc = (file: string) => mapDocLinks(readFileSync(file, 'utf8'), (page) => `https://deadboard.org/${page}.md`);
   return {
     name: 'modding-guide',
     transformIndexHtml(html, ctx) {
       const page = Object.keys(docPages).find((p) => ctx.filename.endsWith(p));
       if (!page) return html;
-      // site-relative links: the download sits next to the page
-      const src = readFileSync(docPages[page].md, 'utf8').replaceAll('https://deadboard.org/', './');
-      return html.replace(docPages[page].slot, md.parse(src) as string);
+      // site-relative links: the download sits next to the page; other docs are pages
+      const src = mapDocLinks(readFileSync(docPages[page].md, 'utf8').replaceAll('https://deadboard.org/', './'), (p) => `./${p}.html`);
+      return html.replace(docPages[page].slot, md.parse(src) as string).replace('<!--DOCNAV-->', docNav(page));
+    },
+    generateBundle() {
+      for (const [page, d] of Object.entries(docPages)) {
+        if (d.nav) this.emitFile({ type: 'asset', fileName: page.replace('.html', '.md'), source: rawDoc(d.md) });
+      }
     },
     configureServer(server) {
       for (const { md: f } of Object.values(docPages)) server.watcher.add(f);
       server.watcher.on('change', (f) => { if (Object.values(docPages).some((d) => f.endsWith(d.md))) server.ws.send({ type: 'full-reload' }); });
+      // the raw Markdown in dev too
+      server.middlewares.use((req, res, next) => {
+        const page = Object.entries(docPages).find(([p, d]) => d.nav && req.url?.split('?')[0] === `/${p.replace('.html', '.md')}`);
+        if (!page) { next(); return; }
+        res.setHeader('content-type', 'text/markdown; charset=utf-8');
+        res.end(rawDoc(page[1].md));
+      });
     },
   };
 }
@@ -70,7 +99,7 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: false,
     cssMinify: true,
-    // homepage at /, the bench app at /app.html, the modding guide at /modding.html, privacy policy at /privacy.html
-    rollupOptions: { input: { home: 'index.html', app: 'app.html', modding: 'modding.html', privacy: 'privacy.html' } },
+    // homepage at /, the bench app at /app.html, the mod docs at /modding.html (+ mod-reference, code-mods, mod-safety, mods-for-agents), privacy policy at /privacy.html
+    rollupOptions: { input: { home: 'index.html', app: 'app.html', modding: 'modding.html', privacy: 'privacy.html', modReference: 'mod-reference.html', codeMods: 'code-mods.html', modSafety: 'mod-safety.html', modsForAgents: 'mods-for-agents.html' } },
   },
 });

@@ -1,11 +1,21 @@
 # Make your own boards: the DEADBOARD modding guide
 
-A **mod** adds boards to DEADBOARD: your own designs, open-hardware boards you converted, or repair
-challenges you built. Each board can bring its **BOM** (part values) and its **schematic**, which
-players can open next to the board while they probe.
+A **mod** adds to DEADBOARD: your own boards, open-hardware boards you converted, repair challenges
+and puzzles, notes for other people's boards, new faults, device models, meter profiles, hints, or
+(for programmers) new solvers and tools. Each board can bring its **BOM** (part values) and its
+**schematic**, which players can open next to the board while they probe.
 
-Mods are plain files: a folder (or a `.zip` of it) with one small text file, `mod.json`, that lists
-your boards. Mods contain no code, so installing someone else's mod is safe.
+Mods are plain files: a folder (or a `.zip` of it) with one small text file, `mod.json`. Ordinary
+mods contain no code, so installing someone else's mod is safe; mods with code are a separate,
+sandboxed and opt-in kind (see [Are mods safe?](MOD_SAFETY.md)).
+
+| Page | For |
+| --- | --- |
+| This guide | Making a mod, step by step. |
+| [Mod reference](MOD_REFERENCE.md) | Looking up any field, and the address of everything that ships. |
+| [Code mods](CODE_MODS.md) | Programmers: solvers, importers, panels, the plug-in API. |
+| [Are mods safe?](MOD_SAFETY.md) | Players: what mods can and can't do. |
+| [Mods for AI agents](MODS_FOR_AGENTS.md) | Pointing an AI agent at it: the exact spec in one page. |
 
 You don't need to be a programmer. If you can export a file from KiCad and edit a few lines of text,
 you can make a mod.

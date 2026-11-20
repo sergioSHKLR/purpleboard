@@ -82,6 +82,11 @@ Without it, the form falls back to a prefilled GitHub issue.
 - [docs/VIDEOS.md](docs/VIDEOS.md): how the walkthrough videos are recorded
 - [docs/BRAND.md](docs/BRAND.md): name, logo, colour, type and voice
 - [docs/SIMULATION_HANDOFF.md](docs/SIMULATION_HANDOFF.md): simulator architecture, models and open items
+- Mods ([on the website](https://deadboard.org/modding.html)): [docs/MODDING.md](docs/MODDING.md) (guide),
+  [docs/MOD_REFERENCE.md](docs/MOD_REFERENCE.md), [docs/CODE_MODS.md](docs/CODE_MODS.md),
+  [docs/MOD_SAFETY.md](docs/MOD_SAFETY.md), [docs/MODS_FOR_AGENTS.md](docs/MODS_FOR_AGENTS.md);
+  design and security review: [docs/MOD_PLATFORM.md](docs/MOD_PLATFORM.md)
+- [AGENTS.md](AGENTS.md): for AI coding agents working on this repository
 
 ## Licence
 
