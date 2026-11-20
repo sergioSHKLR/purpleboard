@@ -1,6 +1,6 @@
 # Privacy
 
-*Last updated: 18 November 2026*
+*Last updated: 20 November 2026*
 
 DEADBOARD (the website, the app on iPhone and iPad, and the desktop app) is made by Tibor Holtman.
 
@@ -31,7 +31,7 @@ records the page, the referring site, the country, the browser, the operating sy
 and the screen size. It also records how long you used the bench, as milestones such as "active 5
 min". Active time only counts while the tab is visible and you have used the mouse, keyboard or screen
 in the last two minutes. On the bench it also records which of the boards that come with DEADBOARD
-you open and fix, and when you finish the tutorial (a board you imported or made yourself is only
+you open and fix, when you generate a new problem on one, and when you finish the tutorial (a board you imported or made yourself is only
 counted as "custom", never by name). Umami combines this into totals, so the developer can see roughly how
 many people use DEADBOARD and for how long. You can't be identified, and you aren't followed across
 sites or from one month to the next. If your browser sends Do Not Track, nothing is counted.

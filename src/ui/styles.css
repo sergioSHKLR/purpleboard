@@ -687,6 +687,12 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); }
 .lvl i.on { background: var(--text-2); }
 
 /* Flag */
+.gen-card .muted { margin-bottom: 10px; }
+.gen-row { display: flex; align-items: center; gap: 8px; }
+.gen-row #btn-gen { margin-left: auto; }
+.is-mobile .gen-row .seg { height: 40px; }
+.is-mobile .gen-row .seg button { height: 34px; min-width: 40px; font-size: 14px; }
+.is-mobile .gen-row #btn-gen { height: 40px; }
 .flag-box { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-bottom: 1px solid var(--border); background: var(--ok-weak); }
 .flag-code {
   font-family: var(--mono);

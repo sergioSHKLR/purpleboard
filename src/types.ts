@@ -175,6 +175,8 @@ export interface Scenario {
   solver?: 'fast' | 'spice' | 'spice-power';
   /** Model calibration from bench measurements of a real board (see src/calibrate.ts). */
   calibration?: { loadScale?: number; source?: string };
+  /** A problem generated on a fixed board (src/scenarios/generate.ts): the board it started from. */
+  generated?: { from: string; title: string };
   /** Import checks that failed (nets joined or split, counts off); set by importers, not saved. */
   importWarnings?: string[];
 }

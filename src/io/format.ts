@@ -73,6 +73,9 @@ export function parseScenario(text: string): Scenario {
     board: normalizeBoard(raw.board),
     objectives: arr<Objective>(raw.objectives).filter((o) => o && (o.type === 'led' || o.type === 'voltage')),
     lock: raw.lock && typeof raw.lock.ct === 'string' ? raw.lock : undefined,
+    ...(raw.generated && typeof raw.generated.from === 'string' && typeof raw.generated.title === 'string' && {
+      generated: { from: raw.generated.from.slice(0, 120), title: raw.generated.title.slice(0, 120) },
+    }),
     ...((raw.solver === 'fast' || raw.solver === 'spice' || raw.solver === 'spice-power') && { solver: raw.solver }),
     ...(raw.calibration && typeof raw.calibration.loadScale === 'number' && raw.calibration.loadScale > 0 && {
       calibration: { loadScale: raw.calibration.loadScale, ...(typeof raw.calibration.source === 'string' && { source: raw.calibration.source.slice(0, 200) }) },

@@ -18,6 +18,7 @@ import { MOD_FORMAT, type ModBoard } from '../mods/mods';
 import { desktop, installMod, loadAllMods, modsFolderPath, removeInstalled, type ModLoadResult } from '../mods/sources';
 import { writeZip } from '../mods/zip';
 import { builtinScenarios } from '../scenarios/builtin';
+import { generateProblem } from '../scenarios/generate';
 import { Builder } from '../scenarios/builder';
 import { BOTH_GAP, Camera } from '../render/camera';
 import { EMISSIVITY, ThermalModel, apparentTemp } from '../thermal';
@@ -192,6 +193,9 @@ export class PcbApp {
 
   private lastVerify: VerifyResult | null = null;
   private revealedFlag: string | null = null;
+  /** Faults the next generated problem gets (1–3), and whether one is being generated. */
+  private genFaults = 1;
+  private generating = false;
   private compSearch = '';
   private showHelp = false;
   private showFeedback = false;
@@ -992,7 +996,51 @@ export class PcbApp {
   }
 
   private analyticsId(sc: Scenario): string {
-    return this.shippedIds.has(sc.id) ? sc.id : 'custom';
+    return this.shippedIds.has(sc.id) ? sc.id : sc.generated ? 'generated' : 'custom';
+  }
+
+  /** The board passes every check and is the reference design: it can be broken again. */
+  private canGenerate(): boolean {
+    const v = this.lastVerify;
+    return !!v?.allPassed && !v.topologyMismatch && (!!this.revealedFlag || !this.activeScenario.lock) && this.activeScenario.objectives.length > 0;
+  }
+
+  /** A new problem on the board just fixed: fresh random faults, same checks (src/scenarios/generate.ts). */
+  private async generateNext() {
+    if (this.generating) return;
+    const parent = this.activeScenario;
+    const big = this.board.components.length > 80;
+    this.generating = true;
+    this.renderMissionTab();
+    if (big) this.toast(t('Generating a new problem. On a board this big it can take up to half a minute…'), 'info');
+    let res: Awaited<ReturnType<typeof generateProblem>> = null;
+    try {
+      res = await generateProblem(parent, this.board, {
+        solver: this.solver,
+        faults: this.genFaults,
+        budgetMs: big ? 30000 : 8000,
+        yieldFn: () => new Promise((r) => setTimeout(r, 0)), // keep the bench drawing between solves
+      });
+    } catch (err) {
+      this.toast(t('Could not generate a problem: {error}', { error: err instanceof Error ? err.message : String(err) }), 'danger');
+    }
+    this.generating = false;
+    if (this.activeScenario !== parent) return; // the player moved on meanwhile
+    if (!res) {
+      this.toast(t('No fault found that shows on the bench of this board. Run the tests again, then retry.'), 'warn');
+      this.renderMissionTab();
+      return;
+    }
+    const sc = res.scenario, n = res.faults.length;
+    // one generated problem per board in the list: the newest replaces the last
+    const prev = this.scenarios.findIndex((s) => s.generated?.from === sc.generated!.from);
+    if (prev >= 0) this.scenarios[prev] = sc;
+    else this.scenarios.push(sc);
+    this.loadScenario(sc);
+    trackEvent('problem generated', { board: this.shippedIds.has(sc.generated!.from) ? sc.generated!.from : 'custom', faults: n });
+    this.toast(n < this.genFaults
+      ? t('New problem: only {n} fault could be hidden so that it shows on the bench.|New problem: only {n} faults could be hidden so that they show on the bench.', { n })
+      : t('New problem: {n} fault is hidden on the board.|New problem: {n} faults are hidden on the board.', { n }), n < this.genFaults ? 'info' : 'success');
   }
 
   private refreshScenarioSelect() {
@@ -1588,8 +1636,10 @@ export class PcbApp {
     if (res.flag || (res.allPassed && !res.topologyMismatch && !this.activeScenario.lock)) this.trackFix();
     if (res.flag) {
       this.revealedFlag = res.flag;
-      this.solvedIds.add(this.activeScenario.id);
-      localStorage.setItem('pcbfix_solved', JSON.stringify([...this.solvedIds]));
+      if (!this.activeScenario.generated) {
+        this.solvedIds.add(this.activeScenario.id);
+        localStorage.setItem('pcbfix_solved', JSON.stringify([...this.solvedIds]));
+      }
       this.refreshScenarioSelect();
       sfxWin();
       this.toast(t('Flag captured: {flag}', { flag: res.flag }), 'success');
@@ -3080,6 +3130,20 @@ export class PcbApp {
         </div>
       ` : ''}
 
+      ${this.canGenerate() ? `
+        <div class="card gen-card">
+          <div class="card-title"><span class="row">${icon('target', 14)}<span>${t('Next problem on this board')}</span></span></div>
+          <div class="muted">${this.mobile ? t('Fresh random faults, same checks.') : t('Break this board again with fresh random faults. Same parts, same checks: find the faults and repair it.')}</div>
+          <div class="gen-row">
+            <span class="sub">${t('Faults')}</span>
+            <div class="seg" id="gen-count">
+              ${[1, 2, 3].map((n) => `<button class="${this.genFaults === n ? 'on' : ''}" data-gen-n="${n}">${n}</button>`).join('')}
+            </div>
+            <button class="btn sm primary" id="btn-gen" ${this.generating ? 'disabled' : ''}>${icon('play', 12)}<span>${this.generating ? t('Generating…') : t('Generate')}</span></button>
+          </div>
+        </div>
+      ` : ''}
+
       <div class="card">
         <div class="card-title">
           <span>${t('Objectives')}</span>
@@ -3125,6 +3189,10 @@ export class PcbApp {
     `;
 
     this.sideBodyEl.querySelector('#btn-panel-verify')?.addEventListener('click', () => void this.runVerify());
+    this.sideBodyEl.querySelector('#btn-gen')?.addEventListener('click', () => void this.generateNext());
+    this.sideBodyEl.querySelectorAll<HTMLButtonElement>('[data-gen-n]').forEach((b) => {
+      b.addEventListener('click', () => { this.genFaults = Number(b.dataset.genN); this.renderMissionTab(); });
+    });
     this.sideBodyEl.querySelector('#btn-start-tut')?.addEventListener('click', () => this.startTutorial());
     this.sideBodyEl.querySelector('#btn-open-catalog')?.addEventListener('click', () => this.openBoardCatalog());
     this.sideBodyEl.querySelectorAll<HTMLButtonElement>('[data-open-sc]').forEach((b) => {
@@ -4169,6 +4237,7 @@ export class PcbApp {
             <p class="text-2" style="margin:0">
               ${t('Each scenario provides a simulated circuit board solved via fast DC nodal analysis or a full SPICE engine (selectable in the top bar; export any board as an ngspice <code>.cir</code> netlist), rendered in 2D/3D WebGPU.')}
               ${t('Diagnose electrical faults, perform rework, and execute <b>Run tests</b> to verify repairs and decrypt the CTF flag.')}
+              ${t('Once a board is fixed, <b>Next problem on this board</b> breaks it again with fresh random faults.')}
             </p>
           </div>
           ${beginnerPrimerHtml()}

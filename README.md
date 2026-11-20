@@ -29,6 +29,10 @@ the meter reads what the circuit really does, not a scripted answer.
 - **Repair challenges.** Each scenario has test-bench objectives. Pass them all, with the circuit
   back to its reference design, and an encrypted flag unlocks. Build and share your own in the
   Author tab: plant shorts, opens, leaks, drift and intermittent faults.
+- **Endless practice.** Fixed a board? Generate a new problem on it: 1–3 random faults (cracked
+  traces, bridges, cold joints, reversed, wrong, missing or dead parts; leaks and drift on SPICE),
+  each checked to fail the bench without burning anything, with notes that go from where to look
+  to the fix.
 - **Walkthrough videos.** Every premade scene has a "how to approach" video and a separate,
   spoiler-gated solution video, recorded from the real app.
 - **Honest numbers.** Where a value is estimated or a waveform is synthesized, the app says so.
