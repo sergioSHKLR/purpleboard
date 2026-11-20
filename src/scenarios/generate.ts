@@ -13,6 +13,7 @@ import { cleanWithIpa } from '../residue';
 import { E12, fmtSI, padMask, padShape, padWorld } from '../model';
 import { dist, shapeGap } from '../geom';
 import { clearFault, injectFault, rng, seedOf, type FaultClass } from '../faults';
+import { setReference } from './reference';
 import { t } from '../i18n';
 
 export type GenKind =
@@ -388,5 +389,6 @@ export async function generateProblem(parent: Scenario, good: Board, opts: Gener
     ...(parent.calibration && { calibration: parent.calibration }),
     generated: root,
   };
+  setReference(scenario, structuredClone(good)); // the fixed board it was broken from («Where to look?»)
   return { scenario, faults };
 }

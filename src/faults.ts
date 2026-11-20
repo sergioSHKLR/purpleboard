@@ -67,8 +67,14 @@ export function seedOf(s: string): number {
   return h >>> 0;
 }
 
+/** Ranges patched by running mods (official-faults items, src/mods/faulttypes.ts); null = none. */
+let rangeOverlay: Map<FaultClass, FaultRange> | null = null;
+export function setFaultRangeOverlay(m: Map<FaultClass, FaultRange> | null) { rangeOverlay = m; }
+/** The range a class samples from: patched by a mod, or the catalogue's. */
+export const faultRange = (cls: Scalar): FaultRange => rangeOverlay?.get(cls) ?? FAULT_RANGES[cls];
+
 export function sampleSeverity(cls: Scalar, r: () => number): number {
-  const f = FAULT_RANGES[cls];
+  const f = faultRange(cls);
   const u = r();
   const v = f.dist === 'log' ? Math.exp(Math.log(f.min) + u * (Math.log(f.max) - Math.log(f.min))) : f.min + u * (f.max - f.min);
   return +v.toPrecision(3);
@@ -182,7 +188,7 @@ export function severityHint(cls: FaultClass): { unit: string; min: number; max:
   if (cls === 'thermal-open-joint') return { unit: '°C', min: R.thermalOpen.min, max: R.thermalOpen.max, what: tk('opens above') };
   if (cls === 'thermal-leak') return { unit: '°C', min: R.thermalLeak.min, max: R.thermalLeak.max, what: tk('leaks above') };
   if (cls === 'flex-open-joint' || cls === 'flex-close-joint') return { unit: tk('flex 0–1'), min: R.flex.min, max: R.flex.max, what: tk('flex threshold') };
-  const f = FAULT_RANGES[cls];
+  const f = faultRange(cls);
   return { unit: f.unit === 'ohm' ? 'Ω' : '×', min: f.min, max: f.max, what: f.unit === 'ohm' ? tk('resistance') : tk('multiplier') };
 }
 

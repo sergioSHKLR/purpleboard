@@ -1,0 +1,15 @@
+{
+  "format": "deadboard-mod/2",
+  "id": "ideal-dc",
+  "name": "Ideal DC solver (example code mod)",
+  "version": "1.0.0",
+  "author": "DEADBOARD",
+  "description": "An example code mod: a small DC solver in plain JavaScript (resistors, batteries, switches, fuses, diodes and LEDs with a fixed forward voltage). Copy it to start your own engine. It runs in DEADBOARD's sandbox and needs no permissions.",
+  "license": "CC0-1.0",
+  "homepage": "https://github.com/tholtman1-del/deadboard/tree/main/examples/mods/ideal-dc",
+  "code": {
+    "entry": "main.js",
+    "api": "^1",
+    "permissions": []
+  }
+}

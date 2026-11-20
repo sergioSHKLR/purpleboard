@@ -4,7 +4,7 @@
 //
 // examples/mods/starter-kit/boards/night-light-repair.pcbfix.json: the KiCad night light + its BOM,
 // flag locked to the healthy board, then one fault planted (the same steps as the Author tab).
-// public/examples/starter-kit.zip: the whole mod folder, linked from the modding guide.
+// public/examples/starter-kit.zip, night-light-extras.zip, ideal-dc.zip, repair-lab.zip, local-coach.zip: the mod folders, linked from the modding guide.
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { importScenarioOrPcb } from '../src/io/kicad';
@@ -51,19 +51,29 @@ async function main() {
   if (broken.allPassed) throw new Error('the planted fault does not fail the tests');
   writeFileSync(join(MOD, 'boards/night-light-repair.pcbfix.json'), serializeScenario(sc));
 
+  console.log(`starter-kit: challenge written, zip with ${await zipMod('starter-kit')} files`);
+  console.log(`night-light-extras: zip with ${await zipMod('night-light-extras')} files`);
+  console.log(`ideal-dc: zip with ${await zipMod('ideal-dc')} files`);
+  console.log(`repair-lab: zip with ${await zipMod('repair-lab')} files`);
+  console.log(`local-coach: zip with ${await zipMod('local-coach')} files`);
+}
+
+/** Zips examples/mods/<name> (in a top-level <name>/ folder) to public/examples/<name>.zip. */
+async function zipMod(name: string): Promise<number> {
+  const dir = join(ROOT, 'examples/mods', name);
   const files: [string, Uint8Array][] = [];
-  const walk = (dir: string) => {
-    for (const name of readdirSync(dir).sort()) {
-      if (name.startsWith('.')) continue;
-      const p = join(dir, name);
+  const walk = (d: string) => {
+    for (const n of readdirSync(d).sort()) {
+      if (n.startsWith('.')) continue;
+      const p = join(d, n);
       if (statSync(p).isDirectory()) walk(p);
-      else files.push([`starter-kit/${relative(MOD, p)}`, new Uint8Array(readFileSync(p))]);
+      else files.push([`${name}/${relative(dir, p)}`, new Uint8Array(readFileSync(p))]);
     }
   };
-  walk(MOD);
+  walk(dir);
   mkdirSync(join(ROOT, 'public/examples'), { recursive: true });
-  writeFileSync(join(ROOT, 'public/examples/starter-kit.zip'), await writeZip(files));
-  console.log(`starter-kit: challenge written, zip with ${files.length} files`);
+  writeFileSync(join(ROOT, `public/examples/${name}.zip`), await writeZip(files));
+  return files.length;
 }
 
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()!)) void main();

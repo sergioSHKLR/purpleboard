@@ -1,0 +1,15 @@
+{
+  "format": "deadboard-mod/2",
+  "id": "local-coach",
+  "name": "Local coach (example code mod)",
+  "version": "1.0.0",
+  "author": "DEADBOARD",
+  "description": "An example code mod: ask a language model running on your own computer (Ollama, llama.cpp, vLLM: any OpenAI-compatible server) about the board on the bench. It sends the parts, the test results and the readings, never leaves your machine, and removes any part name the board doesn't have from the answer.",
+  "license": "CC0-1.0",
+  "homepage": "https://github.com/tholtman1-del/deadboard/tree/main/examples/mods/local-coach",
+  "code": {
+    "entry": "main.js",
+    "api": "^1",
+    "permissions": ["network:localhost", "panel", "storage"]
+  }
+}

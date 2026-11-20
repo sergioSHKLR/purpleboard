@@ -54,25 +54,48 @@ function resolveProbeNet(board: Board, conn: Conn, ref: string): number {
   return firstRole ? pinNet(conn, c, firstRole) : -1;
 }
 
-export function evaluateObjectives(board: Board, conn: Conn, objectives: Objective[], solver: Solver = 'fast'): {
+export interface Evaluation {
   allPassed: boolean;
   results: ObjectiveResult[];
   overloads: { ref: string; msg: string }[];
-} {
-  const sims = new Map<string, Sim>();
-  // The SPICE solver models the test-bench voltmeter (10 MΩ) on every probed net.
+}
+
+/** The test bench's voltmeters (10 MΩ) on every net a voltage objective probes. */
+function objectiveMeters(board: Board, conn: Conn, objectives: Objective[]): [number, number][] {
   const meters: [number, number][] = [];
   for (const o of objectives) {
     if (o.type !== 'voltage') continue;
     const a = resolveProbeNet(board, conn, o.a);
     if (a >= 0) meters.push([a, o.b ? resolveProbeNet(board, conn, o.b) : -1]);
   }
+  return meters;
+}
+
+export function evaluateObjectives(board: Board, conn: Conn, objectives: Objective[], solver: Solver = 'fast'): Evaluation {
+  const meters = objectiveMeters(board, conn, objectives);
+  // with regulator models the test bench checks the board fully on
+  return evaluateWith(board, conn, objectives, (sw) => runSolver(solver, board, conn, { ...(sw && { switches: sw }), meters, ...(solver === 'spice-power' && { powerState: 'S0SW' as const }) }));
+}
+
+/** A solve the caller runs elsewhere (a solver mod in its sandbox): the board fully on. */
+export type AsyncSolve = (opts: { switches?: SwitchMap; meters: [number, number][] }, board: Board, conn: Conn) => Promise<Sim>;
+
+/** Like evaluateObjectives, with an asynchronous solver: one solve per switch setting the tests use. */
+export async function evaluateObjectivesAsync(board: Board, conn: Conn, objectives: Objective[], solve: AsyncSolve): Promise<Evaluation> {
+  const meters = objectiveMeters(board, conn, objectives);
+  const wanted = new Map<string, SwitchMap | undefined>(objectives.length ? objectives.map((o) => [switchKey(o.switches), o.switches]) : [[switchKey(undefined), undefined]]);
+  const sims = new Map<string, Sim>();
+  for (const [key, sw] of wanted) sims.set(key, await solve({ ...(sw && { switches: sw }), meters }, board, conn));
+  return evaluateWith(board, conn, objectives, (sw) => sims.get(switchKey(sw))!);
+}
+
+function evaluateWith(board: Board, conn: Conn, objectives: Objective[], solveSw: (sw?: SwitchMap) => Sim): Evaluation {
+  const sims = new Map<string, Sim>();
   const getSim = (sw?: SwitchMap): Sim => {
     const key = switchKey(sw);
     let s = sims.get(key);
     if (!s) {
-      // with regulator models the test bench checks the board fully on
-      s = runSolver(solver, board, conn, { ...(sw && { switches: sw }), meters, ...(solver === 'spice-power' && { powerState: 'S0SW' as const }) });
+      s = solveSw(sw);
       sims.set(key, s);
     }
     return s;
@@ -139,9 +162,12 @@ export function evaluateObjectives(board: Board, conn: Conn, objectives: Objecti
   return { allPassed, results, overloads };
 }
 
-export async function verifyScenario(scenario: Scenario, board: Board = scenario.board, solver: Solver = 'fast'): Promise<VerifyResult> {
+/** Runs the tests and, when they pass, tries the flag. `solveAsync`: use a solver mod instead of `solver`. */
+export async function verifyScenario(scenario: Scenario, board: Board = scenario.board, solver: Solver = 'fast', solveAsync?: AsyncSolve): Promise<VerifyResult> {
   const conn = buildConnectivity(board);
-  const { allPassed, results, overloads } = evaluateObjectives(board, conn, scenario.objectives, solver);
+  const { allPassed, results, overloads } = solveAsync
+    ? await evaluateObjectivesAsync(board, conn, scenario.objectives, solveAsync)
+    : evaluateObjectives(board, conn, scenario.objectives, solver);
   let flag: string | null = null;
   let topologyMismatch = false;
 

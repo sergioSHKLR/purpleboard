@@ -4,6 +4,8 @@
 //    (folders and .zip files). The website has no such folder.
 import { tk } from '../i18n';
 import { loadMod, zipSource, type LoadedMod, type ModSource } from './mods';
+import { resolveMods, type ModStatus } from './resolve';
+import { officialVersions } from './official';
 
 /** Bridge exposed by desktop/preload.cjs (absent on the website). */
 export interface DesktopBridge {
@@ -92,34 +94,52 @@ async function folderSources(): Promise<ModSource[]> {
 }
 
 export interface ModLoadResult {
+  /** Every mod that could be read, whether it runs or not (install order: mods folder first). */
   mods: LoadedMod[];
+  /** The mods that run, dependencies first; only their boards are listed. */
+  active: LoadedMod[];
+  status: Map<string, ModStatus>;
   /** Mods that could not be loaded at all: where + why. */
   failed: { name: string; origin: string; error: string }[];
+  /** Started with ?safe: no mod was read. */
+  safe?: boolean;
 }
 
-/** Loads every mod (mods folder first, then installed). Board ids already in use are skipped. */
-export async function loadAllMods(takenIds: (id: string) => boolean): Promise<ModLoadResult> {
-  const result: ModLoadResult = { mods: [], failed: [] };
+export const emptyModResult = (safe = false): ModLoadResult => ({ mods: [], active: [], status: new Map(), failed: [], ...(safe && { safe }) });
+
+/** Loads every mod (mods folder first, then installed), then works out which run: on in the loadout
+ *  (`isOn`), dependencies met, no conflict. Board ids already in use are skipped. */
+export async function loadAllMods(takenIds: (id: string) => boolean, isOn: (modId: string) => boolean = () => true): Promise<ModLoadResult> {
+  const result = emptyModResult();
   const sources = [
     ...(await folderSources().catch(() => [])),
     ...(await installedSources().catch(() => [])),
   ];
   const modIds = new Set<string>();
-  const taken = new Set<string>();
-  const isTaken = (id: string) => taken.has(id) || takenIds(id);
   for (const src of sources) {
     try {
-      const mod = await loadMod(src, isTaken);
+      const mod = await loadMod(src, takenIds);
       if (modIds.has(mod.manifest.id)) {
         result.failed.push({ name: src.name, origin: src.origin, error: `another mod with id "${mod.manifest.id}" is already loaded` });
         continue;
       }
       modIds.add(mod.manifest.id);
-      for (const b of mod.boards) taken.add(b.stub.id);
       result.mods.push(mod);
     } catch (e) {
       result.failed.push({ name: src.name, origin: src.origin, error: e instanceof Error ? e.message : String(e) });
     }
   }
+  const { active, status } = resolveMods(result.mods, isOn, officialVersions());
+  result.status = status;
+  // two running mods can't list the same board id: the one loaded first keeps it
+  const taken = new Set<string>();
+  for (const mod of active) {
+    mod.boards = mod.boards.filter((b) => {
+      if (!taken.has(b.stub.id)) { taken.add(b.stub.id); return true; }
+      mod.warnings.push(`${b.spec.file}: a board with id "${b.stub.id}" is already loaded (skipped)`);
+      return false;
+    });
+  }
+  result.active = active;
   return result;
 }

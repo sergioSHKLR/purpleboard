@@ -49,6 +49,12 @@ export const GENERIC_DMM: DmmProfile = {
   diode: { itest: 1e-3, voc: 3.0, olVolts: 2.5 },
 };
 
+/** The meter in use: the official profile, or one a mod patched or added (src/mods/meters.ts).
+ *  The solve worker gets the same one with each request. */
+let active: DmmProfile | null = null;
+export const activeDmm = (): DmmProfile => active ?? GENERIC_DMM;
+export function setActiveDmm(p: DmmProfile | null) { active = p; }
+
 export interface Reading { text: string; value: number | null; range?: string; beep?: boolean; sub?: string }
 
 function quantize(v: number, res: number) { return Math.round(v / res) * res; }
@@ -62,7 +68,7 @@ export function contactResistance(p: DmmProfile, r: () => number): number {
 }
 
 /** Displays a voltage the way an auto-ranging meter would. */
-export function displayVolts(v: number, p: DmmProfile = GENERIC_DMM, r: () => number = () => 0.5): Reading {
+export function displayVolts(v: number, p: DmmProfile = activeDmm(), r: () => number = () => 0.5): Reading {
   const ranges = [0.6, 6, 60, 600, 1000];
   const fs = ranges.find((x) => Math.abs(v) < x * 0.999) ?? 1000;
   if (Math.abs(v) >= 1000) return { text: 'OL', value: null, range: '1000 V' };
@@ -101,7 +107,7 @@ function solveWithSource(board: Board, conn: Conn, a: number, b: number, voc: nu
 }
 
 export function measureOhmsDmm(board: Board, conn: Conn, a: number, b: number, opt: { profile?: DmmProfile; seed?: string } = {}): Reading {
-  const p = opt.profile ?? GENERIC_DMM;
+  const p = opt.profile ?? activeDmm();
   if (a < 0 || b < 0) return { text: 'OL', value: null, sub: t('probe not on copper') };
   const r = placementRng('ohm', opt.seed ?? `${a}-${b}`);
   const series = p.leadOhms + contactResistance(p, r) + contactResistance(p, r);
@@ -123,7 +129,7 @@ export function measureOhmsDmm(board: Board, conn: Conn, a: number, b: number, o
 }
 
 export function measureDiodeDmm(board: Board, conn: Conn, a: number, b: number, opt: { profile?: DmmProfile; seed?: string } = {}): Reading {
-  const p = opt.profile ?? GENERIC_DMM;
+  const p = opt.profile ?? activeDmm();
   if (a < 0 || b < 0) return { text: 'OL', value: null };
   const r = placementRng('diode', opt.seed ?? `${a}-${b}`);
   const series = p.leadOhms + contactResistance(p, r) + contactResistance(p, r);
@@ -169,7 +175,7 @@ export function capacitanceBetween(board: Board, conn: Conn, a: number, b: numbe
 }
 
 export function measureCapDmm(board: Board, conn: Conn, a: number, b: number, opt: { profile?: DmmProfile; seed?: string } = {}): Reading {
-  const p = opt.profile ?? GENERIC_DMM;
+  const p = opt.profile ?? activeDmm();
   if (a < 0 || b < 0) return { text: 'OL', value: null, sub: t('probe not on copper') };
   if (a === b) return { text: '0.000 nF', value: 0, sub: t('probes on the same net') };
   const cTrue = capacitanceBetween(board, conn, a, b);
@@ -200,7 +206,7 @@ export function measureCapDmm(board: Board, conn: Conn, a: number, b: number, op
 export const AMMETER_SHUNT = 0.01;
 
 /** Displays a current the way the meter's 10 A input would (± 1.0 % + noise; OL above 10 A). */
-export function displayAmps(i: number, p: DmmProfile = GENERIC_DMM, r: () => number = () => 0.5): Reading {
+export function displayAmps(i: number, p: DmmProfile = activeDmm(), r: () => number = () => 0.5): Reading {
   if (Math.abs(i) > 10) return { text: 'OL', value: null, range: '10 A', sub: t('above 10 A — the meter fuse would blow') };
   const fs = Math.abs(i) < 0.6 ? 0.6 : Math.abs(i) < 6 ? 6 : 10;
   const res = fs / p.counts;

@@ -201,13 +201,26 @@ const DEVICES: DeviceDef[] = [
 const byKey = new Map<string, DeviceDef>();
 for (const d of DEVICES) byKey.set(d.mpn.toUpperCase(), d);
 
+/** Devices from running mods (added, or official entries patched), by MPN; null = none. Looked up
+ *  before the built-in library, at every solve (models are fitted then), so a change applies to the
+ *  next solve. The solve worker gets the same list with each request (src/spice/solveWorker.ts). */
+let overlay: Map<string, DeviceDef> | null = null;
+let overlayList: DeviceDef[] = [];
+
+export function setDeviceOverlay(defs: DeviceDef[] | null) {
+  overlayList = defs ?? [];
+  overlay = defs?.length ? new Map(defs.map((d) => [d.mpn.toUpperCase(), d])) : null;
+}
+export const deviceOverlay = (): readonly DeviceDef[] => overlayList;
+const lookup = (k: string) => overlay?.get(k) ?? byKey.get(k);
+
 /** Finds a device by part number, tolerating ordering suffixes (_SBMS001, -7, -G, T1G, TRPBF, -HF). */
 export function findDevice(partNumber: string | undefined): DeviceDef | undefined {
   if (!partNumber) return undefined;
   // packing / ordering codes: Nexperia ",115", Vishay "-T1-E3" / "-T1-GE3", Apple "_SBMS001"
   let s = partNumber.trim().toUpperCase().replace(/_SBMS\d+$/, '').replace(/-HF$/, '').replace(/,\d{3}$/, '').replace(/(-T\d)?-G?E3$/, '');
   for (let k = 0; k < 4; k++) {
-    const d = byKey.get(s) ?? (s.length >= 8 ? byKey.get(s.replace(/[RX]$/, '')) : undefined); // Nexperia reel letter (PMV50EPEAR)
+    const d = lookup(s) ?? (s.length >= 8 ? lookup(s.replace(/[RX]$/, '')) : undefined); // Nexperia reel letter (PMV50EPEAR)
     if (d) return d;
     const next = s.replace(/(TRPBF|T1G|T\d?G|-\d|-G|G|PBF)$/, '');
     if (next === s) break;

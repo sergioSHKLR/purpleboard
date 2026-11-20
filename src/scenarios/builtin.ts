@@ -3,12 +3,16 @@ import { buildConnectivity } from '../connectivity';
 import { lockFlag, topology } from '../crypto';
 import { addBlob, cutTrace, removePart } from '../ops';
 import { Builder } from './builder';
+import { setReference } from './reference';
 import { realisticScenarios } from './realistic';
 
 async function finalize(id: string, meta: ScenarioMeta, b: Board, objectives: Objective[], flag: string, sabotage: (b: Board) => void): Promise<Scenario> {
   const lock = await lockFlag(flag, topology(b, buildConnectivity(b), id));
+  const good = structuredClone(b);
   sabotage(b);
-  return { format: 'pcbfix/1', id, meta, board: b, objectives, lock };
+  const sc: Scenario = { format: 'pcbfix/1', id, meta, board: b, objectives, lock };
+  setReference(sc, good);
+  return sc;
 }
 
 const on = (ref: string, sw?: Record<string, boolean>): Objective => ({ type: 'led', ref, on: true, switches: sw });

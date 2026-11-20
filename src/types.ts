@@ -173,6 +173,8 @@ export interface Scenario {
   lock?: FlagLock;
   /** Solver the scenario is built for (regulated rails need 'spice-power'); the app switches to it. */
   solver?: 'fast' | 'spice' | 'spice-power';
+  /** A solver from a code mod the board is made for (its address); `solver` is the fallback. */
+  modSolver?: string;
   /** Model calibration from bench measurements of a real board (see src/calibrate.ts). */
   calibration?: { loadScale?: number; source?: string };
   /** A problem generated on a fixed board (src/scenarios/generate.ts): the board it started from. */

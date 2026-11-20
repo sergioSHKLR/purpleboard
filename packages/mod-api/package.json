@@ -1,0 +1,25 @@
+{
+  "name": "@deadboard/mod-api",
+  "version": "1.0.0",
+  "description": "Types of the DEADBOARD plug-in API, for code mods (solvers and tools that run in the game's sandbox).",
+  "license": "Apache-2.0",
+  "types": "index.d.ts",
+  "files": [
+    "index.d.ts",
+    "global.d.ts",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./index.d.ts"
+    },
+    "./global": {
+      "types": "./global.d.ts"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tholtman1-del/deadboard",
+    "directory": "packages/mod-api"
+  }
+}

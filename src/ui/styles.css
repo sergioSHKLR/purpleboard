@@ -1553,3 +1553,73 @@ body.is-mobile .m-cat .cat-sec-head { align-items: center; padding-top: 6px; }
   .m-cat-foot .btn { flex: none; height: 34px; }
 }
 .is-mobile .modio-info p { display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+/* mods: loadouts, on/off, what a mod needs */
+.loadout-bar { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px 10px; }
+.loadout-bar label.row { gap: 8px; font-size: 12px; color: var(--text-2); }
+.loadout-bar select { font-size: 12px; max-width: 260px; }
+.loadout-bar .muted { font-size: 12px; }
+.mod-safe { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.mod-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); cursor: pointer; white-space: nowrap; }
+.mod-inactive .mod-name { color: var(--text-2); }
+.mod-reqs { font-size: 12px; overflow-wrap: anywhere; }
+.mod-needs { font-size: 12px; color: var(--warn); }
+.mod-needs ul { margin: 4px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.mod-needs li span { margin-right: 8px; overflow-wrap: anywhere; }
+.mod-needs li .btn { vertical-align: middle; }
+.is-mobile .mod-toggle input { width: 20px; height: 20px; }
+.loadout-bar label.row { min-width: 0; max-width: 100%; }
+.loadout-bar select { min-width: 0; }
+body.is-mobile .loadout-bar label.row { flex: 1 1 100%; }
+body.is-mobile .loadout-bar select { flex: 1 1 auto; width: auto; max-width: none; }
+/* mods: official card, what patches changed */
+.mod-official { border-left: 2px solid var(--accent-line, var(--accent)); }
+.mod-changes { font-size: 12px; color: var(--text-2); }
+.mod-changes summary { cursor: pointer; }
+.mod-changes ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.mod-changes li, .mod-needs li { overflow-wrap: anywhere; }
+/* knowledge packs (Overview tab) */
+.kn-card summary { cursor: pointer; list-style: none; }
+.kn-card summary::-webkit-details-marker { display: none; }
+.kn-card summary::before { content: '▸'; color: var(--muted); margin-right: 6px; }
+.kn-card[open] summary::before { content: '▾'; }
+.kn-card summary > span:first-child { flex: 1; }
+.kn-power { font-size: 12px; overflow-wrap: anywhere; }
+.kn-rail { display: grid; gap: 4px; padding: 8px 0 0; border-top: 1px solid var(--border); font-size: 12px; }
+.kn-rail-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.kn-checks { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.kn-ref { background: none; border: none; padding: 0; color: var(--accent); cursor: pointer; font: inherit; font-family: var(--mono); text-decoration: underline dotted; }
+.kn-stale-item { color: var(--muted); text-decoration: line-through; }
+.kn-stale { font-size: 12px; color: var(--warn); }
+.kn-src { font-size: 11px; }
+.badge.kn-conf.documented { color: var(--accent); }
+.badge.kn-conf.estimated { color: var(--warn); }
+/* mods: bench check */
+.bench { display: grid; gap: 6px; }
+.bench-sum { font-size: 12px; font-family: var(--mono); }
+.bench-sum .pass, .bench-pass b { color: var(--accent); }
+.bench-sum .warn, .bench-warn b { color: var(--warn); }
+.bench-sum .fail, .bench-fail b { color: var(--danger); }
+.bench-moved { margin-top: 6px; font-size: 12px; }
+.bench-moved ul { margin: 2px 0 0; }
+/* mods: code */
+.mod-code-switch { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 12px; }
+.mod-code { display: grid; gap: 4px; font-size: 12px; color: var(--text-2); }
+.mod-code .badge { font-size: 10.5px; }
+.mod-code-err { color: var(--danger); }
+.bench-row[hidden] { display: none; }
+/* «Where to look?» */
+.look-card { gap: 8px; }
+.look-cand { display: grid; gap: 3px; font-size: 12.5px; padding-top: 6px; border-top: 1px solid var(--border); }
+.look-cand:first-of-type { border-top: none; padding-top: 0; }
+/* mod panels (code mods, side panel → Mods) */
+.mod-panel { gap: 8px; }
+.mp-text { font-size: 12.5px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
+.mp-text.muted { color: var(--text-2); }
+.mp-text.warn { color: var(--warn); }
+.mp-text.good { color: var(--accent); }
+.mp-text.mono { font-family: var(--mono); font-size: 12px; }
+.mp-list { margin: 0; padding-left: 18px; font-size: 12.5px; display: grid; gap: 3px; }
+.mp-input { display: grid; gap: 6px; }
+.mp-input textarea { width: 100%; resize: vertical; font: inherit; }
+.mp-input .btn { justify-self: start; }
+.mp-hr { border: none; border-top: 1px solid var(--border); margin: 2px 0; width: 100%; }

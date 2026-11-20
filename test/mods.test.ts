@@ -103,6 +103,7 @@ async function run() {
     assert(sb.meta.license === 'CC0-1.0' && sb.meta.author === 'DEADBOARD' && /Starter kit/.test(sb.meta.credits ?? ''), 'attribution from the mod');
     assert(sb.objectives.length === 2, 'objectives from mod.json');
     assert((await verifyScenario(sb)).allPassed, 'the sandbox board works: D1 on with SW1, off without');
+    assert(sandbox.address === 'starter-kit/boards/night-light', 'board address');
     assert(sandbox.schematic?.mime === 'image/svg+xml' && (await sandbox.schematic.read()).length > 500, 'schematic attached');
     assert((await sandbox.load()) === sb, 'loaded once, then cached');
 

@@ -4,7 +4,7 @@ import { t } from '../i18n';
 import type { Board } from '../types';
 import type { Conn } from '../connectivity';
 import { batteryRint } from '../model';
-import { DIODE_TEST, LED_MAX_I, OHM_OL, LED_ON_I, type CompSim, type Sim, type SimOpts } from '../sim';
+import { DIODE_TEST, LED_MAX_I, LED_ON_I, ohmOL, type CompSim, type Sim, type SimOpts } from '../sim';
 import { boardToCircuit, type BoardNetlist, type BoardSpiceOptions } from './board';
 import { Engine, type EngineOptions, type OpResult } from './engine';
 import { discoverPowerTree } from './powertree';
@@ -12,6 +12,7 @@ import { powerTreeElements } from './powermodels';
 import { POWER_STATES, enablesForState, type PowerStateName } from './sequencer';
 import { estimateRailLoads, loadWatts } from './loads';
 import { findRegulator } from './regulators';
+import { activeDmm } from './dmm';
 
 /** Last solution by unknown name: warm start for the next solve of a similar circuit. */
 let warm: Map<string, number> | null = null;
@@ -88,7 +89,7 @@ export function simulateSpice(board: Board, conn: Conn, opt: SpiceSimOpts = {}):
       const b = black < 0 ? '0' : nl.netNode.get(black);
       if (!a || !b || a === b || seen.has(a + '|' + b)) continue;
       seen.add(a + '|' + b);
-      ckt.elements.push({ kind: 'R', name: `R_DMM${seen.size}`, n: [a, b], value: opt.meterOhms ?? 10e6, note: 'voltmeter input impedance' });
+      ckt.elements.push({ kind: 'R', name: `R_DMM${seen.size}`, n: [a, b], value: opt.meterOhms ?? activeDmm().vInputOhms, note: 'voltmeter input impedance' });
     }
     if (opt.ammeter) {
       const a = nl.netNode.get(opt.ammeter.a), b = nl.netNode.get(opt.ammeter.b);
@@ -291,7 +292,7 @@ export function measureOhmsSpice(board: Board, conn: Conn, a: number, b: number,
   const k = s.nodeOfNet.get(a);
   if (k === undefined) return Infinity;
   const r = s.V[k] / 1e-3;
-  return r >= OHM_OL ? Infinity : r;
+  return r >= ohmOL() ? Infinity : r;
 }
 
 /** Diode-test mode (the DIODE_TEST source) with the supply removed. */

@@ -1,12 +1,17 @@
 import type { Board, Component, LedColor, Objective, Scenario, Side, V2 } from '../types';
-import { FAULT_LABELS, applicableFaults, clearFault, injectFault, listFaults, needsSpice, rng, severityHint, type FaultClass } from '../faults';
+import { clearFault, injectFault, listFaults, rng, setFaultRangeOverlay, severityHint, type FaultClass } from '../faults';
+import { buildFaultRegistry, faultTypesFor, injectFaultType, type FaultRegistry } from '../mods/faulttypes';
+import { FAULT_CLASSES } from '../mods/puzzles';
+import { OFFICIAL_METER, buildMeterRegistry, type MeterRegistry } from '../mods/meters';
+import { buildRuleSet, type RuleSet } from '../mods/rules';
+import type { Candidate } from '../mods/rules-engine';
 import { dist, transform4 } from '../geom';
 import { buildConnectivity, type Conn } from '../connectivity';
 import { BAND_RGB, GOLD_RGB, KIND_NAMES, LED_COLORS, e12Values, fmtOhm, fmtSI, marking, padWorld, parseValue, resistorBands } from '../model';
 import { addBlob, addJumper, cutTrace, installPart, removeBlob, removeJumper, removePart, toggleCold } from '../ops';
 import { LED_ON_I, measureDiode, measureOhms, type Sim } from '../sim';
 import { measureDiodeSpice, measureOhmsSpice } from '../spice/adapter';
-import { AMMETER_SHUNT, GENERIC_DMM, contactResistance, displayAmps, displayVolts, measureCapDmm, measureDiodeDmm, measureOhmsDmm, placementRng, type Reading } from '../spice/dmm';
+import { AMMETER_SHUNT, activeDmm, setActiveDmm, contactResistance, displayAmps, displayVolts, measureCapDmm, measureDiodeDmm, measureOhmsDmm, placementRng, type Reading } from '../spice/dmm';
 import { boardToCircuit } from '../spice/board';
 import { writeSpice } from '../spice/netlist';
 import { netAt, pickAt, type PickHit } from '../pick';
@@ -14,9 +19,24 @@ import { objectiveLabel, runSolver, verifyScenario, type Solver, type VerifyResu
 import { lockFlag, packText, topology, unpackText } from '../crypto';
 import { serializeScenario } from '../io/format';
 import { importScenarioOrPcb } from '../io/kicad';
-import { MOD_FORMAT, type LoadedMod, type ModBoard } from '../mods/mods';
+import { MOD_FORMAT, itemAddress, type LoadedMod, type ModBoard, type ModManifest } from '../mods/mods';
+import { OFFICIAL_MODS, officialBoardAddress } from '../mods/official';
+import { applyBoardPatches, boardView, writeBoardView, type BoardView, type PatchEntry, type PatchResult } from '../mods/patches';
+import { buildPuzzle, puzzleScenarioId, type PuzzleSpec } from '../mods/puzzles';
+import { staleEntries, type Confidence, type KnowledgePack } from '../mods/knowledge';
+import { referenceBoard } from '../scenarios/reference';
+import { allDevices, deviceOverlay, setDeviceOverlay } from '../spice/devicelib';
+import { buildDeviceOverlay, type DeviceOverlay } from '../mods/devices';
+import { SOLVERS } from '../mods/solvers';
+import type { BenchContext, BenchReport } from '../mods/benchcheck';
+import type { ModRequest } from '../mods/api/host';
+import { NO_CODE_HOST, type CodeHostLike } from '../mods/api/nohost';
+import type { PanelNode } from '../mods/api/types';
+import { buildNetlist, simFromResult } from '../mods/api/netlist';
 import { ModioError, downloadMod, forgetModioInstall, listMods, modioConfig, modioState, rememberModioInstall, type ModioMod, type ModioSort } from '../mods/modio';
-import { desktop, installMod, loadAllMods, modsFolderPath, removeInstalled, type ModLoadResult } from '../mods/sources';
+import { desktop, emptyModResult, installMod, loadAllMods, modsFolderPath, removeInstalled, type ModLoadResult } from '../mods/sources';
+import { MY_MODS, OFFICIAL, bootBegin, bootDone, bootModsRunning, deleteLoadout, isModOn, newLoadout, readLoadouts, safeMode, setModOn, switchLoadout, writeLoadouts, type LoadoutStore } from '../mods/loadouts';
+import type { ModNeed } from '../mods/resolve';
 import { writeZip } from '../mods/zip';
 import { builtinScenarios } from '../scenarios/builtin';
 import { generateProblem } from '../scenarios/generate';
@@ -44,7 +64,7 @@ import { beginnerPrimerHtml, TUTORIAL_SCENARIO_IDS, TUTORIAL_TOPICS, getTutorial
 import { TOOL_SHORT, TOOL_TIP_PHONE, TouchGestures, splitLead, touchCopy, wantsMobileLayout } from './touch';
 
 type ToolId = 'inspect' | 'dmm' | 'iron' | 'wick' | 'flip180' | 'jumper' | 'knife' | 'replace' | 'freeze' | 'ipa' | 'press' | 'hotair' | 'scope' | 'rosin';
-type PanelTab = 'mission' | 'inspect' | 'studio';
+type PanelTab = 'mission' | 'inspect' | 'studio' | 'mods';
 type DmmMode = 'V' | 'OHM' | 'DIODE' | 'CAP' | 'AMP';
 
 interface ProbePin {
@@ -219,13 +239,57 @@ export class PcbApp {
   private modioReq: AbortController | null = null;
   /** Ids of the boards that ship with DEADBOARD (built-ins + demos): an author's copy needs its own id. */
   private bundledIds = new Set<string>();
+  /** Board fields as shipped, before any patch: patches re-apply from these, so turning a mod off undoes them. */
+  private pristine = new WeakMap<Scenario, BoardView>();
+  /** Running mods' board patches by target address, in load order. */
+  private patchEntries = new Map<string, PatchEntry[]>();
+  /** What the patches did, by board / device address (shown in the Mods window). */
+  private patchLog = new Map<string, { title: string; res: PatchResult }>();
+  /** Running mods' devices (added or patched), used by every solve. */
+  private devices: DeviceOverlay | null = null;
+  /** Running mods' fault types and patched fault ranges. */
+  private faults: FaultRegistry | null = null;
+  /** Diagnostic rules (official + running mods) and the last «Where to look?» answer. */
+  private rules: RuleSet = buildRuleSet([]);
+  private lookHere: { forScenario: Scenario; candidates: Candidate[] } | null = null;
+  /** Meters (official, patched, from mods) and the one in use (address, remembered). */
+  private meters: MeterRegistry | null = null;
+  private meterChoice = (() => { try { return localStorage.getItem('deadboard_meter') ?? OFFICIAL_METER; } catch { return OFFICIAL_METER; } })();
+  /** Bench check results by mod id, and the one running now (src/mods/benchcheck.ts). */
+  private benchReports = new Map<string, BenchReport>();
+  private benchRunning: string | null = null;
+  /** Code mods (src/mods/api): experimental, off unless the player turns them on; not in the iOS app. */
+  private codeModsOn = (() => { try { return localStorage.getItem('deadboard_code_mods') === '1'; } catch { return false; } })();
+  private readonly codeModsSupported = !(globalThis as { webkit?: { messageHandlers?: { console?: unknown } } }).webkit?.messageHandlers?.console;
+  /** The code-mod host: a stand-in until code mods run; the real one (and the sandbox) load then. */
+  private codeHost: CodeHostLike = NO_CODE_HOST;
+  /** What the player typed into mod panels (kept across redraws), by mod|panel|input. */
+  private panelInputs = new Map<string, string>();
+  private lastSay = new Map<string, number>();
+  private solvedTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastProbeKey = '';
+  /** Code mods started, by id → "id@version" (restart when the version changes). */
+  private runningCode = new Map<string, string>();
+  /** A solver mod in use instead of the official solver (its address), or null. */
+  private modSolver: string | null = null;
+  private modSolveSeq = 0;
+  /** The current `sim` came from a solver mod. */
+  private simFromMod = false;
+  /** Which solver mod the last test run used (shown with the results). */
+  private lastVerifyBy: string | null = null;
+  private lastMeasureKey = '';
   /** For bug reports: the last messages and errors the player saw, and the meter's display. */
   private recentToasts: string[] = [];
   private recentErrors: string[] = [];
   private dmmShown = '';
   /** Mod boards in the list (stub before first open, full scenario after) → their mod. */
   private modBoards = new Map<Scenario, ModBoard>();
-  private modResult: ModLoadResult = { mods: [], failed: [] };
+  private modResult: ModLoadResult = emptyModResult();
+  /** Which mods are on (src/mods/loadouts.ts); ?safe runs this visit without any mod. */
+  private loadouts: LoadoutStore = readLoadouts();
+  private safeMode = safeMode();
+  /** Safe mode was switched on because the last start with mods didn't finish. */
+  private autoSafe = false;
   private schematicUrls = new Map<ModBoard, string>();
   private boardSearch = '';
   private lastBeepKey = '';
@@ -236,7 +300,8 @@ export class PcbApp {
   private studioFlagInput = 'PCB{my_custom_pcb_ctf}';
   private authorMode = false;
   /** Fault class last chosen in the inspector's injection card. */
-  private faultClass: FaultClass = 'cold-joint';
+  /** Author tab: the fault type picked (address: official-faults/faultTypes/<class> or a mod's). */
+  private faultClass = 'official-faults/faultTypes/cold-joint';
   private refLockedHash = '';
 
   // Pointer drag state
@@ -313,7 +378,9 @@ export class PcbApp {
     this.scenarios = await builtinScenarios();
     await this.addDemoStubs();
     this.bundledIds = new Set(this.scenarios.map((s) => s.id));
+    if (bootBegin() && !this.safeMode) this.safeMode = this.autoSafe = true;
     await this.loadMods();
+    if (this.modResult.active.length) bootModsRunning();
     this.buildDom();
 
     try {
@@ -323,6 +390,7 @@ export class PcbApp {
     } catch (err) {
       trackEvent('bench failed', { reason: err instanceof NoAdapterError ? 'no adapter' : 'error', layout: this.mobile ? 'phone' : 'desktop' });
       this.showWebGpuError(err instanceof Error ? err.message : String(err), err instanceof NoAdapterError ? err.tried : []);
+      bootDone(); // a GPU problem, not a mod's
       return;
     }
     trackEvent('bench ready', { renderer: this.renderer.kind, layout: this.mobile ? 'phone' : 'desktop' });
@@ -354,6 +422,8 @@ export class PcbApp {
 
     this.bindEvents();
     this.started = true;
+    bootDone();
+    if (this.autoSafe) this.toast(t("DEADBOARD didn't finish starting last time, so mods are off for this visit. To try again: Mods → Leave safe mode."), 'info');
     if (this.showBoards || this.showFeedback) this.renderModal();
     void this.loadVideoIndex();
     if (params.has('automation')) this.exposeAutomation();
@@ -619,6 +689,7 @@ export class PcbApp {
               <option value="spice">SPICE</option>
               <option value="spice-power">SPICE + PWR</option>
             </select></label>
+            <label class="bench-row" hidden><span>${t('Meter')}</span><select id="meter-select" title="${t('Multimeter profile: the official one, or one a mod adds')}"></select></label>
             <button class="btn sm" id="btn-spice-export" title="${t('Export SPICE netlist (.cir, ngspice compatible)')}">${icon('download', 13)}<span>${t('Export SPICE netlist (.cir)')}</span></button>
               </div>
             </div>
@@ -676,6 +747,7 @@ export class PcbApp {
             <button class="tab active" data-tab="mission">${t('Overview')}</button>
             <button class="tab" data-tab="inspect">${t('Inspector')}</button>
             <button class="tab" data-tab="studio">${t('Author')}</button>
+            <button class="tab" data-tab="mods" hidden>${t('Mods')}</button>
             ${m ? `<button class="btn ghost icon m-sheet-close" id="m-panel-close" title="${t('Close')}">${icon('x', 16)}</button>` : ''}
           </div>
           <div class="panel-body" id="side-body"></div>
@@ -939,26 +1011,455 @@ export class PcbApp {
     for (const s of [...this.modBoards.keys()]) if (s !== active) this.modBoards.delete(s);
     for (const url of this.schematicUrls.values()) URL.revokeObjectURL(url);
     this.schematicUrls.clear();
+    if (this.safeMode) { this.modResult = emptyModResult(true); setDeviceOverlay(null); this.devices = null; setFaultRangeOverlay(null); this.faults = null; setActiveDmm(null); this.meters = null; return; }
     try {
       const builtin = new Set(this.scenarios.filter((s) => !this.modBoards.has(s)).map((s) => s.id));
-      this.modResult = await loadAllMods((id) => builtin.has(id));
+      this.modResult = await loadAllMods((id) => builtin.has(id), (id) => isModOn(this.loadouts, id));
     } catch (e) {
-      this.modResult = { mods: [], failed: [{ name: 'mods', origin: '', error: e instanceof Error ? e.message : String(e) }] };
+      this.modResult = { ...emptyModResult(), failed: [{ name: 'mods', origin: '', error: e instanceof Error ? e.message : String(e) }] };
     }
-    for (const mod of this.modResult.mods) {
+    for (const mod of this.modResult.active) {
       for (const b of mod.boards) {
         if (active && this.modBoards.has(active) && active.id === b.stub.id) { this.modBoards.set(active, b); continue; }
         this.modBoards.set(b.stub, b);
         this.scenarios.push(b.stub);
       }
     }
+    // puzzles: listed now, built on their board when opened
+    for (const mod of this.modResult.active) {
+      for (const pz of mod.manifest.puzzles) {
+        const mb = this.puzzleEntry(mod, pz);
+        if (!mb) continue;
+        mod.boards.push(mb);
+        if (active && this.modBoards.has(active) && active.id === mb.stub.id) { this.modBoards.set(active, mb); continue; }
+        this.modBoards.set(mb.stub, mb);
+        this.scenarios.push(mb.stub);
+      }
+    }
+    this.patchBoards();
+    // devices: added and patched models, for every solve from now on (the worker gets them per request)
+    this.devices = buildDeviceOverlay(this.modResult.active);
+    setDeviceOverlay(this.devices.overlay);
+    for (const [addr, l] of this.devices.log) this.patchLog.set(addr, l);
+    this.faults = buildFaultRegistry(this.modResult.active, FAULT_CLASSES);
+    setFaultRangeOverlay(this.faults.ranges);
+    for (const [addr, l] of this.faults.log) this.patchLog.set(addr, l);
+    this.rules = buildRuleSet(this.modResult.active);
+    for (const [addr, l] of this.rules.log) this.patchLog.set(addr, l);
+    this.lookHere = null;
+    this.meters = buildMeterRegistry(this.modResult.active);
+    for (const [addr, l] of this.meters.log) this.patchLog.set(addr, l);
+    this.applyMeter();
+    void this.syncCodeMods();
+  }
+
+  /** A code mod asks the app for something; the host has already checked its permission. */
+  private async answerModRequest(modId: string, req: ModRequest): Promise<unknown> {
+    switch (req.op) {
+      case 'ui.zoomTo': {
+        if (!this.board.components.some((c) => c.ref === req.ref)) return false;
+        this.gotoRef(req.ref);
+        return true;
+      }
+      case 'ui.say': {
+        const now = Date.now();
+        if (now - (this.lastSay.get(modId) ?? 0) < 1000) return null; // one a second
+        this.lastSay.set(modId, now);
+        this.toast(`${modId}: ${req.text}`, 'info');
+        return null;
+      }
+      case 'storage.get': case 'storage.set': {
+        const key = `deadboard_modstore_${modId}`;
+        let store: Record<string, string> = {};
+        try { store = JSON.parse(localStorage.getItem(key) ?? '{}') as Record<string, string>; } catch { /* empty */ }
+        if (req.op === 'storage.get') return store[req.key] ?? null;
+        if (req.value === null) delete store[req.key]; else store[req.key] = req.value;
+        const text = JSON.stringify(store);
+        if (text.length > 64 * 1024) throw new Error('storage is full (64 KB per mod)');
+        try { localStorage.setItem(key, text); } catch { throw new Error('storage unavailable'); }
+        return null;
+      }
+    }
+  }
+
+  private onModPanels() {
+    if (!this.started) return;
+    const tab = this.mount.querySelector<HTMLButtonElement>('.tab[data-tab="mods"]');
+    const has = this.codeHost.panels().length > 0;
+    if (tab && tab.hidden === has) { this.renderUI(); return; }
+    if (this.activeTab === 'mods') this.renderModPanelsTab();
+  }
+
+  /** Tells code mods what the bench just solved (at most four times a second). */
+  private emitSolved() {
+    if (!this.runningCode.size || this.solvedTimer) return;
+    this.solvedTimer = setTimeout(() => {
+      this.solvedTimer = null;
+      if (!this.sim?.source || !this.powerOn) return;
+      const parts: Record<string, { i: number; v: number; p: number; on: boolean }> = {};
+      for (const c of this.board.components) { const r = this.sim.comps.get(c.id); if (r) parts[c.ref] = { i: r.i, v: r.v, p: r.p, on: r.on }; }
+      this.codeHost.emit('bench:solved', { nets: this.netVoltsByName(), parts });
+    }, 250);
+  }
+
+  /** The side panel's Mods tab: panels from running code mods, drawn by the app. */
+  private renderModPanelsTab() {
+    const refs = new Set(this.board.components.map((c) => c.ref));
+    const linkRefs = (text: string) => this.esc(text).replace(/\b([A-Z]{1,4}\d{1,4}[A-Z]?)\b/g, (m) => (refs.has(m) ? `<button class="kn-ref mono" data-kn-ref="${m}">${m}</button>` : m));
+    const key = (modId: string, panel: string, id: string) => `${modId}|${panel}|${id}`;
+    const node = (modId: string, panel: string, n: PanelNode): string => {
+      switch (n.type) {
+        case 'heading': return `<div class="card-title">${this.esc(n.text)}</div>`;
+        case 'text': return `<div class="mp-text ${n.tone ?? ''}">${n.linkRefs ? linkRefs(n.text) : this.esc(n.text)}</div>`;
+        case 'ref': return refs.has(n.ref) ? `<button class="kn-ref mono" data-kn-ref="${this.esc(n.ref)}">${this.esc(n.label ?? n.ref)}</button>` : `<span class="kn-stale-item">${this.esc(n.label ?? n.ref)}</span>`;
+        case 'list': return `<ul class="mp-list">${n.items.map((x) => `<li>${n.linkRefs ? linkRefs(x) : this.esc(x)}</li>`).join('')}</ul>`;
+        case 'row': return `<div class="row wrap">${n.children.map((c) => node(modId, panel, c)).join('')}</div>`;
+        case 'button': return `<button class="btn sm" data-mp-btn="${this.esc(key(modId, panel, n.id))}">${this.esc(n.label)}</button>`;
+        case 'input': {
+          const k = key(modId, panel, n.id);
+          const v = this.panelInputs.get(k) ?? n.value ?? '';
+          const field = n.multiline
+            ? `<textarea data-mp-input="${this.esc(k)}" rows="3" placeholder="${this.esc(n.placeholder ?? '')}">${this.esc(v)}</textarea>`
+            : `<input type="text" data-mp-input="${this.esc(k)}" placeholder="${this.esc(n.placeholder ?? '')}" value="${this.esc(v)}" />`;
+          return `<div class="field mp-input">${n.label ? `<label>${this.esc(n.label)}</label>` : ''}${field}<button class="btn sm primary" data-mp-submit="${this.esc(k)}">${this.esc(n.submit)}</button></div>`;
+        }
+        case 'divider': return '<hr class="mp-hr" />';
+      }
+    };
+    const panels = this.codeHost.panels();
+    this.sideBodyEl.innerHTML = panels.map((p) => `
+      <div class="card mod-panel">
+        <div class="card-title"><span>${this.esc(p.title)}</span><span class="badge info" title="${t('From a code mod, running in the sandbox')}">${this.esc(p.modId)}</span></div>
+        ${p.content.map((n) => node(p.modId, p.id, n)).join('')}
+      </div>`).join('') || `<div class="muted" style="padding:16px">${t('No mod panels.')}</div>`;
+    const act = (k: string, value?: string) => {
+      const [modId, panel, id] = k.split('|');
+      this.codeHost.emitTo(modId, 'panel:action', { panel, id, ...(value !== undefined && { value }) });
+    };
+    this.sideBodyEl.querySelectorAll<HTMLElement>('[data-mp-input]').forEach((el) => {
+      el.addEventListener('input', () => this.panelInputs.set(el.dataset.mpInput!, (el as HTMLInputElement).value));
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (el.tagName === 'INPUT' || (e as KeyboardEvent).metaKey || (e as KeyboardEvent).ctrlKey)) { e.preventDefault(); act(el.dataset.mpInput!, (el as HTMLInputElement).value); }
+      });
+    });
+    this.sideBodyEl.querySelectorAll<HTMLButtonElement>('[data-mp-submit]').forEach((b) => b.addEventListener('click', () => act(b.dataset.mpSubmit!, this.panelInputs.get(b.dataset.mpSubmit!) ?? (this.sideBodyEl.querySelector<HTMLInputElement>(`[data-mp-input="${CSS.escape(b.dataset.mpSubmit!)}"]`)?.value ?? ''))));
+    this.sideBodyEl.querySelectorAll<HTMLButtonElement>('[data-mp-btn]').forEach((b) => b.addEventListener('click', () => act(b.dataset.mpBtn!)));
+    this.sideBodyEl.querySelectorAll<HTMLButtonElement>('[data-kn-ref]').forEach((b) => b.addEventListener('click', () => this.gotoRef(b.dataset.knRef!)));
+  }
+
+  private meterOptionsKey = '';
+  /** Uses the chosen meter (the official one when the choice is gone). */
+  private applyMeter() {
+    const m = this.meters?.meters.find((x) => x.address === this.meterChoice) ?? this.meters?.meters.find((x) => x.address === OFFICIAL_METER);
+    setActiveDmm(m?.profile ?? null);
+    const sel = this.mount.querySelector<HTMLSelectElement>('#meter-select');
+    if (!sel) return;
+    const list = this.meters?.meters ?? [];
+    const key = list.map((x) => `${x.address}=${x.profile.name}`).join('|');
+    if (key === this.meterOptionsKey && sel.options.length) { sel.value = m?.address ?? OFFICIAL_METER; return; }
+    this.meterOptionsKey = key;
+    sel.innerHTML = list.map((x) => `<option value="${this.esc(x.address)}">${this.esc(x.address === OFFICIAL_METER ? t('Generic 6000-count') : `${x.profile.name} · ${x.modId}`)}</option>`).join('');
+    sel.value = m?.address ?? OFFICIAL_METER;
+    const row = sel.closest<HTMLElement>('.bench-row');
+    if (row) row.hidden = list.length < 2;
+  }
+
+  /** Loads the real code-mod host and the sandbox (first time code mods run). */
+  private async ensureCodeHost() {
+    if (this.codeHost !== NO_CODE_HOST) return;
+    const [{ CodeModHost }, { sandboxTransport }] = await Promise.all([import('../mods/api/host'), import('../mods/api/sandbox')]);
+    if (this.codeHost !== NO_CODE_HOST) return;
+    this.codeHost = new CodeModHost(sandboxTransport, {
+      onLog: (id, text) => console.info(`[mod ${id}] ${text}`),
+      onCrash: (id, error) => this.onCodeModCrash(id, error),
+      onRequest: (id, req) => this.answerModRequest(id, req),
+      onPanels: () => this.onModPanels(),
+    });
+  }
+
+  /** Starts the running code mods (when code mods are on) and stops the others. */
+  private async syncCodeMods() {
+    const want = this.codeModsOn && this.codeModsSupported && !this.safeMode ? this.modResult.active.filter((m) => m.manifest.code) : [];
+    if (want.length) {
+      try { await this.ensureCodeHost(); } catch (e) { this.toast(t('Could not start code mods: {error}', { error: e instanceof Error ? e.message : String(e) }), 'danger'); return; }
+    }
+    const ids = new Set(want.map((m) => m.manifest.id));
+    for (const id of [...this.runningCode.keys()]) if (!ids.has(id)) { this.codeHost.stop(id); this.runningCode.delete(id); }
+    let started = false;
+    for (const m of want) {
+      const key = `${m.manifest.id}@${m.manifest.version}`;
+      if (this.runningCode.get(m.manifest.id) === key) continue;
+      this.runningCode.set(m.manifest.id, key);
+      if (this.started && this.showMods) this.renderModsModal();
+      try { await this.codeHost.start(m); started = true; } catch { /* the card shows why */ }
+    }
+    if (this.modSolver && !this.codeHost.solvers().some((x) => x.address === this.modSolver)) this.modSolver = null;
+    if (started) this.emitBoardLoaded();
+    if (!this.started) return;
+    if (!this.modSolver && this.activeScenario.modSolver) this.useBoardSolver(this.activeScenario, false);
+    this.refreshSolverSelect();
+    if (this.showMods) this.renderModsModal();
+  }
+
+  private onCodeModCrash(modId: string, error: string) {
+    this.runningCode.delete(modId);
+    if (this.modSolver?.startsWith(`${modId}/`)) {
+      this.modSolver = null;
+      this.simFromMod = false;
+      if (this.started) { this.recompute(true); this.renderUI(); }
+    }
+    if (this.started) {
+      this.toast(t('The mod «{mod}» stopped: {error}', { mod: modId, error }), 'danger');
+      this.refreshSolverSelect();
+      if (this.showMods) this.renderModsModal();
+    }
+  }
+
+  /** A board made for a solver mod: use it when it runs, else say what it needs. */
+  private useBoardSolver(sc: Scenario, explain = true) {
+    const want = sc.modSolver;
+    if (!want) return;
+    const s = this.codeHost.solvers().find((x) => x.address === want);
+    if (s) {
+      this.modSolver = s.address;
+      if (explain) this.toast(t('This board runs on the solver «{name}» from the mod «{mod}».', { name: s.name, mod: s.modId }), 'info');
+    } else if (explain) {
+      this.toast(t('This board is made for the solver {solver}, which isn\'t running (Mods: install it and turn on code mods). Using {official}.', { solver: want, official: t(SOLVERS.find((x) => x.id === this.solver)?.name ?? this.solver) }), 'warn');
+    }
+  }
+
+  /** Sends the open board to running code mods. */
+  private emitBoardLoaded() {
+    if (!this.runningCode.size || !this.board) return;
+    this.codeHost.emit('board:loaded', { title: this.activeScenario.meta.title, netlist: buildNetlist(this.board, buildConnectivity(this.board), this.activeScenario.meta.title) });
+  }
+
+  /** Volts by net name from the current solve (for events). */
+  private netVoltsByName(): Record<string, number> {
+    const out: Record<string, number> = {};
+    if (!this.sim?.source || !this.conn) return out;
+    this.conn.netNames.forEach((name, i) => { const k = this.sim!.nodeOfNet.get(i); if (name && k !== undefined) out[name] = this.sim!.V[k]; });
+    return out;
+  }
+
+  /** The solver menu: the official solvers, then solvers from running code mods. */
+  private solverOptionsKey = '';
+  private refreshSolverSelect() {
+    const sel = this.mount.querySelector<HTMLSelectElement>('#solver-select');
+    if (!sel) return;
+    const mods = this.codeHost.solvers();
+    // rebuilt only when the list changes (this runs on every render)
+    const key = mods.map((m) => `${m.address}=${m.name}`).join('|');
+    if (key === this.solverOptionsKey && sel.options.length) { sel.value = this.modSolver ?? this.solver; return; }
+    this.solverOptionsKey = key;
+    sel.innerHTML = SOLVERS.map((x) => `<option value="${x.id}">${t(x.name)}</option>`).join('')
+      + (mods.length ? `<optgroup label="${t('Solver mods')}">${mods.map((m) => `<option value="${this.esc(m.address)}" title="${this.esc(m.description ?? '')}">${this.esc(m.name)}</option>`).join('')}</optgroup>` : '');
+    sel.value = this.modSolver ?? this.solver;
+  }
+
+  /** Solves with the solver mod in use; the result replaces `sim` when it lands. */
+  private requestModSolve(meters: [number, number][]) {
+    const addr = this.modSolver!;
+    const id = ++this.modSolveSeq;
+    const board = this.board, conn = this.conn;
+    const input = { netlist: buildNetlist(board, conn, this.activeScenario.meta.title), meters, ...(this.ocpAmps > 0 && { currentLimit: this.ocpAmps }) };
+    this.codeHost.solve(addr, input).then((res) => {
+      if (id !== this.modSolveSeq || conn !== this.conn || !this.powerOn || this.modSolver !== addr) return;
+      this.sim = simFromResult(board, conn, res);
+      this.simFromMod = true;
+      this.applySim(false);
+      this.refreshProbes();
+      this.updateThermalPower();
+      this.renderTopHud();
+      this.renderDmm();
+      this.emitSolved();
+    }, (err: Error) => {
+      if (this.modSolver !== addr) return;
+      this.modSolver = null;
+      this.simFromMod = false;
+      this.toast(t('The solver {solver} failed ({error}); back to {official}.', { solver: addr, error: err.message, official: t(SOLVERS.find((x) => x.id === this.solver)?.name ?? this.solver) }), 'danger');
+      this.refreshSolverSelect();
+      this.recompute(true);
+      this.renderUI();
+    });
+  }
+
+  /** Item address of a listed board: a mod's, or a shipped one (official-boards). */
+  private addressOf(sc: Scenario): string | null {
+    const mb = this.modBoards.get(sc);
+    if (mb) return mb.address;
+    return this.bundledIds.has(sc.id) && !sc.generated ? officialBoardAddress(sc.id) : null;
+  }
+
+  /** Applies the running mods' board patches to every listed board, starting from the boards as shipped. */
+  private patchBoards() {
+    this.patchEntries = new Map();
+    this.patchLog.clear();
+    for (const mod of this.modResult.active) {
+      for (const patch of mod.manifest.patches) {
+        const l = this.patchEntries.get(patch.target) ?? [];
+        l.push({ modId: mod.manifest.id, modName: mod.manifest.name, patch });
+        this.patchEntries.set(patch.target, l);
+      }
+    }
+    for (const sc of this.scenarios) this.patchOne(sc);
+  }
+
+  private patchOne(sc: Scenario) {
+    const addr = this.addressOf(sc);
+    if (!addr) return;
+    const before = this.pristine.get(sc);
+    if (before) writeBoardView(sc, before);
+    const entries = this.patchEntries.get(addr);
+    if (!entries?.length) return;
+    if (!before) this.pristine.set(sc, boardView(sc));
+    this.patchLog.set(addr, { title: this.pristine.get(sc)!.title, res: applyBoardPatches(sc, entries) });
+  }
+
+  /** A puzzle in the board list; the board is built (faults planted on a working board) when opened. */
+  private puzzleEntry(mod: LoadedMod, pz: PuzzleSpec): ModBoard | null {
+    const mf = mod.manifest;
+    const id = puzzleScenarioId(mf.id, pz.id);
+    if (this.scenarios.some((s) => s.id === id)) {
+      mod.warnings.push(`puzzle "${pz.id}": a board with id "${id}" is already loaded (skipped)`);
+      return null;
+    }
+    const target = [...this.modBoards.values()].find((b) => b.address === pz.board);
+    let built: Scenario | null = null;
+    return {
+      mod: mf, spec: { id: pz.id, file: `puzzles/${pz.id}` }, address: itemAddress(mf.id, 'puzzles', pz.id), basedOn: pz.board,
+      stub: {
+        format: 'pcbfix/1', id, objectives: [], board: new Builder(10, 10).b,
+        meta: { title: pz.title, author: mf.author, difficulty: pz.difficulty, description: pz.description, hints: [], license: mf.license },
+      },
+      load: async () => built ?? (built = await this.buildPuzzleScenario(mf, pz)),
+      ...(target?.schematic && { schematic: target.schematic }),
+    };
+  }
+
+  private async buildPuzzleScenario(mf: ModManifest, pz: PuzzleSpec): Promise<Scenario> {
+    const idx = this.scenarios.findIndex((s) => this.addressOf(s) === pz.board);
+    if (idx < 0) throw new Error(`it needs the board ${pz.board}, which isn't loaded (is its mod on?)`);
+    const base = await this.ensureLoaded(idx);
+    if (!base) throw new Error(`could not load the board ${pz.board}`);
+    const ref = referenceBoard(base);
+    if (!ref) throw new Error(`${pz.board} is a challenge whose repair isn't known; a puzzle needs a working board`);
+    return buildPuzzle(pz, mf, base, ref, this.faults?.defs);
+  }
+
+  /** Knowledge packs for the open board (Overview tab): rails, where they come from, power-up order,
+   *  what to expect where, each with how sure it is. Folded on phones. */
+  private knowledgeHtml(sc: Scenario): string {
+    const conf = (c: Confidence) => `<span class="badge kn-conf ${c}" title="${t('How sure this is')}">${t(c)}</span>`;
+    return this.knowledgeFor(sc).map(({ mod, pack, stale }) => {
+      const badRef = new Set(stale.refs), badNet = new Set(stale.nets);
+      const ref = (r: string) => badRef.has(r)
+        ? `<span class="kn-stale-item" title="${t('Not on this board')}">${this.esc(r)}</span>`
+        : `<button class="kn-ref mono" data-kn-ref="${this.esc(r)}" title="${t('Show on the board')}">${this.esc(r)}</button>`;
+      const net = (n: string) => `<span class="mono${badNet.has(n) ? ' kn-stale-item' : ''}"${badNet.has(n) ? ` title="${t('Not on this board')}"` : ''}>${this.esc(n)}</span>`;
+      const rails = pack.rails.map((r) => `
+        <div class="kn-rail">
+          <div class="kn-rail-head">
+            ${net(r.net)}${r.nominal !== undefined ? ` <b>${+r.nominal.toPrecision(4)} V</b>` : ''}${r.domain ? ` <span class="muted">${this.esc(r.domain)}</span>` : ''}
+            ${r.source ? `<span class="muted">· ${t('from')}</span> ${ref(r.source.ref)}${r.source.kind ? ` <span class="muted">${this.esc(r.source.kind)}</span>` : ''}` : ''}
+            ${r.provenance.confidence !== pack.provenance.confidence ? conf(r.provenance.confidence) : ''}
+          </div>
+          ${r.checks.length ? `<ul class="kn-checks">${r.checks.map((c) => `<li>${ref(c.at)}${c.pin ? ` <span class="muted">${t('pin {pin}', { pin: this.esc(c.pin) })}</span>` : ''}: <b>${this.esc(c.expect)}</b>${c.readsLowIf ? `<div class="muted">${t('Reads low if: {why}', { why: this.esc(c.readsLowIf) })}</div>` : ''}</li>`).join('')}</ul>` : ''}
+          ${r.notes ? `<div class="text-2">${this.esc(r.notes)}</div>` : ''}
+          ${r.provenance.where && r.provenance.where !== pack.provenance.where ? `<div class="muted kn-src">${this.esc(r.provenance.where)}</div>` : ''}
+        </div>`).join('');
+      return `
+        <details class="card kn-card" ${this.mobile ? '' : 'open'}>
+          <summary class="card-title"><span>${t('Board knowledge')}${pack.title ? ` · ${this.esc(pack.title)}` : ''}</span>${conf(pack.provenance.confidence)}</summary>
+          <div class="muted">${t('from the mod «{name}»', { name: this.esc(mod.name) })}${pack.provenance.where ? ` · ${this.esc(pack.provenance.where)}` : ''}</div>
+          ${pack.powerUp.length ? `<div class="kn-power"><span class="muted">${t('Power-up order')}:</span> ${pack.powerUp.map(net).join(' <span class="muted">→</span> ')}</div>` : ''}
+          ${rails}
+          ${pack.notes.map((n) => `<div class="hint-item">${this.esc(n)}</div>`).join('')}
+          ${stale.refs.length || stale.nets.length ? `<div class="kn-stale">${t('Not on this board: {list}', { list: this.esc([...stale.refs, ...stale.nets].join(', ')) })}</div>` : ''}
+        </details>`;
+    }).join('');
+  }
+
+  /** «Where to look?»: after failed tests on a board whose working version is known (src/mods/rules.ts). */
+  private lookHereHtml(sc: Scenario): string {
+    const v = this.lastVerify;
+    const ref = referenceBoard(sc);
+    if (!v || v.allPassed || !ref || this.board.components.length > 200) return ''; // big boards: too slow to compare here
+    const got = this.lookHere?.forScenario === sc ? this.lookHere.candidates : null;
+    return `
+      <div class="card look-card">
+        <div class="card-title"><span>${t('Where to look?')}</span>${got ? '' : `<button class="btn sm" id="btn-look-here">${t('Suggest')}</button>`}</div>
+        ${got ? (got.length ? got.slice(0, 3).map((c, i) => `
+          <div class="look-cand">
+            <div><b>${i + 1}.</b> <button class="kn-ref mono" data-kn-ref="${this.esc(c.ref)}" title="${t('Show on the board')}">${this.esc(c.ref)}</button> <span class="muted">· ${this.esc(c.reasons[0].observation)}</span></div>
+            <div class="text-2">${this.esc(c.reasons.slice().sort((a, b) => b.confirm.length - a.confirm.length)[0].confirm)}</div>
+            ${c.reasons.length > 1 ? `<details class="mod-changes"><summary>${t('Why ({n} rules)', { n: c.reasons.length })}</summary><ul>${c.reasons.map((r) => `<li><span class="mono">${this.esc(r.rule)}</span>: ${this.esc(r.observation)}</li>`).join('')}</ul></details>` : ''}
+          </div>`).join('') : `<div class="muted">${t('No suggestion: what the bench shows doesn\'t match any rule. Measure the rails and compare with the notes.')}</div>`)
+        : `<div class="muted">${t('Compares what the bench shows with the working board and ranks the parts worth measuring first. It can give the fault away.')}</div>`}
+      </div>`;
+  }
+
+  private async suggestWhereToLook() {
+    const sc = this.activeScenario;
+    const ref = referenceBoard(sc);
+    if (!ref) return;
+    try {
+      const { observe, rankCandidates } = await import('../mods/rules-engine');
+      if (this.activeScenario !== sc) return;
+      const obs = observe(structuredClone(this.board), ref, sc.objectives, sc.solver ?? 'spice');
+      this.lookHere = { forScenario: sc, candidates: rankCandidates(obs, this.board, this.rules.rules) };
+    } catch (e) {
+      this.toast(t('Could not compare with the working board: {error}', { error: e instanceof Error ? e.message : String(e) }), 'danger');
+    }
+    this.renderMissionTab();
+  }
+
+  /** Selects a part by ref and frames it (Inspect tab). */
+  private gotoRef(ref: string) {
+    const c = this.board.components.find((x) => x.ref === ref);
+    if (!c) return;
+    this.selectedCompId = c.id;
+    this.activeTab = 'inspect';
+    if (this.camera.bothSides) this.camera.focusAt(c.side === 'B' ? this.board.w * 2 + BOTH_GAP - c.at[0] : c.at[0], c.at[1], 10);
+    else this.camera.focusAt(c.at[0], c.at[1], 10, c.side);
+    this.renderUI();
+  }
+
+  /** Knowledge packs of running mods for this board (or, for a puzzle, the board it's built on). */
+  private knowledgeFor(sc: Scenario): { mod: ModManifest; pack: KnowledgePack; stale: { refs: string[]; nets: string[] } }[] {
+    const addrs = new Set([this.addressOf(sc), this.modBoards.get(sc)?.basedOn].filter((a): a is string => !!a));
+    if (!addrs.size) return [];
+    return this.modResult.active.flatMap((m) => m.manifest.knowledge
+      .filter((k) => addrs.has(k.board))
+      .map((pack) => ({ mod: m.manifest, pack, stale: staleEntries(pack, this.board) })));
   }
 
   /** Installs a mod .zip (web: kept in browser storage; desktop: in the app's storage too). */
   /** Returns the number of warnings, or -1 when the mod was not installed. */
   private async installModFile(f: File): Promise<number> {
     const mod = await this.installModBytes(new Uint8Array(await f.arrayBuffer()), f.name);
-    return mod ? mod.warnings.length : -1;
+    return mod ? mod.warnings.length + (this.modActive(mod.manifest.id) ? 0 : 1) : -1;
+  }
+
+  /** Something in the Mods window needs the player: a mod failed to load or can't run. */
+  private modsNeedAttention() {
+    return this.modResult.failed.length > 0 || [...this.modResult.status.values()].some((st) => st.state === 'blocked');
+  }
+
+  private modActive(id: string) { return this.modResult.status.get(id)?.state === 'active'; }
+
+  private setLoadouts(s: LoadoutStore) {
+    this.loadouts = s;
+    writeLoadouts(s);
+  }
+
+  /** After a loadout change: reload which mods run and refresh the board list and the Mods window. */
+  private async applyLoadouts(s: LoadoutStore) {
+    this.setLoadouts(s);
+    await this.loadMods();
+    this.refreshScenarioSelect();
+    if (this.started) { this.recompute(true); this.renderUI(); }
+    if (this.showMods) this.renderModsModal();
   }
 
   /** Checks and installs a mod .zip, lists its boards and opens the first. Null when refused (toast says why). */
@@ -966,8 +1467,26 @@ export class PcbApp {
     try {
       const builtin = new Set(this.scenarios.filter((s) => !this.modBoards.has(s)).map((s) => s.id));
       const mod = await installMod(bytes, file, (id) => builtin.has(id));
+      if (mod.manifest.code) {
+        const perms = mod.manifest.code.permissions.length ? mod.manifest.code.permissions.join(', ') : t('none');
+        if (!confirm(t('«{name}» contains code. It runs in a sandbox, and only while code mods are on (Mods window). Permissions it asks for: {perms}. Install it?', { name: mod.manifest.name, perms }))) {
+          await removeInstalled(mod.manifest.id);
+          return null;
+        }
+      }
+      if (this.safeMode) {
+        this.toast(t('Installed mod «{name}». Safe mode is on: leave it to use the mod.', { name: mod.manifest.name }), 'info');
+        return mod;
+      }
+      // installing means "I want this": turn it on (leaving Official for My mods if needed)
+      if (!isModOn(this.loadouts, mod.manifest.id)) this.setLoadouts(setModOn(this.loadouts, mod.manifest.id, true));
       await this.loadMods();
       this.refreshScenarioSelect();
+      const st = this.modResult.status.get(mod.manifest.id);
+      if (st?.state === 'blocked') {
+        this.toast(t('Installed mod «{name}», but it needs: {needs}. See Mods.', { name: mod.manifest.name, needs: st.needs.map((n) => `${n.id} ${n.range}`).concat(st.conflicts.map((c) => t('not {mod}', { mod: c }))).join(', ') }), 'info');
+        return mod;
+      }
       const warn = mod.warnings.length ? ' ' + t('({n} warning: see Mods)|({n} warnings: see Mods)', { n: mod.warnings.length }) : '';
       this.toast(t('Installed mod «{name}» v{version}: {n} board|Installed mod «{name}» v{version}: {n} boards', { name: mod.manifest.name, version: mod.manifest.version, n: mod.boards.length }) + warn, mod.warnings.length ? 'info' : 'success');
       const first = this.scenarios.findIndex((s) => this.modBoards.get(s)?.mod.id === mod.manifest.id);
@@ -981,40 +1500,50 @@ export class PcbApp {
 
   /** Opens a scenario, fetching a demo board on first use. */
   private async openScenario(idx: number) {
+    const sc = await this.ensureLoaded(idx);
+    if (!sc) return;
+    this.loadScenario(sc);
+    if (this.started) {
+      const id = this.analyticsId(sc);
+      trackBoardView(id, id === 'custom' ? 'Custom board' : sc.meta.title);
+    }
+  }
+
+  /** The full scenario at `idx`: a demo is fetched and a mod board loaded on first use (patches
+   *  applied). Null when that fails; a toast says why. */
+  private async ensureLoaded(idx: number, quiet = false): Promise<Scenario | null> {
     let sc = this.scenarios[idx];
     const mb = this.modBoards.get(sc);
     if (mb && sc === mb.stub && !mb.stub.board.components.length) {
-      this.toast(t('Loading {title}…', { title: t(sc.meta.title) }), 'info');
+      if (!quiet) this.toast(t('Loading {title}…', { title: t(sc.meta.title) }), 'info');
       try {
         const full = await mb.load();
         this.modBoards.delete(sc);
         this.modBoards.set(full, mb);
         this.scenarios[idx] = sc = full;
+        this.patchOne(full);
       } catch (err) {
         this.toast(t('Could not load {title} (mod «{mod}»): {error}', { title: sc.meta.title, mod: mb.mod.name, error: err instanceof Error ? err.message : String(err) }), 'danger');
-        return;
+        return null;
       }
     }
     const url = this.demoUrls.get(sc);
     if (url) {
-      this.toast(t('Loading {title}…', { title: t(sc.meta.title) }), 'info');
+      if (!quiet) this.toast(t('Loading {title}…', { title: t(sc.meta.title) }), 'info');
       try {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const full = importScenarioOrPcb('demo.pcbfix.json', await res.text());
         this.demoUrls.delete(sc);
         this.scenarios[idx] = sc = full;
+        this.patchOne(full);
       } catch (err) {
         this.toast(t('Could not load the demo board: {error}', { error: err instanceof Error ? err.message : String(err) }), 'danger');
         this.refreshScenarioSelect();
-        return;
+        return null;
       }
     }
-    this.loadScenario(sc);
-    if (this.started) {
-      const id = this.analyticsId(sc);
-      trackBoardView(id, id === 'custom' ? 'Custom board' : sc.meta.title);
-    }
+    return sc;
   }
 
   private analyticsId(sc: Scenario): string {
@@ -1115,8 +1644,12 @@ export class PcbApp {
     this.boot.powerOff(); // a new board powers up from scratch
     if (sc.solver && sc.solver !== this.solver) {
       this.solver = sc.solver; // for this board only: the saved preference is left alone
-      if (sc.solver === 'spice-power') this.toast(t('This board runs on Solver: SPICE + PWR (regulator models and power states).'), 'info');
+      if (sc.solver === 'spice-power' && !sc.modSolver) this.toast(t('This board runs on Solver: SPICE + PWR (regulator models and power states).'), 'info');
     }
+    this.simFromMod = false;
+    this.lastVerifyBy = null;
+    if (sc.modSolver) this.useBoardSolver(sc);
+    this.emitBoardLoaded();
     this.authorMode = false;
     this.tutorialStep = 0;
     if (isTutorialScenario(sc.id)) {
@@ -1191,6 +1724,7 @@ export class PcbApp {
     }
     this.refreshProbes();
     this.updateThermalPower();
+    this.emitSolved();
   }
 
   /** Consequences of a fresh solve: parts that overloaded burn out (then re-solve). */
@@ -1235,7 +1769,7 @@ export class PcbApp {
         this.solveWorker.onerror = () => { this.solveWorker = null; if (this.pendingSolve) { this.pendingSolve = 0; this.recompute(true); } };
       } catch { this.solveWorker = null; }
     }
-    if (!this.solveWorker || this.psuInject) { this.recompute(true); return; }
+    if (!this.solveWorker || this.psuInject || this.modSolver) { this.recompute(true); return; }
     const id = ++this.solveSeq;
     this.pendingSolve = id;
     const opts = {
@@ -1243,7 +1777,7 @@ export class PcbApp {
       ...(this.bootSequenced && this.boot.state !== 'OFF' && { powerState: this.boot.state, loadScale: this.activeScenario.calibration?.loadScale }),
       meters: this.dmmMode === 'V' && this.probeRed && this.probeRed.net >= 0 ? [[this.probeRed.net, this.probeBlack?.net ?? -1] as [number, number]] : [],
     };
-    this.solveWorker.postMessage({ id, board: this.board, solver: this.solver, opts });
+    this.solveWorker.postMessage({ id, board: this.board, solver: this.solver, opts, devices: [...deviceOverlay()], dmm: activeDmm() });
     this.solveFor = this.conn;
   }
   private solveFor: Conn | null = null;
@@ -1260,6 +1794,7 @@ export class PcbApp {
     this.updateThermalPower();
     this.renderTopHud();
     this.renderDmm();
+    this.emitSolved();
   }
 
   private onReworkEvents(evs: ReworkEvent[]) {
@@ -1294,6 +1829,13 @@ export class PcbApp {
       this.dmmMode === 'V' && this.probeRed && this.probeRed.net >= 0
         ? [[this.probeRed.net, this.probeBlack?.net ?? -1]]
         : [];
+    if (this.modSolver && !this.psuInject) {
+      // a solver mod answers asynchronously: keep its last answer meanwhile (never burn on a stand-in)
+      this.requestModSolve(meters);
+      if (this.simFromMod && this.sim) return this.sim;
+      return { nodeOfNet: new Map(), V: new Float64Array(0), ground: -1, comps: new Map(), source: false };
+    }
+    this.simFromMod = false;
     if (this.psuInject && this.probeRed && this.probeRed.net >= 0) {
       // injection replaces the board supply; always a SPICE solve (needs current limiting)
       return runSolver(this.solver === 'fast' ? 'spice' : this.solver, this.board, this.conn, {
@@ -1588,13 +2130,14 @@ export class PcbApp {
     let r = m.get(key);
     if (!r) {
       const rnd = placementRng('amp', a, b);
-      const ohms = AMMETER_SHUNT + GENERIC_DMM.leadOhms + contactResistance(GENERIC_DMM, rnd) + contactResistance(GENERIC_DMM, rnd);
+      const dmm = activeDmm();
+      const ohms = AMMETER_SHUNT + dmm.leadOhms + contactResistance(dmm, rnd) + contactResistance(dmm, rnd);
       const s = runSolver(this.solver === 'fast' ? 'spice' : this.solver, this.board, this.conn, {
         ...(this.ocpAmps > 0 && { currentLimit: this.ocpAmps }),
         ...(this.bootSequenced && this.boot.state !== 'OFF' && { powerState: this.boot.state, loadScale: this.activeScenario.calibration?.loadScale }),
         ammeter: { a, b, ohms },
       }) as Sim & { ammeterAmps?: number };
-      r = s.source ? displayAmps(s.ammeterAmps ?? 0, GENERIC_DMM, rnd) : { text: '0.0 mA', value: 0, sub: t('no supply') };
+      r = s.source ? displayAmps(s.ammeterAmps ?? 0, activeDmm(), rnd) : { text: '0.0 mA', value: 0, sub: t('no supply') };
       m.set(key, r);
     }
     return r;
@@ -1660,10 +2203,28 @@ export class PcbApp {
 
   private async runVerify() {
     this.recompute(false);
-    const res = await verifyScenario(this.activeScenario, this.board, this.solver);
+    const addr = this.modSolver;
+    let res: VerifyResult;
+    try {
+      res = await verifyScenario(this.activeScenario, this.board, this.solver, addr
+        ? async (o, board, conn) => simFromResult(board, conn, await this.codeHost.solve(addr, { netlist: buildNetlist(board, conn, this.activeScenario.meta.title, o.switches), meters: o.meters }))
+        : undefined);
+      this.lastVerifyBy = addr;
+    } catch (err) {
+      // the solver mod failed mid-test: test on the official solver instead
+      this.toast(t('The solver {solver} failed ({error}); back to {official}.', { solver: addr ?? '', error: err instanceof Error ? err.message : String(err), official: t(SOLVERS.find((x) => x.id === this.solver)?.name ?? this.solver) }), 'danger');
+      this.modSolver = null;
+      this.lastVerifyBy = null;
+      this.refreshSolverSelect();
+      res = await verifyScenario(this.activeScenario, this.board, this.solver);
+    }
     this.lastVerify = res;
     this.trackOnce(`tests:${this.activeScenario.id}`, 'tests run', { board: this.analyticsId(this.activeScenario), result: res.flag || (res.allPassed && !res.topologyMismatch) ? 'pass' : 'fail' });
     if (res.flag || (res.allPassed && !res.topologyMismatch && !this.activeScenario.lock)) this.trackFix();
+    if (this.runningCode.size) {
+      this.codeHost.emit('tests:run', { passed: res.allPassed && !res.topologyMismatch, results: res.results.map((r) => ({ label: r.label, passed: r.passed, detail: r.detail })) });
+      if (res.flag) this.codeHost.emit('flag:unlocked', { title: this.activeScenario.meta.title });
+    }
     if (res.flag) {
       this.revealedFlag = res.flag;
       if (!this.activeScenario.generated) {
@@ -1784,9 +2345,22 @@ export class PcbApp {
     });
     q('#solver-select').addEventListener('change', (e) => {
       const v = (e.target as HTMLSelectElement).value;
-      this.solver = v === 'spice' || v === 'spice-power' ? v : 'fast';
-      try { localStorage.setItem('pcbfix_solver', this.solver); } catch { /* storage unavailable */ }
+      if (v.includes('/')) {
+        this.modSolver = v; // a solver mod; measurements it doesn't do (Ω, diode, injection) stay on the official solver
+      } else {
+        this.modSolver = null;
+        this.solver = v === 'spice' || v === 'spice-power' ? v : 'fast';
+        try { localStorage.setItem('pcbfix_solver', this.solver); } catch { /* storage unavailable */ }
+      }
+      this.simFromMod = false;
       this.boot.powerOff(); // power up again under the new model
+      this.recompute(false);
+      this.renderUI();
+    });
+    q('#meter-select').addEventListener('change', (e) => {
+      this.meterChoice = (e.target as HTMLSelectElement).value;
+      try { localStorage.setItem('deadboard_meter', this.meterChoice); } catch { /* storage unavailable */ }
+      this.applyMeter();
       this.recompute(false);
       this.renderUI();
     });
@@ -1977,7 +2551,20 @@ export class PcbApp {
     if (/\.zip$/i.test(f.name)) { await this.installModFile(f); return; }
     try {
       const bytes = new Uint8Array(await f.arrayBuffer());
-      const sc = importScenarioOrPcb(f.name, bytes);
+      // file types the app knows go to its importers first; a mod importer takes the others,
+      // and a known type the official importer refuses (e.g. another program's .brd)
+      const lower = f.name.toLowerCase();
+      const imp = this.codeHost.importers().find((x) => x.extensions.some((e) => lower.endsWith(e)));
+      const viaMod = async () => {
+        this.toast(t('Opening {file} with the importer «{name}» (mod «{mod}»)…', { file: f.name, name: imp!.name, mod: imp!.modId }), 'info');
+        const { scenarioFromImport } = await import('../mods/api/importing');
+        return scenarioFromImport(await this.codeHost.importFile(imp!.address, { name: f.name, bytes }), f.name, imp!.modId);
+      };
+      let sc: Scenario;
+      if (imp && !/\.(kicad_pcb|brd|tvw|json)$/.test(lower)) sc = await viaMod();
+      else {
+        try { sc = importScenarioOrPcb(f.name, bytes); } catch (err) { if (!imp) throw err; sc = await viaMod(); }
+      }
       this.scenarios.push(sc);
       this.loadScenario(sc);
       this.toast(t('Loaded {title} ({parts} parts, {traces} traces)', { title: t(sc.meta.title), parts: sc.board.components.length, traces: sc.board.traces.length }), 'success');
@@ -2010,6 +2597,7 @@ export class PcbApp {
     sfxClick();
     this.recompute(false);
     this.renderUI();
+    if (this.runningCode.size) this.codeHost.emit('power:changed', { on: this.powerOn, nets: this.powerOn ? this.netVoltsByName() : {} });
   }
 
   private canvasPt(e: PointerEvent | WheelEvent): { sx: number; sy: number; w: number; h: number } {
@@ -2631,7 +3219,8 @@ export class PcbApp {
     }
     (this.mount.querySelector('#viz-select') as HTMLSelectElement).value = this.vizMode;
     (this.mount.querySelector('#ocp-select') as HTMLSelectElement).value = String(this.ocpAmps);
-    (this.mount.querySelector('#solver-select') as HTMLSelectElement).value = this.solver;
+    this.refreshSolverSelect();
+    this.applyMeter();
   }
 
   private renderTopHud() {
@@ -2806,6 +3395,19 @@ export class PcbApp {
       }
     }
 
+    if (this.runningCode.size) {
+      const name0 = (p: { net: number } | null) => (p && p.net >= 0 ? this.conn?.netNames[p.net] || `#${p.net}` : null);
+      const pk = `${name0(this.probeRed)}|${name0(this.probeBlack)}`;
+      if (pk !== this.lastProbeKey) { this.lastProbeKey = pk; this.codeHost.emit('probe:placed', { red: name0(this.probeRed), black: name0(this.probeBlack) }); }
+    }
+    if (this.runningCode.size && (this.probeRed || this.probeBlack)) {
+      const name = (p: { net: number } | null) => (p && p.net >= 0 ? this.conn?.netNames[p.net] || `#${p.net}` : null);
+      const key = `${this.dmmMode}|${name(this.probeRed)}|${name(this.probeBlack)}|${reading}`;
+      if (key !== this.lastMeasureKey) {
+        this.lastMeasureKey = key;
+        this.codeHost.emit('measure:taken', { mode: this.dmmMode, red: name(this.probeRed), black: name(this.probeBlack), text: reading });
+      }
+    }
     this.dmmBoxEl.innerHTML = `
       <div class="dmm-card${this.mobile && this.dmmSubFull ? ' full' : ''}" style="transform: translate3d(${this.dmmPos[0]}px, ${this.dmmPos[1]}px, 0)">
         <div class="dmm-head" title="${t('Drag to move window')}">
@@ -2880,8 +3482,11 @@ export class PcbApp {
     this.renderTopHud();
     this.renderDmm();
     this.renderTutorial();
+    const hasPanels = this.codeHost.panels().length > 0;
+    if (!hasPanels && this.activeTab === 'mods') this.activeTab = 'mission';
     this.mount.querySelectorAll<HTMLButtonElement>('.tab[data-tab]').forEach((b) => {
       b.classList.toggle('active', b.dataset.tab === this.activeTab);
+      if (b.dataset.tab === 'mods') b.hidden = !hasPanels;
     });
     this.renderSideBody();
   }
@@ -3077,6 +3682,7 @@ export class PcbApp {
   private renderSideBody() {
     if (this.activeTab === 'mission') this.renderMissionTab();
     else if (this.activeTab === 'inspect') this.renderInspectTab();
+    else if (this.activeTab === 'mods') this.renderModPanelsTab();
     else this.renderStudioTab();
     if (this.mobile) {
       this.sideBodyEl.querySelectorAll<HTMLElement>('.callout').forEach((c) => {
@@ -3184,6 +3790,7 @@ export class PcbApp {
           <span>${t('Objectives')}</span>
           <button class="btn sm primary" id="btn-panel-verify">${icon('play', 12)}<span>${t('Run tests')}</span></button>
         </div>
+        ${v && this.lastVerifyBy ? `<div class="muted" style="font-size:12px">${t('Tested with the solver mod {solver}, not an official solver.', { solver: this.esc(this.codeHost.solvers().find((x) => x.address === this.lastVerifyBy)?.name ?? this.lastVerifyBy) })}</div>` : ''}
         ${s.objectives.length === 0 ? `<div class="muted">${t('No objectives defined.')}</div>` : ''}
         ${(v ? v.results : s.objectives.map((o) => ({
           objective: o,
@@ -3221,8 +3828,12 @@ export class PcbApp {
           `).join('')}
         </div>
       ` : ''}
+      ${this.lookHereHtml(s)}
+      ${this.knowledgeHtml(s)}
     `;
 
+    this.sideBodyEl.querySelectorAll<HTMLButtonElement>('[data-kn-ref]').forEach((b) => b.addEventListener('click', () => this.gotoRef(b.dataset.knRef!)));
+    this.sideBodyEl.querySelector('#btn-look-here')?.addEventListener('click', () => void this.suggestWhereToLook());
     this.sideBodyEl.querySelector('#btn-panel-verify')?.addEventListener('click', () => void this.runVerify());
     this.sideBodyEl.querySelector('#btn-gen')?.addEventListener('click', () => void this.generateNext());
     this.sideBodyEl.querySelectorAll<HTMLButtonElement>('[data-gen-n]').forEach((b) => {
@@ -3561,12 +4172,13 @@ export class PcbApp {
 
   /** Author-mode fault injection for one part: every fault class that fits it, with severity. */
   private faultCardHtml(c: Component): string {
-    const classes = applicableFaults(c);
-    const cls = classes.includes(this.faultClass) ? this.faultClass : classes[0];
-    const hint = cls ? severityHint(cls) : null;
-    const jointFault = cls === 'cold-joint' || cls === 'thermal-open-joint' || cls === 'flex-open-joint' || cls === 'flex-close-joint' || cls === 'net-break';
+    const types = faultTypesFor(c, this.faults);
+    const ft = types.find((x) => x.address === this.faultClass) ?? types[0];
+    const cls = ft?.address;
+    const hint = ft ? (ft.cls ? severityHint(ft.cls) : ft.severity && { ...ft.severity, what: tk('severity') }) : null;
+    const jointFault = !!ft?.padChoice;
     const faults = listFaults(c);
-    const fastBlind = this.solver === 'fast' && (faults.some((f) => f.spiceOnly) || (cls && needsSpice(cls)));
+    const fastBlind = this.solver === 'fast' && (faults.some((f) => f.spiceOnly) || !!ft?.spiceOnly);
     return `
       <div class="card">
         <div class="card-title">${t('Fault injection')} · ${this.esc(c.ref)}</div>
@@ -3579,7 +4191,7 @@ export class PcbApp {
           <div class="field">
             <label>${t('Fault class')}</label>
             <select id="sab-class">
-              ${classes.map((k) => `<option value="${k}" ${k === cls ? 'selected' : ''}>${this.esc(t(FAULT_LABELS[k]))}</option>`).join('')}
+              ${types.map((k) => `<option value="${this.esc(k.address)}" ${k.address === cls ? 'selected' : ''}>${this.esc(k.cls ? t(k.label) : `${k.label} · ${k.modId}`)}</option>`).join('')}
             </select>
           </div>
           <div class="grid-2">
@@ -3618,22 +4230,25 @@ export class PcbApp {
   private bindFaultCard(c: Component) {
     const q = <T extends HTMLElement>(s: string) => this.sideBodyEl.querySelector<T>(s);
     q<HTMLSelectElement>('#sab-class')?.addEventListener('change', (e) => {
-      this.faultClass = (e.target as HTMLSelectElement).value as FaultClass;
+      this.faultClass = (e.target as HTMLSelectElement).value;
       this.renderInspectTab();
     });
     q('#sab-inject')?.addEventListener('click', () => {
-      const cls = (q<HTMLSelectElement>('#sab-class')?.value ?? '') as FaultClass;
-      if (!applicableFaults(c).includes(cls)) return;
+      const ft = faultTypesFor(c, this.faults).find((x) => x.address === q<HTMLSelectElement>('#sab-class')?.value);
+      if (!ft) return;
+      const cls = ft.cls;
       const padRaw = q<HTMLSelectElement>('#sab-pad')?.value ?? '';
       const sevRaw = (q<HTMLInputElement>('#sab-sev')?.value ?? '').trim();
       let severity: number | undefined;
       if (sevRaw) {
-        severity = severityHint(cls)?.unit === 'Ω' ? parseValue(sevRaw) : Number(sevRaw);
+        severity = (cls ? severityHint(cls)?.unit : ft.severity?.unit) === 'Ω' ? parseValue(sevRaw) : Number(sevRaw);
         if (!Number.isFinite(severity) || severity <= 0) { this.toast(t('Invalid severity'), 'danger'); return; }
-        if (cls === 'flex-open-joint' || cls === 'flex-close-joint') severity = Math.min(severity, 1);
+        if (cls === 'flex-open-joint' || cls === 'flex-close-joint' || ft.severity?.unit === 'flex') severity = Math.min(severity, 1);
       }
       this.pushUndo();
-      const f = injectFault(c, cls, rng((Math.random() * 2 ** 32) >>> 0), { severity, ...(padRaw !== '' && { pad: Number(padRaw) }) });
+      const opts = { severity, ...(padRaw !== '' && { pad: Number(padRaw) }) };
+      const rnd = rng((Math.random() * 2 ** 32) >>> 0);
+      const f = cls ? injectFault(c, cls as FaultClass, rnd, opts) : injectFaultType(ft.def!, c, rnd, opts);
       updateIntermittents(this.board, this.environment()); // a new intermittent takes its present state at once
       sfxClick();
       this.toast(f.describe, 'info');
@@ -4013,7 +4628,7 @@ export class PcbApp {
           <div class="m-cat-foot">
             <button class="btn sm" id="cat-new">${icon('plus', 13)}<span>${t('Blank')}</span></button>
             <button class="btn sm" id="cat-import">${icon('upload', 13)}<span>${t('Import')}</span></button>
-            <button class="btn sm" id="cat-mods">${icon('box', 13)}<span>${t('Mods')}${this.modResult.failed.length ? ' ⚠' : ''}</span></button>
+            <button class="btn sm" id="cat-mods">${icon('box', 13)}<span>${t('Mods')}${this.modsNeedAttention() ? ' ⚠' : ''}</span></button>
           </div>
         </div>
       </div>
@@ -4028,7 +4643,7 @@ export class PcbApp {
             <div class="row">
               <button class="btn sm" id="cat-new">${icon('plus', 13)}<span>${t('Blank board')}</span></button>
               <button class="btn sm" id="cat-import">${icon('upload', 13)}<span>${t('Import')}</span></button>
-              <button class="btn sm" id="cat-mods" title="${t('Install, remove and make mods')}">${icon('box', 13)}<span>${t('Mods')}${this.modResult.failed.length ? ' ⚠' : ''}</span></button>
+              <button class="btn sm" id="cat-mods" title="${t('Install, remove and make mods')}">${icon('box', 13)}<span>${t('Mods')}${this.modsNeedAttention() ? ' ⚠' : ''}</span></button>
               <button class="btn ghost icon sm" id="modal-close" title="${t('Close (Esc)')}">${icon('x', 14)}</button>
             </div>
           </div>
@@ -4102,21 +4717,46 @@ export class PcbApp {
     const { mods, failed } = this.modResult;
     const browse = this.modsView === 'browse' && !!this.modio;
     const boardIdx = (b: ModBoard) => this.scenarios.findIndex((s) => this.modBoards.get(s) === b);
+    const official = this.loadouts.active === OFFICIAL;
+    const needLine = (n: ModNeed) => {
+      const id = this.esc(n.id), range = this.esc(n.range);
+      const find = this.modio ? `<button class="btn sm ghost" data-mod-find="${id}">${icon('globe', 11)}<span>${t('Find on mod.io')}</span></button>` : '';
+      if (n.why === 'missing') return `<li><span>${t('needs «{mod}» {range}: not installed', { mod: id, range })}</span>${find}</li>`;
+      if (n.why === 'version') return `<li><span>${t('needs «{mod}» {range}: you have {have}', { mod: id, range, have: this.esc(n.have ?? '?') })}</span>${find}</li>`;
+      if (n.why === 'off') return `<li><span>${t('needs «{mod}»: it is turned off', { mod: id })}</span><button class="btn sm ghost" data-mod-enable="${id}">${t('Turn on')}</button></li>`;
+      return `<li><span>${t('needs «{mod}», which can\'t run either', { mod: id })}</span></li>`;
+    };
     const modCards = mods.map((m) => {
       const mf = m.manifest;
+      const st = this.modResult.status.get(mf.id);
+      const on = isModOn(this.loadouts, mf.id);
+      const reqs = Object.entries(mf.requires);
       return `
-        <div class="card mod-card">
+        <div class="card mod-card${st?.state === 'active' ? '' : ' mod-inactive'}">
           <div class="mod-head">
             <div>
               <div class="mod-name">${this.esc(mf.name)} <span class="muted mono">v${this.esc(mf.version)}</span></div>
               <div class="muted">${t('by {author}', { author: this.esc(mf.author) })} · ${this.esc(mf.license)} · ${this.esc(t(m.source.origin))}${mf.homepage ? ` · <a href="${this.esc(mf.homepage)}" target="_blank" rel="noopener">${t('homepage')}</a>` : ''}</div>
             </div>
-            ${m.source.origin === 'Installed' ? `<button class="btn sm ghost" data-mod-remove="${this.esc(mf.id)}" title="${t('Remove this mod')}">${icon('x', 12)}<span>${t('Remove')}</span></button>` : ''}
+            <div class="row">
+              <label class="mod-toggle" title="${official ? t('Turning a mod on switches to «My mods»') : t('Turn this mod on or off in this loadout')}"><input type="checkbox" data-mod-on="${this.esc(mf.id)}" ${on ? 'checked' : ''} /><span>${on ? t('On') : t('Off')}</span></label>
+              ${m.source.origin === 'Installed' ? `<button class="btn sm ghost" data-mod-remove="${this.esc(mf.id)}" title="${t('Remove this mod')}">${icon('x', 12)}<span>${t('Remove')}</span></button>` : ''}
+            </div>
           </div>
           ${mf.description ? `<p class="text-2" style="margin:0">${this.esc(mf.description)}</p>` : ''}
+          ${reqs.length ? `<div class="muted mod-reqs">${t('Uses: {mods}', { mods: reqs.map(([id, r]) => `${this.esc(id)} ${this.esc(r)}`).join(', ') })}</div>` : ''}
+          ${st?.state === 'blocked' ? `
+            <div class="mod-needs">
+              <div>${t("Can't run:")}</div>
+              <ul>${st.needs.map(needLine).join('')}${st.conflicts.map((c) => `<li><span>${t("can't run together with «{mod}»", { mod: this.esc(c) })}</span></li>`).join('')}</ul>
+            </div>` : ''}
+          ${mf.code ? this.codeHtml(m) : ''}
+          ${st?.state === 'active' ? this.modChangesHtml(mf) : ''}
+          ${st?.state === 'active' ? this.benchHtml(mf.id) : ''}
+          ${st?.state === 'active' && m.boards.length ? `
           <div class="mod-boards">
             ${m.boards.map((b) => `<button class="btn sm" data-mod-open="${boardIdx(b)}">${icon('play', 11)}<span>${this.esc(b.stub.meta.title)}</span>${b.schematic ? `<span class="muted">· ${t('schematic')}</span>` : ''}</button>`).join('')}
-          </div>
+          </div>` : ''}
           ${m.warnings.length ? `<details class="mod-warn"><summary>${t('{n} warning|{n} warnings', { n: m.warnings.length })}</summary><ul>${m.warnings.map((w) => `<li>${this.esc(w)}</li>`).join('')}</ul></details>` : ''}
         </div>`;
     }).join('');
@@ -4158,6 +4798,13 @@ export class PcbApp {
                 <button class="btn sm ghost" id="mods-export">${icon('download', 13)}<span>${t('Current board as a mod')}</span></button>
               </div>
             </div>
+            ${this.safeMode ? `
+              <div class="card mod-failed mod-safe">
+                <span>${t('Safe mode: mods are off for this visit.')}</span>
+                <button class="btn sm" id="mods-leave-safe">${t('Leave safe mode')}</button>
+              </div>` : this.loadoutBarHtml()}
+            ${mods.some((m) => m.manifest.code) || this.codeModsOn ? this.codeSwitchHtml() : ''}
+            ${this.officialCardsHtml()}
             ${failedCards}
             ${modCards || `<div class="muted" style="padding:24px;text-align:center">${this.modio ? t('No mods yet. Browse mod.io, install a mod .zip, or make one from any board with «Current board as a mod».') : t('No mods yet. Install a mod .zip, or make one from any board with «Current board as a mod».')}</div>`}
             `}
@@ -4197,6 +4844,55 @@ export class PcbApp {
       close();
       if (this.scenarios[i]) void this.openScenario(i);
     }));
+    root.querySelector<HTMLInputElement>('#code-mods-on')?.addEventListener('change', (e) => {
+      const on = (e.target as HTMLInputElement).checked;
+      if (on && !confirm(t('Code mods run other people\'s programs inside DEADBOARD. They run in a sandbox with no access to the page, your files or the network (unless a mod asks and you allow it), but this protection hasn\'t had an outside security review yet. Turn on code mods?'))) { (e.target as HTMLInputElement).checked = false; return; }
+      this.codeModsOn = on;
+      try { localStorage.setItem('deadboard_code_mods', on ? '1' : '0'); } catch { /* storage unavailable */ }
+      void this.syncCodeMods();
+      this.renderModsModal();
+    });
+    root.querySelectorAll<HTMLButtonElement>('[data-use-solver]').forEach((b) => b.addEventListener('click', () => {
+      this.modSolver = b.dataset.useSolver!;
+      this.simFromMod = false;
+      this.refreshSolverSelect();
+      this.boot.powerOff();
+      this.recompute(false);
+      this.renderUI();
+      this.renderModsModal();
+      this.toast(t('Solving with {solver}. Switch back under Bench → Solver.', { solver: this.codeHost.solvers().find((x) => x.address === this.modSolver)?.name ?? '' }), 'info');
+    }));
+    root.querySelectorAll<HTMLButtonElement>('[data-mod-bench]').forEach((b) => b.addEventListener('click', () => void this.runBenchCheck(b.dataset.modBench!)));
+    root.querySelectorAll<HTMLInputElement>('[data-mod-on]').forEach((el) => el.addEventListener('change', () => {
+      void this.applyLoadouts(setModOn(this.loadouts, el.dataset.modOn!, el.checked));
+    }));
+    root.querySelectorAll<HTMLButtonElement>('[data-mod-enable]').forEach((b) => b.addEventListener('click', () => {
+      void this.applyLoadouts(setModOn(this.loadouts, b.dataset.modEnable!, true));
+    }));
+    root.querySelectorAll<HTMLButtonElement>('[data-mod-find]').forEach((b) => b.addEventListener('click', () => {
+      this.modsView = 'browse';
+      this.modioQ = b.dataset.modFind!;
+      this.renderModsModal();
+      void this.loadModioPage(true);
+    }));
+    root.querySelector('#mods-leave-safe')?.addEventListener('click', () => {
+      // reload without ?safe (a reload is needed even when the address doesn't change: automatic safe mode)
+      history.replaceState(history.state, '', this.leaveSafeUrl());
+      location.reload();
+    });
+    root.querySelector<HTMLSelectElement>('#loadout-select')?.addEventListener('change', (e) => {
+      void this.applyLoadouts(switchLoadout(this.loadouts, (e.target as HTMLSelectElement).value));
+    });
+    root.querySelector('#loadout-new')?.addEventListener('click', () => {
+      const name = prompt(t('Name of the new loadout'), '');
+      if (name === null) return;
+      void this.applyLoadouts(newLoadout(this.loadouts, name || t('Loadout'), mods.map((m) => m.manifest.id)));
+    });
+    root.querySelector('#loadout-delete')?.addEventListener('click', () => {
+      const l = this.loadouts.custom.find((x) => x.id === this.loadouts.active);
+      if (!l || !confirm(t('Delete the loadout «{name}»? Your mods stay installed.', { name: l.name }))) return;
+      void this.applyLoadouts(deleteLoadout(this.loadouts, l.id));
+    });
     root.querySelectorAll<HTMLButtonElement>('[data-mod-remove]').forEach((b) => b.addEventListener('click', async () => {
       const id = b.dataset.modRemove!;
       const name = mods.find((m) => m.manifest.id === id)?.manifest.name ?? id;
@@ -4212,6 +4908,200 @@ export class PcbApp {
       }
       this.renderModsModal();
     }));
+  }
+
+  /** A field value in a few words, for the list of changes. */
+  private briefValue(field: string, v: unknown): string {
+    if (v === undefined || v === null) return '—';
+    if (Array.isArray(v) && field === 'units') {
+      // a device's units: kind and the key number of each (Vth, Vf at the first point, hFE)
+      return this.esc((v as Record<string, unknown>[]).map((u) => {
+        const vf = Array.isArray(u.vf) ? (u.vf as number[][])[0] : null;
+        return `${u.kind}${typeof u.vth === 'number' ? ` Vth ${u.vth} V` : ''}${vf ? ` Vf ${vf[0]} V @ ${vf[1]} A` : ''}${typeof u.hfe === 'number' ? ` hFE ${u.hfe}` : ''}`;
+      }).join(', '));
+    }
+    if (Array.isArray(v)) return field === 'objectives' ? t('{n} test|{n} tests', { n: v.length }) : t('{n} note|{n} notes', { n: v.length });
+    const s = String(v);
+    return this.esc(field === 'title' || field === 'description' ? `«${s.length > 48 ? s.slice(0, 47) + '…' : s}»` : s);
+  }
+
+  /** What a running mod's patches did: changed fields, conflicts, skipped patches, missing targets. */
+  private modChangesHtml(mf: ModManifest): string {
+    const lines: string[] = [];
+    const warn: string[] = [];
+    const titleOf = (addr: string) => this.esc(t(this.patchLog.get(addr)?.title ?? addr));
+    for (const [addr, { res }] of this.patchLog) {
+      for (const c of res.changes.filter((x) => x.modId === mf.id)) {
+        lines.push(`<li><b>${titleOf(addr)}</b> · ${this.esc(c.field)}: ${this.briefValue(c.field, c.before)} → ${this.briefValue(c.field, c.after)}${c.why ? `<div class="muted">${this.esc(c.why)}</div>` : ''}</li>`);
+      }
+      for (const c of res.conflicts.filter((x) => x.mods.includes(mf.id))) {
+        const winner = c.mods[c.mods.length - 1];
+        warn.push(`<li>${t('{board}: «{field}» is also set by {mods}; {winner} wins (loaded last)', { board: titleOf(addr), field: this.esc(c.field), mods: this.esc(c.mods.filter((x) => x !== mf.id).join(', ')), winner: this.esc(winner) })}</li>`);
+      }
+      for (const sk of res.skipped.filter((x) => x.modId === mf.id)) {
+        warn.push(`<li>${t('{board}: patch skipped ({why})', { board: titleOf(addr), why: this.esc(sk.problems.join('; ')) })}</li>`);
+      }
+    }
+    const listed = new Set([...this.scenarios.map((s) => this.addressOf(s)), ...(this.devices?.addresses ?? []), ...(this.faults?.addresses ?? []), ...(this.meters?.addresses ?? []), ...this.rules.addresses]);
+    for (const c of this.devices?.clashes ?? []) {
+      if (c.mods.includes(mf.id)) warn.push(`<li>${t('{mpn} is also added by {mods}; {winner} is used (loaded last)', { mpn: this.esc(c.mpn), mods: this.esc(c.mods.filter((x) => x !== mf.id).join(', ')), winner: this.esc(c.mods[c.mods.length - 1]) })}</li>`);
+    }
+    const targets = [...mf.patches.map((p) => p.target), ...mf.knowledge.map((k) => k.board), ...mf.puzzles.map((p) => p.board)];
+    for (const addr of new Set(targets)) if (!listed.has(addr)) warn.push(`<li>${t('{board} is not loaded, so what this mod adds to it is unused', { board: this.esc(addr) })}</li>`);
+    const adds = [
+      mf.knowledge.length ? t('{n} knowledge pack|{n} knowledge packs', { n: mf.knowledge.length }) : '',
+      mf.puzzles.length ? t('{n} puzzle|{n} puzzles', { n: mf.puzzles.length }) : '',
+      mf.faultTypes.length ? t('{n} fault type|{n} fault types', { n: mf.faultTypes.length }) + ` (${this.esc(mf.faultTypes.map((f) => f.name).join(', '))})` : '',
+      mf.rules.length ? t('{n} rule|{n} rules', { n: mf.rules.length }) : '',
+      mf.meters.length ? t('{n} meter|{n} meters', { n: mf.meters.length }) + ` (${this.esc(mf.meters.map((m) => m.name).join(', '))})` : '',
+      mf.devices.length ? t('{n} device model|{n} device models', { n: mf.devices.length }) + ` (${this.esc(mf.devices.map((d) => d.mpn).join(', '))})` : '',
+    ].filter(Boolean);
+    return `
+      ${adds.length ? `<div class="muted mod-reqs">${t('Adds: {what}', { what: adds.join(', ') })}</div>` : ''}
+      ${lines.length ? `<details class="mod-changes"><summary>${t('Changes {n} field|Changes {n} fields', { n: lines.length })}</summary><ul>${lines.join('')}</ul></details>` : ''}
+      ${warn.length ? `<div class="mod-needs"><ul>${warn.join('')}</ul></div>` : ''}`;
+  }
+
+  /** The experimental switch for code mods. */
+  private codeSwitchHtml(): string {
+    if (!this.codeModsSupported) return `<div class="card muted mod-code-switch">${t('Mods that contain code run on the website and in the desktop app, not in this app.')}</div>`;
+    return `
+      <div class="card mod-code-switch">
+        <label class="mod-toggle"><input type="checkbox" id="code-mods-on" ${this.codeModsOn ? 'checked' : ''} /><span><b>${t('Code mods')}</b> · ${t('experimental')}</span></label>
+        <span class="muted">${t('Mods with code (new solvers, tools) run in a sandbox: no access to the page, your files or the network unless a mod asks.')}</span>
+      </div>`;
+  }
+
+  /** What a code mod's card says about its code: permissions, whether it runs, what it registered. */
+  private codeHtml(m: LoadedMod): string {
+    const code = m.manifest.code!;
+    const id = m.manifest.id;
+    const perms = code.permissions.length ? code.permissions.map((p) => `<span class="badge warn">${this.esc(p)}</span>`).join(' ') : `<span class="muted">${t('no permissions')}</span>`;
+    const st = this.codeHost.status(id);
+    const solvers = this.codeHost.solvers().filter((x) => x.modId === id);
+    const state = !this.codeModsSupported ? t('not available in this app')
+      : !this.codeModsOn ? t('not running: code mods are off')
+      : this.modResult.status.get(id)?.state !== 'active' ? t('not running')
+      : !st || st.state === 'starting' ? t('starting…')
+      : st.state === 'crashed' ? `<span class="mod-code-err">${t('stopped: {error}', { error: this.esc(st.error ?? '') })}</span>`
+      : t('running in the sandbox');
+    return `
+      <div class="mod-code">
+        <div>${icon('box', 11)} ${t('Runs code')} · ${perms} · <span class="muted">${state}</span></div>
+        ${this.codeHost.importers().filter((x) => x.modId === id).map((x) => `<div>${t('Opens')}: <b>${this.esc(x.name)}</b> <span class="mono">${this.esc(x.extensions.join(' '))}</span> <span class="muted">· ${t('drop a file on the bench')}</span></div>`).join('')}
+        ${solvers.map((x) => `<div class="row wrap"><span>${t('Solver')}: <b>${this.esc(x.name)}</b></span>${this.modSolver === x.address ? `<span class="badge pass">${t('in use')}</span>` : `<button class="btn sm ghost" data-use-solver="${this.esc(x.address)}">${t('Use')}</button>`}</div>`).join('')}
+      </div>`;
+  }
+
+  /** Bench check button and the last report, on a running mod's card. */
+  private benchHtml(modId: string): string {
+    const r = this.benchReports.get(modId);
+    const running = this.benchRunning === modId;
+    const n = (l: string) => r?.findings.filter((f) => f.level === l).length ?? 0;
+    const mark = { pass: '✓', warn: '!', fail: '✗' } as const;
+    const title = (addr: string) => {
+      const sc = this.scenarios.find((x) => this.addressOf(x) === addr);
+      return this.esc(sc ? t(sc.meta.title) : addr);
+    };
+    return `
+      <div class="bench">
+        <div class="row wrap">
+          <button class="btn sm ghost" data-mod-bench="${this.esc(modId)}" ${this.benchRunning ? 'disabled' : ''} title="${t('Test this mod on the simulator: its boards, puzzles, patches, knowledge and devices')}">${icon('play', 11)}<span>${running ? t('Checking…') : t('Bench check')}</span></button>
+          ${running ? `<span class="muted" id="bench-step"></span>` : ''}
+          ${r && !running ? `<span class="bench-sum"><span class="pass">✓ ${n('pass')}</span> <span class="warn">! ${n('warn')}</span> <span class="fail">✗ ${n('fail')}</span> <span class="muted">· ${(r.ms / 1000).toFixed(1)} s</span></span>` : ''}
+        </div>
+        ${r && !running ? `
+          <details class="mod-changes" ${n('fail') ? 'open' : ''}><summary>${t('Bench check report')}</summary>
+            <ul>${r.findings.map((f) => `<li class="bench-${f.level}"><b>${mark[f.level]}</b> ${title(f.item)}: ${this.esc(f.text)}</li>`).join('')}</ul>
+            ${r.moved.filter((m) => m.nets.length).map((m) => `
+              <div class="bench-moved"><b>${this.esc(t(m.title))}</b>: ${t('{n} net moved|{n} nets moved', { n: m.netsMoved })}
+                <ul>${m.nets.slice(0, 6).map((x) => `<li class="mono">${this.esc(x.net)}: ${x.before.toFixed(3)} V → ${x.after.toFixed(3)} V</li>`).join('')}</ul>
+              </div>`).join('')}
+          </details>` : ''}
+      </div>`;
+  }
+
+  /** Runs the bench check on a running mod, against the boards as listed (patched) here. */
+  private async runBenchCheck(modId: string) {
+    const mod = this.modResult.active.find((m) => m.manifest.id === modId);
+    if (!mod || this.benchRunning) return;
+    this.benchRunning = modId;
+    this.renderModsModal();
+    const ctx: BenchContext = {
+      board: async (address) => {
+        const idx = this.scenarios.findIndex((s) => this.addressOf(s) === address && !this.modBoards.get(s)?.basedOn);
+        if (idx < 0) return null;
+        const sc = await this.ensureLoaded(idx, true);
+        return sc ? { title: sc.meta.title, scenario: sc } : null;
+      },
+      modSolvers: (id) => this.codeHost.solvers().filter((x) => x.modId === id),
+      solveWith: async (address, board, conn, title, o) => simFromResult(board, conn, await this.codeHost.solve(address, { netlist: buildNetlist(board, conn, title, o.switches), meters: o.meters })),
+      boardAddresses: () => this.scenarios
+        .filter((s) => !this.modBoards.get(s)?.basedOn && !s.generated)
+        .map((s) => this.addressOf(s))
+        .filter((a): a is string => !!a),
+      step: async (what) => {
+        const el = this.modalRootEl.querySelector('#bench-step');
+        if (el) el.textContent = t(what);
+        await new Promise((r) => setTimeout(r, 0)); // let the window paint between solves
+      },
+    };
+    try {
+      const { benchCheck } = await import('../mods/benchcheck');
+      this.benchReports.set(modId, await benchCheck(mod, this.modResult.active, ctx));
+    } catch (e) {
+      this.toast(t('Bench check failed: {error}', { error: e instanceof Error ? e.message : String(e) }), 'danger');
+    }
+    this.benchRunning = null;
+    this.refreshScenarioSelect();
+    if (this.showMods) this.renderModsModal();
+  }
+
+  /** The mods that ship with the app: always on, listed so it's clear what community mods build on. */
+  private officialCardsHtml(): string {
+    return OFFICIAL_MODS.map((om) => {
+      const changed = [...this.patchLog].filter(([addr]) => addr.startsWith(`${om.id}/`));
+      return `
+        <div class="card mod-card mod-official">
+          <div class="mod-head">
+            <div>
+              <div class="mod-name">${t(om.name)} <span class="muted mono">v${om.version}</span> <span class="badge pass">${t('Official')}</span></div>
+              <div class="muted">${t('Ships with DEADBOARD · always on')} · <span class="mono">${om.id}</span></div>
+            </div>
+          </div>
+          <p class="text-2" style="margin:0">${t(om.description)}</p>
+          ${om.id === 'official-faults' ? `<div class="muted mod-reqs">${t('{n} fault class|{n} fault classes', { n: FAULT_CLASSES.length })}${this.faults?.types.length ? ` · ${t('{n} from mods in use', { n: this.faults.types.length })}` : ''}</div>` : ''}
+          ${om.id === 'official-rules' ? `<div class="muted mod-reqs">${t('{n} rule|{n} rules', { n: this.rules.rules.length })}</div>` : ''}
+          ${om.id === 'official-instruments' && (this.meters?.meters.length ?? 0) > 1 ? `<div class="muted mod-reqs">${t('{n} meter|{n} meters', { n: this.meters!.meters.length })}</div>` : ''}
+          ${om.id === 'official-solvers' ? `<div class="muted mod-reqs">${SOLVERS.map((x) => `<span title="${this.esc(t(x.description))}">${t(x.name)}</span>`).join(' · ')} · ${t('{n} device model|{n} device models', { n: allDevices().length })}${this.devices?.overlay.length ? ` · ${t('{n} from mods in use', { n: this.devices.overlay.length })}` : ''}</div>` : ''}
+          ${changed.length && !this.safeMode ? `
+            <details class="mod-changes"><summary>${om.id === 'official-boards' ? t('{n} board changed by mods|{n} boards changed by mods', { n: changed.length }) : t('{n} item changed by mods|{n} items changed by mods', { n: changed.length })}</summary>
+              <ul>${changed.map(([, { title, res }]) => `<li><b>${this.esc(t(title))}</b> · ${this.esc([...new Set(res.changes.map((c) => `${c.field} (${c.modId})`))].join(', ') || t('no change'))}</li>`).join('')}</ul>
+            </details>` : ''}
+        </div>`;
+    }).join('');
+  }
+
+  /** Loadout picker above the installed mods (src/mods/loadouts.ts). */
+  private loadoutBarHtml(): string {
+    const lo = this.loadouts;
+    const name = (id: string, n: string) => (id === MY_MODS ? t('My mods') : this.esc(n));
+    const opts = [`<option value="${OFFICIAL}" ${lo.active === OFFICIAL ? 'selected' : ''}>${t('Official (no community mods)')}</option>`]
+      .concat(lo.custom.map((l) => `<option value="${this.esc(l.id)}" ${lo.active === l.id ? 'selected' : ''}>${name(l.id, l.name)}</option>`));
+    return `
+      <div class="card loadout-bar">
+        <label class="row"><span>${t('Loadout')}</span><select id="loadout-select">${opts.join('')}</select></label>
+        <button class="btn sm ghost" id="loadout-new">${t('New loadout')}</button>
+        ${lo.active !== OFFICIAL && lo.active !== MY_MODS ? `<button class="btn sm ghost" id="loadout-delete">${t('Delete loadout')}</button>` : ''}
+        ${lo.active === OFFICIAL ? `<span class="muted">${t('The game as shipped. Turn a mod on to switch to «My mods».')}</span>` : ''}
+      </div>`;
+  }
+
+  /** This address without ?safe. */
+  private leaveSafeUrl(): string {
+    // by hand, not URLSearchParams: that would rewrite "?boards" as "?boards="
+    const q = location.search.slice(1).split('&').filter((p) => p && decodeURIComponent(p.split('=')[0]) !== 'safe').join('&');
+    return location.pathname + (q ? `?${q}` : '') + location.hash;
   }
 
   // ---------------- mod.io browser (src/mods/modio.ts) ----------------
@@ -4363,7 +5253,7 @@ export class PcbApp {
     this.modioBusy.delete(m.id);
     if (!this.showMods) return;
     // installed cleanly: show its first board (like a picked .zip); otherwise stay for the error / warnings
-    if (mod && !mod.warnings.length) { this.showMods = false; this.renderModal(); return; }
+    if (mod && !mod.warnings.length && this.modActive(mod.manifest.id)) { this.showMods = false; this.renderModal(); return; }
     this.renderModsModal();
   }
 

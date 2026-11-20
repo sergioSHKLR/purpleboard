@@ -1,5 +1,7 @@
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { build as esbuild } from 'esbuild';
 import { defineConfig, type Plugin } from 'vite';
 import { Marked } from 'marked';
 
@@ -44,8 +46,24 @@ function moddingGuide(): Plugin {
   };
 }
 
+/** The code-mod sandbox runtime (src/mods/api/runtime-worker.ts) bundled into one script and
+ *  exported as a string: the sandbox starts it from a blob, so it can't import from the app's origin. */
+function modRuntime(): Plugin {
+  const id = 'virtual:deadboard-mod-runtime';
+  return {
+    name: 'mod-runtime',
+    resolveId: (x) => (x === id ? `\0${id}` : null),
+    async load(x) {
+      if (x !== `\0${id}`) return null;
+      const r = await esbuild({ entryPoints: ['src/mods/api/runtime-worker.ts'], bundle: true, write: false, format: 'iife', target: 'es2020', minify: true, metafile: true, logLevel: 'silent' });
+      for (const f of Object.keys(r.metafile.inputs)) this.addWatchFile(resolve(f));
+      return `export default ${JSON.stringify(r.outputFiles[0].text)};`;
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [moddingGuide()],
+  plugins: [moddingGuide(), modRuntime()],
   base: './',
   define: { __APP_BUILD__: JSON.stringify(commit ? `${version}+${commit}` : version) },
   build: {

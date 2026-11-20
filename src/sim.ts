@@ -6,7 +6,7 @@ import { t } from './i18n';
 import type { Board, Component, SwitchMap } from './types';
 import { pinNet, type Conn } from './connectivity';
 import { MODELED, batteryRint, twoRoles } from './model';
-import { GENERIC_DMM } from './spice/dmm';
+import { GENERIC_DMM, activeDmm } from './spice/dmm';
 import { DIODE_MODEL, ledModel } from './spice/board';
 import { VT_300K } from './spice/devices';
 
@@ -160,7 +160,7 @@ export function simulate(board: Board, conn: Conn, opt: SimOpts = {}): Sim {
     if (red < 0 || red === black) continue;
     meterEls.push({ a: node(red), b: black < 0 ? 'gnd' : node(black) });
   }
-  const gMeter = 1 / (opt.meterOhms ?? GENERIC_DMM.vInputOhms);
+  const gMeter = 1 / (opt.meterOhms ?? activeDmm().vInputOhms);
 
   const comps = new Map<string, CompSim>();
   const empty = (source: boolean): Sim => ({ nodeOfNet, V: new Float64Array(nn), ground: -1, comps, source });
@@ -349,6 +349,8 @@ export function netVoltage(s: Sim, net: number): number | null {
 
 /** Ω readings at or above the meter's top range show OL (the DMM model's 60 MΩ range). */
 export const OHM_OL = GENERIC_DMM.ohmRanges[GENERIC_DMM.ohmRanges.length - 1].fullScale;
+/** Top of the meter in use's Ω ranges: readings at or above it show OL. */
+export const ohmOL = () => { const r = activeDmm().ohmRanges; return r[r.length - 1].fullScale; };
 
 /** In-circuit resistance between two nets with the supply disconnected (Infinity = open). */
 export function measureOhms(board: Board, conn: Conn, a: number, b: number): number {
@@ -357,7 +359,7 @@ export function measureOhms(board: Board, conn: Conn, a: number, b: number): num
   const s = simulate(board, conn, { ohm: [a, b] });
   if (!s.source) return Infinity;
   const r = s.V[s.nodeOfNet.get(a)!] / 1e-3;
-  return r >= OHM_OL ? Infinity : r;
+  return r >= ohmOL() ? Infinity : r;
 }
 
 /**
@@ -366,9 +368,9 @@ export function measureOhms(board: Board, conn: Conn, a: number, b: number): num
  * readings at or above `olVolts` show OL (typical handheld values, estimates: src/spice/dmm.ts).
  */
 export const DIODE_TEST = {
-  voc: GENERIC_DMM.diode.voc,
-  rsrc: (GENERIC_DMM.diode.voc - 0.6) / GENERIC_DMM.diode.itest,
-  olVolts: GENERIC_DMM.diode.olVolts,
+  get voc() { return activeDmm().diode.voc; },
+  get rsrc() { const d = activeDmm().diode; return (d.voc - 0.6) / d.itest; },
+  get olVolts() { return activeDmm().diode.olVolts; },
 };
 
 /** Multimeter diode-check mode (DIODE_TEST source) with supply disconnected. */

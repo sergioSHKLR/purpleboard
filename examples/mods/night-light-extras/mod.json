@@ -1,0 +1,78 @@
+{
+  "format": "deadboard-mod/2",
+  "id": "night-light-extras",
+  "name": "Night light extras",
+  "version": "1.0.0",
+  "author": "DEADBOARD",
+  "description": "An example mod that builds on other mods: a knowledge pack and a puzzle for the starter kit's night light, and one more note for the built-in Ghost Short challenge. No board files of its own.",
+  "license": "CC0-1.0",
+  "homepage": "https://github.com/tholtman1-del/deadboard/tree/main/examples/mods/night-light-extras",
+  "requires": {
+    "starter-kit": "^1.0",
+    "official-boards": "^1.0"
+  },
+  "patches": [
+    {
+      "target": "official-boards/boards/builtin-ghost-short",
+      "set": {
+        "hints": [
+          "With power OFF, measure from TP2 (GND) to each side of F1. The open fuse splits the board: which side is shorted?",
+          "Follow the +5 V trace after the fuse: a hairline sliver of copper joins it to the ground trace beside it. Cut it with the knife.",
+          "Vout = 5 V × R2 / (R1 + R2). R1 is 10 kΩ.",
+          "Only replace the fuse after the short is gone: measure the +5 V side to ground again first."
+        ]
+      },
+      "why": "Example patch: a fourth note. Arrays replace, so the three original notes are listed too."
+    }
+  ],
+  "knowledge": [
+    {
+      "id": "night-light-rails",
+      "board": "starter-kit/boards/night-light",
+      "title": "Night light",
+      "provenance": { "kind": "schematic", "where": "night-light-schematic.svg in the starter kit", "confidence": "documented" },
+      "rails": [
+        {
+          "net": "VBAT",
+          "nominal": 3.0,
+          "domain": "always on",
+          "source": { "ref": "BT1", "kind": "2 × AA" },
+          "checks": [
+            { "at": "BT1", "expect": "2.8–3.2 V with fresh cells", "readsLowIf": "the cells are flat or the holder's contacts are corroded" }
+          ]
+        },
+        {
+          "net": "LED_A",
+          "nominal": 1.8,
+          "domain": "on while SW1 is pressed",
+          "source": { "ref": "R1", "kind": "series resistor" },
+          "checks": [
+            { "at": "D1", "expect": "≈1.8 V with SW1 pressed, 0 V released", "readsLowIf": "SW1 doesn't close, or R1 is open or has a cold joint" }
+          ],
+          "notes": "A red LED drops about 1.8 V; R1 sets the current: (3.0 − 1.8) V / 68 Ω ≈ 18 mA.",
+          "provenance": { "kind": "datasheet", "where": "typical red LED forward voltage", "confidence": "estimated" }
+        }
+      ],
+      "notes": [
+        "The current path: BT1 → SW1 → R1 → D1 → back to BT1. R2 is not fitted."
+      ]
+    }
+  ],
+  "puzzles": [
+    {
+      "id": "barely-glows",
+      "board": "starter-kit/boards/night-light",
+      "title": "Night light · barely glows",
+      "description": "The night light came back from a damp bathroom. Press the button and D1 hardly lights. The batteries are new.",
+      "difficulty": 2,
+      "hints": [
+        "Measure the voltage across R1 with SW1 pressed, then work out the current. Is it what the knowledge pack says?",
+        "Power off and measure R1 itself. A corroded resistor can read far above its marking: replace it."
+      ],
+      "faults": [
+        { "ref": "R1", "fault": "resistor-drift", "severity": 25 }
+      ],
+      "flag": "DEAD{dr1ft3d_r3s1st0r}"
+    }
+  ]
+}

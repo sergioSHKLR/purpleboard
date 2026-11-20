@@ -1,0 +1,60 @@
+{
+  "format": "deadboard-mod/2",
+  "id": "repair-lab",
+  "name": "Repair lab extras",
+  "version": "1.0.0",
+  "author": "DEADBOARD",
+  "description": "An example data mod: a new fault type (salt-water damage), a budget multimeter, one more diagnostic rule for «Where to look?», and a puzzle on the built-in voltage divider that uses the new fault.",
+  "license": "CC0-1.0",
+  "homepage": "https://github.com/tholtman1-del/deadboard/tree/main/examples/mods/repair-lab",
+  "requires": { "official-boards": "^1.0" },
+  "faultTypes": [
+    {
+      "id": "salt-water",
+      "name": "Salt-water damage",
+      "description": "Dried salt water between the pads: a leak you can see, and clean off with IPA.",
+      "applies": { "kinds": ["resistor", "capacitor", "diode", "led"], "minPads": 2 },
+      "effects": [
+        { "do": "leak", "ohms": { "min": 300, "max": 30000 } },
+        { "do": "residue", "amount": 0.8, "leaky": true }
+      ]
+    }
+  ],
+  "meters": [
+    {
+      "id": "budget-2000",
+      "name": "Budget 2000-count",
+      "counts": 2000,
+      "vInputOhms": 1000000,
+      "vGainError": 0.008,
+      "noiseCounts": 3,
+      "leadOhms": 0.5,
+      "contactOhms": [0.05, 2]
+    }
+  ],
+  "rules": [
+    {
+      "id": "supply-joint",
+      "when": "low",
+      "suspect": { "where": "on-net", "kinds": ["battery", "connector"] },
+      "weight": 8,
+      "confirm": "Measure the supply at {ref}'s pins and again on the board side of its joints, both + and −: a difference there is a bad joint at the input.",
+      "why": "When every net reads low, a resistive joint at the supply (often on the ground pin) is the usual cause."
+    }
+  ],
+  "puzzles": [
+    {
+      "id": "bathroom-shelf",
+      "board": "official-boards/boards/builtin-tut-divider",
+      "title": "Divider · bathroom shelf",
+      "description": "This divider board sat on a bathroom shelf for a year. The output reads wrong. Look closely before you replace anything.",
+      "difficulty": 2,
+      "hints": [
+        "Measure TP1 with the power on: compare with what the divider should give.",
+        "Look at the board under the camera: something has dried between two pads. A brush with IPA cleans it off."
+      ],
+      "faults": [ { "ref": "R2", "fault": "repair-lab/faultTypes/salt-water", "severity": 2000 } ],
+      "flag": "DEAD{s4lt_w4t3r_l34k}"
+    }
+  ]
+}
