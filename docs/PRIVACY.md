@@ -37,11 +37,21 @@ many people use DEADBOARD and for how long. You can't be identified, and you are
 sites or from one month to the next. If your browser sends Do Not Track, nothing is counted.
 Content blockers usually block it too.
 
+**Community mods (mod.io).** The Mods window can list and install mods that players publish on
+mod.io. This happens only when you open its **Browse mod.io** tab: the app then asks
+mod.io for the list of DEADBOARD mods, loads their pictures and, when you press Install, downloads
+that mod. Like any website, mod.io sees your IP address and browser for these requests; you don't
+sign in and DEADBOARD sends nothing about you. See mod.io's privacy policy (https://mod.io/privacy)
+and terms (https://mod.io/terms). Installed mods are kept on your device like a mod you add
+yourself. On the website, visit statistics (below) count which mod.io mod was installed, by the
+mod's public name.
+
 **Links.** Links to GitHub, the modding guide or board sources open in your browser; those sites
 have their own privacy policies.
 
 **Website hosting.** The website is hosted on GitHub Pages; GitHub may log visitors' IP addresses
-for security (see GitHub's privacy statement). The apps contact no server unless you send feedback.
+for security (see GitHub's privacy statement). The apps contact no server unless you send feedback or open the
+Browse mod.io tab.
 
 **Children.** DEADBOARD is suitable for all ages and does not knowingly collect data from anyone.
 

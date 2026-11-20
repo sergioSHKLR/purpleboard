@@ -193,6 +193,22 @@ The schematic is for reading. Part values for the simulation come from the board
 Installing a mod with the same `id` again replaces the old version, so you can fix and re-install
 as often as you like.
 
+## Share it on mod.io
+
+DEADBOARD's mod hub is on [mod.io](https://mod.io). Mods published there show up in the app under
+**Boards → Mods → Browse mod.io**, where players install them with one click (no account needed).
+
+1. Test the mod (above) and zip it: `mod.json` at the root of the `.zip`.
+2. Sign in at mod.io, open DEADBOARD's page and choose **Add mod**.
+3. Give it a name, a short summary and a logo (a 16:9 screenshot of the board works well), then
+   upload the `.zip` as the mod's file. Fill in the version so players can tell releases apart.
+4. To release a fix, upload a new file to the same mod.io page: players who installed it see an
+   **Update** button.
+
+Credit and licence rules (below) apply on mod.io too, and so do mod.io's
+[Terms of Use](https://mod.io/terms). A mod.io page is only a wrapper: DEADBOARD reads the same
+`deadboard-mod/1` zip, so the mod still works when shared any other way.
+
 ### Common problems
 
 | Message | Fix |
@@ -215,6 +231,7 @@ as often as you like.
 
   Reload the app (**Ctrl+R** / **Cmd+R**) after changing files there. To remove a mod, delete it from
   the folder.
+- **mod.io:** mods installed from **Browse mod.io** are stored like any installed mod.
 - **Steam Workshop:** planned. Workshop mods will use this same format, so a mod you make now will
   work there unchanged.
 

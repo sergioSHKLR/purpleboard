@@ -34,6 +34,11 @@ jobs:
           # Umami Cloud website id for visitor + active-time analytics (website only, see
           # src/analytics.ts). Unset: no analytics.
           VITE_UMAMI_ID: ${{ vars.UMAMI_ID }}
+          # mod.io: the game's id and read-only API key (both public by design: they ship in the
+          # page) and, optionally, its API path. Unset: no mod.io tab. See src/mods/modio.ts.
+          VITE_MODIO_GAME_ID: ${{ vars.MODIO_GAME_ID }}
+          VITE_MODIO_API_KEY: ${{ vars.MODIO_API_KEY }}
+          VITE_MODIO_API_URL: ${{ vars.MODIO_API_URL }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

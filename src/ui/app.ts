@@ -14,7 +14,8 @@ import { objectiveLabel, runSolver, verifyScenario, type Solver, type VerifyResu
 import { lockFlag, packText, topology, unpackText } from '../crypto';
 import { serializeScenario } from '../io/format';
 import { importScenarioOrPcb } from '../io/kicad';
-import { MOD_FORMAT, type ModBoard } from '../mods/mods';
+import { MOD_FORMAT, type LoadedMod, type ModBoard } from '../mods/mods';
+import { ModioError, downloadMod, forgetModioInstall, listMods, modioConfig, modioState, rememberModioInstall, type ModioMod, type ModioSort } from '../mods/modio';
 import { desktop, installMod, loadAllMods, modsFolderPath, removeInstalled, type ModLoadResult } from '../mods/sources';
 import { writeZip } from '../mods/zip';
 import { builtinScenarios } from '../scenarios/builtin';
@@ -202,6 +203,18 @@ export class PcbApp {
   private showBoards = false;
   private boardFilter: 'all' | 'tutorials' | 'challenges' | 'hardware' | 'mods' = 'all';
   private showMods = false;
+  /** Mods window tab, and the mod.io browser's state (set up at build time, see src/mods/modio.ts). */
+  private modsView: 'installed' | 'browse' = 'installed';
+  private readonly modio = modioConfig();
+  private modioQ = '';
+  private modioSort: ModioSort = 'downloads';
+  private modioList: ModioMod[] = [];
+  private modioTotal = 0;
+  private modioNext = 0;
+  private modioLoading = false;
+  private modioError: string | null = null;
+  private modioBusy = new Set<number>();
+  private modioReq: AbortController | null = null;
   /** Ids of the boards that ship with DEADBOARD (built-ins + demos): an author's copy needs its own id. */
   private bundledIds = new Set<string>();
   /** For bug reports: the last messages and errors the player saw, and the meter's display. */
@@ -940,20 +953,25 @@ export class PcbApp {
   /** Installs a mod .zip (web: kept in browser storage; desktop: in the app's storage too). */
   /** Returns the number of warnings, or -1 when the mod was not installed. */
   private async installModFile(f: File): Promise<number> {
+    const mod = await this.installModBytes(new Uint8Array(await f.arrayBuffer()), f.name);
+    return mod ? mod.warnings.length : -1;
+  }
+
+  /** Checks and installs a mod .zip, lists its boards and opens the first. Null when refused (toast says why). */
+  private async installModBytes(bytes: Uint8Array, file: string): Promise<LoadedMod | null> {
     try {
-      const bytes = new Uint8Array(await f.arrayBuffer());
       const builtin = new Set(this.scenarios.filter((s) => !this.modBoards.has(s)).map((s) => s.id));
-      const mod = await installMod(bytes, f.name, (id) => builtin.has(id));
+      const mod = await installMod(bytes, file, (id) => builtin.has(id));
       await this.loadMods();
       this.refreshScenarioSelect();
       const warn = mod.warnings.length ? ' ' + t('({n} warning: see Mods)|({n} warnings: see Mods)', { n: mod.warnings.length }) : '';
       this.toast(t('Installed mod «{name}» v{version}: {n} board|Installed mod «{name}» v{version}: {n} boards', { name: mod.manifest.name, version: mod.manifest.version, n: mod.boards.length }) + warn, mod.warnings.length ? 'info' : 'success');
       const first = this.scenarios.findIndex((s) => this.modBoards.get(s)?.mod.id === mod.manifest.id);
       if (first >= 0) await this.openScenario(first);
-      return mod.warnings.length;
+      return mod;
     } catch (err) {
       this.toast(t('Mod not installed: {error}', { error: err instanceof Error ? err.message : String(err) }), 'danger');
-      return -1;
+      return null;
     }
   }
 
@@ -4065,6 +4083,7 @@ export class PcbApp {
 
   private renderModsModal() {
     const { mods, failed } = this.modResult;
+    const browse = this.modsView === 'browse' && !!this.modio;
     const boardIdx = (b: ModBoard) => this.scenarios.findIndex((s) => this.modBoards.get(s) === b);
     const modCards = mods.map((m) => {
       const mf = m.manifest;
@@ -4106,6 +4125,12 @@ export class PcbApp {
             </div>
           </div>
           <div class="cat-body">
+            ${this.modio ? `
+              <div class="seg mods-tabs">
+                <button class="${browse ? '' : 'on'}" data-mods-view="installed">${t('Installed')} · ${mods.length}</button>
+                <button class="${browse ? 'on' : ''}" data-mods-view="browse">${icon('globe', 12)} ${t('Browse mod.io')}</button>
+              </div>` : ''}
+            ${browse ? this.modioBrowseHtml() : `
             <div class="card">
               <p class="text-2" style="margin:0">
                 ${t("Mods add boards made by other people: KiCad or boardview files, repair challenges from the Author tab, with their BOM and schematic. Mods are data only, they can't run code.")}
@@ -4117,7 +4142,8 @@ export class PcbApp {
               </div>
             </div>
             ${failedCards}
-            ${modCards || `<div class="muted" style="padding:24px;text-align:center">${t('No mods yet. Install a mod .zip, or make one from any board with «Current board as a mod».')}</div>`}
+            ${modCards || `<div class="muted" style="padding:24px;text-align:center">${this.modio ? t('No mods yet. Browse mod.io, install a mod .zip, or make one from any board with «Current board as a mod».') : t('No mods yet. Install a mod .zip, or make one from any board with «Current board as a mod».')}</div>`}
+            `}
           </div>
           <input type="file" id="mods-file" accept=".zip,application/zip" hidden />
         </div>
@@ -4142,6 +4168,12 @@ export class PcbApp {
       else if (this.showMods) this.renderModsModal();
     });
     root.querySelector('#mods-folder')?.addEventListener('click', () => void desktop?.openModsFolder());
+    root.querySelectorAll<HTMLButtonElement>('[data-mods-view]').forEach((b) => b.addEventListener('click', () => {
+      this.modsView = b.dataset.modsView === 'browse' ? 'browse' : 'installed';
+      this.renderModsModal();
+      if (this.modsView === 'browse' && !this.modioList.length && !this.modioLoading && !this.modioError) void this.loadModioPage(true);
+    }));
+    if (browse) this.bindModioBrowse(root);
     root.querySelector('#mods-export')?.addEventListener('click', () => void this.exportBoardAsMod());
     root.querySelectorAll<HTMLButtonElement>('[data-mod-open]').forEach((b) => b.addEventListener('click', () => {
       const i = Number(b.dataset.modOpen);
@@ -4154,6 +4186,7 @@ export class PcbApp {
       if (!confirm(t('Remove the mod «{name}»? Its boards disappear from the list (your progress on them is kept).', { name }))) return;
       try {
         await removeInstalled(id);
+        forgetModioInstall(id);
         await this.loadMods();
         this.refreshScenarioSelect();
         this.toast(t('Removed mod «{name}»', { name }), 'success');
@@ -4162,6 +4195,159 @@ export class PcbApp {
       }
       this.renderModsModal();
     }));
+  }
+
+  // ---------------- mod.io browser (src/mods/modio.ts) ----------------
+
+  private modioBrowseHtml(): string {
+    const sorts: [ModioSort, string][] = [['downloads', t('Most downloaded')], ['newest', t('Newest')], ['rating', t('Top rated')]];
+    return `
+      <div class="modio-bar">
+        <input type="search" id="modio-q" placeholder="${t('Search mods')}" value="${this.esc(this.modioQ)}" autocomplete="off" />
+        <div class="seg" id="modio-sort">
+          ${sorts.map(([k, l]) => `<button class="${this.modioSort === k ? 'on' : ''}" data-modio-sort="${k}">${l}</button>`).join('')}
+        </div>
+      </div>
+      <div id="modio-list" class="modio-list">${this.modioListHtml()}</div>
+      <div class="muted modio-foot">
+        ${t('Made by players, hosted by mod.io. Mods are data only: boards, part lists and schematics.')}
+        <a href="https://mod.io/terms" target="_blank" rel="noopener">${t('mod.io Terms')}</a> ·
+        <a href="https://mod.io/privacy" target="_blank" rel="noopener">${t('mod.io Privacy')}</a>
+      </div>`;
+  }
+
+  private modioListHtml(): string {
+    if (this.modioError) {
+      return `<div class="card modio-msg"><span>${this.esc(this.modioError)}</span><button class="btn sm" id="modio-retry">${t('Try again')}</button></div>`;
+    }
+    if (!this.modioList.length) {
+      return `<div class="muted modio-msg">${this.modioLoading ? t('Loading mods…') : this.modioQ ? t('No mods match «{q}».', { q: this.esc(this.modioQ) }) : t('No mods on mod.io yet. Be the first: see «How to make a mod».')}</div>`;
+    }
+    const installed = new Set(this.modResult.mods.filter((m) => m.source.origin === 'Installed').map((m) => m.manifest.id));
+    const mb = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} kB`);
+    const cards = this.modioList.map((m) => {
+      const st = modioState(m, installed);
+      const busy = this.modioBusy.has(m.id);
+      const action = busy
+        ? `<button class="btn sm" disabled>${t('Installing…')}</button>`
+        : st === 'installed'
+          ? `<span class="badge pass">${icon('check', 11)} ${t('Installed')}</span>`
+          : `<button class="btn sm primary" data-modio-install="${m.id}">${icon('download', 12)}<span>${st === 'update' ? t('Update') : t('Install')}</span></button>`;
+      const facts = [
+        m.author && t('by {author}', { author: this.esc(m.author) }),
+        t('{n} download|{n} downloads', { n: m.downloads }),
+        m.file?.size ? mb(m.file.size) : '',
+        this.esc(m.rating),
+      ].filter(Boolean).join(' · ');
+      return `
+        <div class="card modio-card">
+          ${m.logo ? `<img class="modio-logo" src="${this.esc(m.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" />` : `<div class="modio-logo none">${icon('box', 22)}</div>`}
+          <div class="modio-info">
+            <div class="mod-name">${this.esc(m.name)}${m.file?.version ? ` <span class="muted mono">v${this.esc(m.file.version)}</span>` : ''}</div>
+            <div class="muted">${facts}</div>
+            ${m.summary ? `<p class="text-2">${this.esc(m.summary)}</p>` : ''}
+            <div class="row wrap">
+              ${action}
+              ${m.profileUrl ? `<a class="btn sm ghost" href="${this.esc(m.profileUrl)}" target="_blank" rel="noopener">${t('mod.io page')}</a>` : ''}
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+    const more = this.modioNext < this.modioTotal
+      ? `<button class="btn sm block" id="modio-more" ${this.modioLoading ? 'disabled' : ''}>${this.modioLoading ? t('Loading mods…') : t('Show more')}</button>`
+      : '';
+    return cards + more;
+  }
+
+  /** Redraws only the list, so the search box keeps its focus and caret. */
+  private renderModioList() {
+    const el = this.modalRootEl.querySelector('#modio-list');
+    if (el) el.innerHTML = this.modioListHtml();
+  }
+
+  private bindModioBrowse(root: HTMLElement) {
+    const q = root.querySelector<HTMLInputElement>('#modio-q');
+    let timer = 0;
+    q?.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = window.setTimeout(() => { this.modioQ = q.value.trim(); void this.loadModioPage(true); }, 400);
+    });
+    q?.addEventListener('keydown', (e) => {
+      e.stopPropagation(); // typing is not tool shortcuts
+      if (e.key === 'Enter') { clearTimeout(timer); this.modioQ = q.value.trim(); void this.loadModioPage(true); }
+    });
+    root.querySelectorAll<HTMLButtonElement>('[data-modio-sort]').forEach((b) => b.addEventListener('click', () => {
+      this.modioSort = b.dataset.modioSort as ModioSort;
+      root.querySelectorAll('[data-modio-sort]').forEach((x) => x.classList.toggle('on', x === b));
+      void this.loadModioPage(true);
+    }));
+    // the list is redrawn on its own: listen on its container
+    root.querySelector('#modio-list')?.addEventListener('click', (e) => {
+      const el = (e.target as HTMLElement).closest<HTMLElement>('[data-modio-install], #modio-more, #modio-retry');
+      if (!el) return;
+      if (el.id === 'modio-more') void this.loadModioPage(false);
+      else if (el.id === 'modio-retry') void this.loadModioPage(this.modioList.length === 0);
+      else {
+        const m = this.modioList.find((x) => x.id === Number(el.dataset.modioInstall));
+        if (m) void this.installFromModio(m);
+      }
+    });
+  }
+
+  /** The next page of mod.io listings (`reset`: from the start, for a new search or order). */
+  private async loadModioPage(reset: boolean) {
+    if (!this.modio) return;
+    this.modioReq?.abort();
+    const ac = (this.modioReq = new AbortController());
+    if (reset) { this.modioList = []; this.modioNext = 0; this.modioTotal = 0; }
+    this.modioLoading = true;
+    this.modioError = null;
+    this.renderModioList();
+    const limit = 20;
+    try {
+      const page = await listMods(this.modio, { q: this.modioQ, sort: this.modioSort, offset: this.modioNext, limit, signal: ac.signal });
+      if (ac !== this.modioReq) return;
+      const seen = new Set(this.modioList.map((m) => m.id));
+      this.modioList = [...this.modioList, ...page.mods.filter((m) => !seen.has(m.id))];
+      this.modioTotal = page.total;
+      this.modioNext = page.offset + limit;
+    } catch (e) {
+      if ((e as Error)?.name === 'AbortError' || ac !== this.modioReq) return;
+      this.modioError = e instanceof ModioError && e.status === 429
+        ? t('mod.io asks to slow down: try again in {s} s.', { s: e.retryAfter ?? 60 })
+        : e instanceof ModioError && e.status === 0
+          ? t('Could not reach mod.io. Check your connection.')
+          : t('mod.io error: {error}', { error: e instanceof Error ? e.message : String(e) });
+    }
+    if (ac === this.modioReq) {
+      this.modioLoading = false;
+      this.renderModioList();
+    }
+  }
+
+  private async installFromModio(m: ModioMod) {
+    if (this.modioBusy.has(m.id) || !m.file) return;
+    this.modioBusy.add(m.id);
+    this.renderModioList();
+    let mod: LoadedMod | null = null;
+    try {
+      const bytes = await downloadMod(m);
+      mod = await this.installModBytes(bytes, m.file.name || `${m.nameId || m.id}.zip`);
+      if (mod) {
+        rememberModioInstall(m.id, mod.manifest.id, m.file.id);
+        trackEvent('mod installed', { mod: m.nameId || String(m.id) });
+      }
+    } catch (e) {
+      const why = e instanceof ModioError && e.status === 0
+        ? t('the download was blocked or the connection dropped. Open its mod.io page, download the .zip there and install it with «Install mod (.zip)».')
+        : e instanceof Error ? e.message : String(e);
+      this.toast(t('Could not download «{name}»: {error}', { name: m.name, error: why }), 'danger');
+    }
+    this.modioBusy.delete(m.id);
+    if (!this.showMods) return;
+    // installed cleanly: show its first board (like a picked .zip); otherwise stay for the error / warnings
+    if (mod && !mod.warnings.length) { this.showMods = false; this.renderModal(); return; }
+    this.renderModsModal();
   }
 
   /** Packs the open board (with its current faults, objectives and flag lock) as a ready-to-share mod. */
