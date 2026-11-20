@@ -23,13 +23,23 @@ declare global {
   }
 }
 
+type Call = Parameters<NonNullable<Window['umami']>['track']>;
+/** Calls made before the deferred script arrived (only kept once analytics is on for this page). */
+let pending: Call[] | null = null;
+const send = (...c: Call) => {
+  if (typeof window === 'undefined') return;
+  if (window.umami) window.umami.track(...c);
+  else if (pending && pending.length < 50) pending.push(c);
+};
+
 /**
- * The bench's own events: which board was opened and fixed, and finishing the tutorial. Ids only
- * for boards that ship with the game; anything the player imported or made is just "custom".
- * No-ops wherever analytics is off (the Umami script then never loaded): dev, forks, the apps.
+ * The bench's own events: which board was opened and fixed, how far the first lesson got, and
+ * finishing the tutorial. Ids only for boards that ship with the game; anything the player imported
+ * or made is just "custom". No-ops wherever analytics is off (the Umami script never loads): dev,
+ * forks, the apps. Events fired before the script loaded (the first seconds) are sent once it has.
  */
 export function trackEvent(name: string, data?: Record<string, string | number>): void {
-  if (typeof window !== 'undefined') window.umami?.track(name, data);
+  send(name, data);
 }
 
 /**
@@ -37,7 +47,7 @@ export function trackEvent(name: string, data?: Record<string, string | number>)
  * this Umami calls every visit that stays on the bench a bounce, however long the player stays.
  */
 export function trackBoardView(boardId: string, title: string): void {
-  if (typeof window !== 'undefined') window.umami?.track((p) => ({ ...p, url: `/board/${boardId}`, title }));
+  send((p) => ({ ...p, url: `/board/${boardId}`, title }));
 }
 
 /** Should this page load be tracked? */
@@ -60,6 +70,12 @@ export function initAnalytics(): void {
   s.dataset.websiteId = id;
   s.dataset.domains = SITE_HOST;
   s.dataset.doNotTrack = 'true'; // honour the browser's Do Not Track setting
+  pending = [];
+  s.addEventListener('load', () => {
+    const q = pending ?? [];
+    pending = null; // from now on calls go straight to the script (or nowhere, under Do Not Track)
+    for (const c of q) window.umami?.track(...c);
+  });
   document.head.appendChild(s);
 
   let lastInput = Date.now();

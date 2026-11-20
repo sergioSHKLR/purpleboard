@@ -144,6 +144,8 @@ export class PcbApp {
   private started = false;
   /** Boards whose fix was already counted this page load. */
   private trackedFixes = new Set<string>();
+  /** First-board diagnostics already sent this page load (each event at most once per key). */
+  private trackedOnce = new Set<string>();
 
   private activeTool: ToolId = 'inspect';
   private activeTab: PanelTab = 'mission';
@@ -319,9 +321,11 @@ export class PcbApp {
       const force = new URLSearchParams(location.search).get('renderer');
       this.renderer = await Renderer.create(this.canvas, force === 'webgl2' || force === 'webgpu' ? force as RendererKind : undefined);
     } catch (err) {
+      trackEvent('bench failed', { reason: err instanceof NoAdapterError ? 'no adapter' : 'error', layout: this.mobile ? 'phone' : 'desktop' });
       this.showWebGpuError(err instanceof Error ? err.message : String(err), err instanceof NoAdapterError ? err.tried : []);
       return;
     }
+    trackEvent('bench ready', { renderer: this.renderer.kind, layout: this.mobile ? 'phone' : 'desktop' });
 
     const params = new URLSearchParams(window.location.search);
     if (params.has('tutorial')) {
@@ -1638,6 +1642,13 @@ export class PcbApp {
     }
   }
 
+  /** Analytics: one event per key per page load (where the first minutes on the bench go). */
+  private trackOnce(key: string, name: string, data?: Record<string, string | number>) {
+    if (this.trackedOnce.has(key)) return;
+    this.trackedOnce.add(key);
+    trackEvent(name, data);
+  }
+
   /** Analytics: a board fixed (once per board per page load); fixing the last lesson finishes the tutorial. */
   private trackFix() {
     const id = this.analyticsId(this.activeScenario);
@@ -1651,6 +1662,7 @@ export class PcbApp {
     this.recompute(false);
     const res = await verifyScenario(this.activeScenario, this.board, this.solver);
     this.lastVerify = res;
+    this.trackOnce(`tests:${this.activeScenario.id}`, 'tests run', { board: this.analyticsId(this.activeScenario), result: res.flag || (res.allPassed && !res.topologyMismatch) ? 'pass' : 'fail' });
     if (res.flag || (res.allPassed && !res.topologyMismatch && !this.activeScenario.lock)) this.trackFix();
     if (res.flag) {
       this.revealedFlag = res.flag;
@@ -1783,6 +1795,7 @@ export class PcbApp {
     q('#btn-verify').addEventListener('click', () => void this.runVerify());
     q('#btn-tutorial').addEventListener('click', () => {
       if (this.tutorialOpen && isTutorialScenario(this.activeScenario.id)) {
+        this.trackOnce(`tutclose:${this.activeScenario.id}`, 'tutorial closed', { board: this.analyticsId(this.activeScenario), step: this.tutorialStep + 1 });
         this.tutorialOpen = false;
         localStorage.setItem('pcbfix_tut_dismissed', '1');
         this.renderUI();
@@ -2261,6 +2274,7 @@ export class PcbApp {
   }
 
   private placeProbe(which: 'red' | 'black', pt: V2, side: Side) {
+    this.trackOnce('tool', 'first tool', { tool: 'dmm', board: this.analyticsId(this.activeScenario) });
     const hit = netAt(this.board, this.conn, pt, side, this.vizMode === 'xray');
     const pin: ProbePin = hit
       ? { pos: hit.snap, side, net: hit.net, label: hit.label }
@@ -2287,6 +2301,7 @@ export class PcbApp {
   }
 
   private applyToolAt(pt: V2, side: Side) {
+    if (this.activeTool !== 'inspect') this.trackOnce('tool', 'first tool', { tool: this.activeTool, board: this.analyticsId(this.activeScenario) });
     const xray = this.vizMode === 'xray';
     const hit = pickAt(this.board, pt, side, xray);
 
@@ -2913,6 +2928,7 @@ export class PcbApp {
     const total = steps.length;
     const idx = Math.max(0, Math.min(total - 1, this.tutorialStep));
     const step = steps[idx];
+    if (this.activeScenario.id === TUTORIAL_SCENARIO_IDS[0]) this.trackOnce(`tut:${idx}`, 'tutorial step', { step: idx + 1, of: total });
     const done = step.isDone({
       scenarioId: this.activeScenario.id,
       board: this.board,
@@ -2987,6 +3003,7 @@ export class PcbApp {
       });
     }
     this.tutBoxEl.querySelector('#tut-close')?.addEventListener('click', () => {
+      this.trackOnce(`tutclose:${this.activeScenario.id}`, 'tutorial closed', { board: this.analyticsId(this.activeScenario), step: idx + 1, of: total });
       this.tutorialOpen = false;
       localStorage.setItem('pcbfix_tut_dismissed', '1');
       this.renderUI();
