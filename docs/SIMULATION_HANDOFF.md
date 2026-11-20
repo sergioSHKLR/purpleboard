@@ -1,4 +1,4 @@
-# DEADBOARD — handoff (updated 2026-11-19, after the part-data session)
+# DEADBOARD — handoff (updated end of 2026-11-20: problem generator, mod.io, first-board analytics)
 
 Goal: make DEADBOARD (formerly PCB//FIX) a realistic board-repair trainer, as close to a real bench as possible,
 **universal** (any board, not just the MacBook), with honest provenance for every value.
@@ -7,8 +7,89 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
-- **Feedback / reach session (2026-11-19, all pushed and live on deadboard.org).** Two threads
-  are open: this one and the simulation one below; ask the user which to continue.
+- **START HERE — end of 2026-11-20 (everything pushed and live; last commit `adb65b4`).**
+  Ask the user which thread to continue. **iOS and desktop apps are on hold**: no work on them and
+  no "rebuild the apps" reminders until the user brings them back.
+  - **Analytics thread (do first, once 1–2 days of data exist):** read the new first-board events
+    to find where new players stop. Umami snapshot 2026-11-18 → 20: 1561 visitors, bounce 39%,
+    avg visit 212 s; phones 901 visits (51% bounce, 126 s), laptops 837 (26%, 315 s). Funnel:
+    homepage 814 → bench 503 (62%) → fixed any board 98 (19%; **phones 9%**, laptops 26%).
+    Lessons 141 → 64 (≈10% lost per lesson), challenges 61 → 36, demos opened 62 / 40 but fixed
+    8 / 6. Verdict: the bottleneck is the **first minutes on the bench** (phones first), not the
+    number of puzzles; ~36 players ran out of built-in content; a middle tier below the demos is
+    missing. Events live since `adb65b4` (each once per page load): `bench ready`
+    {renderer, layout} / `bench failed` {reason}, `tutorial step` {step, of} (First Light, 8
+    steps), `tutorial closed` {board, step}, `first tool` {tool, board}, `tests run`
+    {board, result}. Read: bench ready vs app page views (graphics), tutorial step drop-off and
+    closing step, first tool → tests run → board fixed, all split phone / desktop.
+    **How to read Umami:** no API key. Open Chrome with `--remote-debugging-port` and a scratch
+    profile at cloud.umami.is/login, the user signs in, capture the dashboard's `Authorization`
+    header from its own requests, then query `https://gateway-eu.umami.is/api/websites/
+    f87071cc-1be3-4f31-9d52-a80861fa7e40/…`: `stats`, `metrics?type=path|device|referrer|event`
+    (type `path`, not `url`), `event-data/values?event=<name>&propertyName=<prop>`, and the funnel
+    `POST /api/reports/funnel` {websiteId, type:'funnel', parameters:{startDate, endDate,
+    steps:[{type:'path'|'event', value}], window:60}, filters}. Close the window and delete the
+    profile + captured header afterwards.
+  - **mod.io thread:** DEADBOARD is registered on production mod.io (https://mod.io/g/deadboard,
+    game id 14808, API path `https://g-14808.modapi.io/v1`; key in `.env.local` and in the repo
+    variables `MODIO_GAME_ID` / `MODIO_API_KEY` / `MODIO_API_URL`). The in-app **Browse mod.io**
+    tab (Mods window) is live and verified end to end (list → Install → CDN download with
+    CORS `*` → loader). First mod: **Starter kit** (mod 6541285, CC0 reuse permissions).
+    Settings: no curation (mods go live after mod.io's virus scan), direct + unauthenticated
+    downloads ON (the Install button needs them), per-platform files OFF (must stay off: the app
+    sends no platform header). **Open:** the game is still **Hidden** on mod.io, so authors can't
+    reach its upload page although the modding guide points there: the user clicks **Publish**
+    on the game's admin page (or asks Claude to, after signing in again). mod.io form bug: link /
+    support URL fields strip `https://` and then fail browser validation, so the game has no
+    website / support links yet. Creating the game accepted mod.io's game agreement v30 on the
+    user's account; publishing mods needs the user's own "I agree" tick + click (auto mode
+    blocks Claude from publishing under the user's account). Art in `launch/modio/` (local).
+    **Discussed, not started — puzzle marketplace:** split *boards* (known-good reference +
+    BOM/schematic/licence) from *puzzles* = a recipe (faults from the `faults.ts` catalogue with
+    in-range severities + story + objectives), so the physics always comes from the simulator;
+    an automatic bench check (reference passes, each fault visible, no burn cascade, player-tool
+    repair unlocks the flag, model-confidence score) in Author Studio export, a scheduled bot
+    re-checking new mod.io mods and setting a **locked** "Bench-checked" tag; player signals
+    (solve rate, median time, "would this happen on a real board?"). Spoilers in a recipe are
+    accepted (single player). Suggested first step: optional `faults` list in `mod.json` applied
+    to the reference board + the bench check in Author Studio. Keep it free until there is a
+    community.
+  - **Simulation thread — "Auto" mode (discussed, not started):** goal = most boards work out of
+    the box at ~90% realism. Not a third solver: keep SPICE and give every gap a default (rail
+    whose producer isn't found but whose name gives a voltage → ideal source marked "assumed";
+    unknown IC → typical load on supply pins + generic ESD clamps; unknown value → typical,
+    flagged; non-convergence → fall back to Fast DC), show "≈ estimated" on readings that touch
+    assumed parts, and let the problem generator reject faults whose symptom only shows through
+    assumed parts. **First step: a board survey** — 20–30 open-hardware KiCad boards from GitHub
+    (local only, like `.parts-cache/`), imported automatically and scored (rails found, rails at
+    their named voltage, converges, solve time). The older items below (MOSFET fit, more parts)
+    still stand.
+  - **Problem generator ("Next problem on this board", live, `976e1d9`):** `src/scenarios/
+    generate.ts` + `test/generate.test.ts`. Base board = the player's just-fixed board; faults
+    from part kinds / pads / nets / copper only; each must fail a bench check alone, none may
+    overload (the app burns overloaded parts on power-up); search prefers parts near objective
+    nets; Conn is keyed by object identity, so faults are applied in place with snapshot/undo.
+    MNT Reform ≈ 12 s per problem (ideal regulators hide most faults). Analytics
+    `problem generated`. Ideas: reject faults visible only through assumed parts (see Auto mode).
+
+- **End of 2026-11-19 (previous START HERE; its threads are still open):**
+  - **Feedback thread:** first run `npm run feedback` (then `-- --repro` for snapshots).
+    At the last pull (65 reports) no "stuck: no WebGPU" report had arrived since the WebGL2
+    fallback went live (~13:00; last one 12:49), but that was only about an hour of data:
+    recheck. The first two reports with snapshots came in (same player, thoughtful):
+    the Ghost Short bug is **fixed and live** (sliver moved after the fuse, videos re-recorded);
+    their suggestion, **schematics for the demo boards** to learn what each IC does, is **not
+    started** (both are open hardware: check the licences, the mod system already has a
+    schematic viewer). Small cleanups: scripts/repro.ts false flags (KiCad `unconnected-(…)`
+    "copper short"; "power does not balance" on power-tree boards); WebGPU error-screen text;
+    duplicate report sends.
+  - **Simulation thread:** first fix the **MOSFET fit** (`fitMos`: RDS(on) at 4.5–5 V is
+    2.1–2.5× too high, see "Known weakness" below); the user said "we will get back to it later".
+    Then more parts (PMEG60T10ELR PDF: ask the user to download it, Nexperia returned 403;
+    ESD arrays; zeners / TVS), then labels → `discoverPowerTree` part numbers. (c) vendor
+    SPICE models and (d) provenance UI still need the user's go-ahead.
+
+- **Feedback / reach session (2026-11-19, all pushed and live on deadboard.org).**
   1. **Feedback reports:** `npm run feedback` (scripts/feedback.ts) pulls every report from the
      FormSubmit API (`FORMSUBMIT_API_KEY` in `.env.local`) into `.feedback/` (git-ignored: may
      hold contacts) and prints a table + Gaps tally; `-- --repro` runs scripts/repro.ts on each
@@ -53,7 +134,7 @@ No reference hardware is available, so realism is validated against *design inte
      ROHM links redirect to a web page (open in a browser). Jetson demo now 13/13 part numbers
      found. Digi-Key does not carry SISA12DN (discontinued) or CSD58873Q3D (custom). Mouser key
      (`MOUSER_API_KEY`) not set: optional; its parser is only tested on documented shapes.
-  2. **Done 2026-11-19, late (user chose (a) + (b); not committed yet unless the log says so):**
+  2. **Done 2026-11-19, late (user chose (a) + (b); live, commit `3bb6965`):**
      - **The device library now runs on every board** (`boardDevices` in
        `src/spice/resolveParts.ts`, used by `boardToCircuit`, option `devices`, default on). Before
        this it was wired only into the test-only schematic path and the CLI: on an imported board a
@@ -531,6 +612,8 @@ scripts lived in the session scratchpad; recreate as needed.
 | Thermal camera | `src/thermal.ts` | apparent temperature ⁴√(εT⁴+(1−ε)Ta⁴): bare metal ε 0.1, mask/packages 0.9; rosin method (tool R): film melts clear above 60 °C (estimate) |
 | Meter F / A | `src/spice/dmm.ts` | capacitance by charge time: parallel R inflates / OL in circuit (lift to measure); 10 A shunt in series |
 | Calibration | `src/calibrate.ts`, `src/calibrate-cli.ts` | measurements CSV → per-reading comparison with tolerances, fitted `loadScale` → scenario `calibration` block applied by the simulator; optional per-row `tol`; `--repair` for demos. `docs/calibration/` = published design values of the open demos. **No bench measurements yet** |
+| Problem generator | `src/scenarios/generate.ts` | `generateProblem(parent, fixedBoard, {solver, faults})`: 1–3 catalogue faults on a just-fixed board, each failing a bench check alone, no overloads; flag re-locked to the fixed board; `Scenario.generated` = root board. UI: "Next problem on this board" card (Overview tab) |
+| mod.io client | `src/mods/modio.ts` | build-time `VITE_MODIO_*` config (tab hidden when unset), `listMods` / `downloadMod` (100 MB cap, size check), installed-file tracking for Update. UI: Mods window → Browse mod.io |
 | Airwires | `src/airwires.ts` | follow design nets (pad net names), not live connectivity, so they do not reveal damage |
 | KiCad import (real boards) | `src/io/{kicad,benchSupply}.ts`, `src/connectivity.ts`, `src/geom.ts` | rotation sign fixed (KiCad CCW kept); inner-layer copper → `Board.hiddenCopperNets` (vias / TH pads joined by design) plus display-only `Board.inner` (tracks + fills, pours simplified to 0.05 mm; drawn in X-ray and as the selected net's overlay); arcs; multi-layer + multi-island pours; thermal-relief contact; `dnp` → not fitted; bidirectional ESD/TVS + multi-pin diodes → no DC path; L/FB/NT → low-ohm paths; `C_100n_0402` values; coin cells 3 V; bench supply (`J_BENCH`) on the power tree's input rail (12 V assumed if unnamed); earcut triangulation cached per pour; part bodies sized from the F.Fab/B.Fab outline (SMD parts as chips/boxes, offset outlines kept in `body.off`); bodies that cover ≥2 other parts on their side (module sockets, shields) render as open frames with a light tint so parts beneath stay visible and clickable (`occluders()` in `src/render/webgpu.ts`) |
 | Open-hardware demos | `scripts/build-demos.ts`, `public/demos/`, `docs/DEMOS.md` | MNT Reform 2 motherboard (CERN-OHL-S-2.0) and Antmicro Jetson Nano baseboard (Apache-2.0) at pinned commits; build verifies healthy-pass / faulted-fail / repair-unlocks; lazy-loaded; `Scenario.solver`, `meta.credits/license/source` |
@@ -540,7 +623,7 @@ scripts lived in the session scratchpad; recreate as needed.
 | Bug snapshots | `src/snapshot.ts`, `scripts/repro.ts`, `src/ui/feedback.ts` | `DBSNAP1:…:END` in feedback emails; repro rebuilds shipped boards and flags shorts / mismatches |
 | Game integration | `src/ui/app.ts`, `src/render/webgpu.ts`, `src/verify.ts` | solver choice (Fast DC / SPICE / SPICE+PWR) in **Bench** dropdown; tools 9 freeze, 0 IPA, H hot air, B press; realistic rework mode; live thermal at 60 fps on the 2,030-part board |
 
-Tests: `test/{solve,spice,differential,ngspice,devicelib,schematic,powertree,realism,thermal,intermittent,rework,authoring,boot,scope,camera,calibrate,kicad,brd,tvw,importnets,snapshot,i18n,demos,demoboards,videos,mods,touch,analytics}.test.ts` (`npm test` runs all).
+Tests: `test/{solve,spice,differential,ngspice,devicelib,schematic,powertree,realism,thermal,intermittent,rework,authoring,generate,boot,scope,camera,calibrate,kicad,brd,tvw,importnets,snapshot,i18n,demos,demoboards,videos,mods,modio,touch,analytics}.test.ts` (`npm test` runs all).
 
 Flag lock: `topology()` (`src/crypto.ts`) adds per-part tokens for leak (`!L`, incl. thermal-leak), drift (`!D`) and
 intermittents (`!I`, even dormant), like `!X` for burnt — a fault the objectives miss must still be repaired.
