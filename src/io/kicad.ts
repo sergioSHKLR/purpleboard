@@ -397,7 +397,9 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
       pads.push({
         name: pName,
         at: [flt(pat, 1), -flt(pat, 2)],
-        size: [Math.max(0.4, flt(psize, 1, 1.5)), Math.max(0.4, flt(psize, 2, 1.5))],
+        // the real copper size: enlarged to 0.4 mm, net-tie pads (0.127 mm) and 0201 arrays overlapped
+        // their neighbours and joined nets (a Kintex-7 devboard merged +3V3 / +1V8 / +5V into GND)
+        size: [Math.max(0.05, flt(psize, 1, 1.5)), Math.max(0.05, flt(psize, 2, 1.5))],
         rot: padAbsRot - frot,
         shape,
         layers,

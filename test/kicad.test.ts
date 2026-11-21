@@ -149,6 +149,16 @@ function run() {
     assert(get(b, 'BT3').kind === 'battery' && get(b, 'BT3').value === 3.7, 'a stated voltage makes it a cell');
   }
 
+  // ---- pads keep their real size: a 0.127 mm net-tie pad beside another net's pad stays apart ----
+  {
+    // NT1 pads 0.127 mm at x 10.0 / 10.2; R8 pad (other net) 0.2 mm away. Enlarged to 0.4 mm they touched.
+    const b = board(`${fp('NT1', 'NetTie', '10 10 0', pad('1', '0 0', 3, 'F.Cu', '0.127 0.127') + pad('2', '0.2 0', 3, 'F.Cu', '0.127 0.127'))}
+      ${fp('R8', '10k', '10.45 10 0', pad('1', '0 0', 2, 'F.Cu', '0.15 0.15') + pad('2', '1 0', 4, 'F.Cu', '0.15 0.15'))}`);
+    const conn = buildConnectivity(b);
+    assert(get(b, 'NT1').pads[0].size[0] === 0.127, 'pad size as designed');
+    assert(pinNet(conn, get(b, 'NT1'), '2') !== pinNet(conn, get(b, 'R8'), '1'), 'a tiny pad does not swell into its neighbour');
+  }
+
   // ---- a changeover (SPDT) switch: the part's drawing says which throw is normally open ----
   {
     // Kailh CMI126603D08 (LCSC C400256): 1 COM, 2 NO, 3 NC. COM on GND, NO on N1 and NC on SW, each
