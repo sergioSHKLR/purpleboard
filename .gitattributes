@@ -1,0 +1,12 @@
+# Text files are checked out with LF on every platform, also on Windows with core.autocrlf=true:
+# the tests compare the example mod folders byte for byte with their zips, and generated files
+# (packages/mod-api, docs blocks) with what the generators write.
+* text=auto eol=lf
+
+*.zip binary
+*.png binary
+*.jpg binary
+*.gif binary
+*.mp4 binary
+*.pdf binary
+*.woff2 binary
