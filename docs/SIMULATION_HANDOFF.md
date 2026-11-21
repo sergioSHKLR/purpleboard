@@ -46,7 +46,10 @@ No reference hardware is available, so realism is validated against *design inte
   - **Buttons (`f633497`):** changeover switches are modelled (COM–NO pressed, COM–NC released) when
     the switch library (src/switchParts.ts) knows the part from its drawing: Kailh CMI126603D08 (LCSC
     C400256). The Tadpole is now L4 with a cracked SW2 NO joint, checked pressed and released.
-  - **GPU theme (researched, not built):** no open GPU board files exist (FuryGPU's are unpublished;
+  - **Second controller (`Boards: Rana Tadpole V1`):** `demo-rana-tadpole-v1`, L2, cracked XC6206
+    output pin. V1's buttons use RP2040 internal pull-ups (firmware), so no button faults there;
+    OpenStick's RP2350 Duel has no licence file (can't ship).
+  - **GPU theme (researched, not built; user: skip for now, 2026-11-21):** no open GPU board files exist (FuryGPU's are unpublished;
     vendor multiphase reference designs are proprietary). Best real stand-in: **Antmicro Kintex-7
     K410T devboard** (Apache-2.0, KiCad, github.com/antmicro/kintex-410t-devboard @ aeacd84): big
     FPGA (BGA-900) with a high-current core rail (MP8869S buck → 1.0 V), DDR3L (VRAM-like: +1V35,
