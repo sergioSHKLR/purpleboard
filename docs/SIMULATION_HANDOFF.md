@@ -1,4 +1,4 @@
-# DEADBOARD — handoff (updated evening of 2026-11-21: device themes — 3 real ESP32 boards + 2 controllers, engine and importer fixes, mod.io live)
+# DEADBOARD — handoff (updated late evening of 2026-11-21: learning-journey plan agreed — adaptive difficulty, concept boards, analytics, board-picker redesign)
 
 Goal: make DEADBOARD (formerly PCB//FIX) a realistic board-repair trainer, as close to a real bench as possible,
 **universal** (any board, not just the MacBook), with honest provenance for every value.
@@ -7,8 +7,88 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
-- **NEXT SESSION — start here (evening of 2026-11-21; everything pushed and live, last commit
-  `02855cf` + this handoff; Pages deploys checked on deadboard.org).** Ask the user which thread.
+- **NEXT SESSION — start here (late evening of 2026-11-21).** Everything is pushed. Last code
+  commit `ca478ec` (issue #4: the multimeter's clear-probes button was clipped outside the
+  280 px card; card now 336 px, title ellipsizes, **Esc clears probes**; no open issues left).
+  The rest of the session was a **discussion with the user about the learning journey; nothing
+  of it is built yet.** Ask the user which workstream to start; the suggested default is **A**.
+  **iOS and desktop apps are on hold.**
+  - **Decided by the user:**
+    - Analytics start **without any ID or login**. Path context goes into each event instead
+      (attempt # in this session, puzzles solved as a range, days since first visit as a range).
+      **~500 daily players** (user, 11-21).
+    - A **daily repair** (one seeded puzzle per day, the same for everyone) is wanted.
+    - The **board picker is "chaotic" and needs a redesign** before the path / daily repair can
+      live in it.
+    - Self-hosting Umami: the user is interested (Cloud Hobby cap is 100k events/month, launch
+      pace was ~130k). Not decided yet.
+  - **Still open (ask the user):** show levels as numbers ("2.4") or named tiers? Placement
+    "skip test" offers, or jumps only through the rating? Struggling help as a guided walk-through
+    (tutorial steps) or lighter hints? Story devices (bike light, USB fan) vs abstract boards?
+    Who builds most boards (agent from a circuit list / Author tab / community)? Simple schematic
+    view for hand-made boards? Self-host Umami now or when attempt records are ready?
+  - **Workstreams, in the suggested order:**
+    - **A. Board picker redesign** (`renderBoardsModal`, `phoneCatalogSection` in `src/ui/app.ts`).
+      Today it is grouped by source (Tutorials / Challenges / Real Hardware / Mods), has no "what
+      next" (the track `CHALLENGE_TRACK_IDS` lives in the side panel), mixes expert chips
+      (SPICE + PWR, licences, Par, part counts) into beginner cards, and the L1–5 bars disagree
+      with the track order. Plan: **Home ("Today")** = Continue (2–3 recommended puzzles; at
+      first the track order + current difficulty), Daily repair slot, Your path (level, tools and
+      parts learned, next to learn); **Library** = everything, filters by level / skill / device /
+      source, technical chips moved into details. Phones: one column, swipeable Continue row,
+      Library as filter + list; shorten text, never shrink it. **First step: a clickable mockup
+      (desktop + phone, real boards) for the user to judge** before coding. Measure before/after:
+      time to first board, share starting a recommended puzzle, first-session depth, day-1 return.
+    - **B. Daily repair:** `src/scenarios/generate.ts` with the date as the seed; pick a board
+      pool small enough to generate fast on phones (or pregenerate and ship as data).
+    - **C. Attempt record + analytics** (`src/analytics.ts`; needs the user's go-ahead per event
+      and a `docs/PRIVACY.md` update **in the same commit**). One record per attempt, sent on solve
+      or leave: puzzle id **+ version**, difficulty estimate, player level band, outcome, active
+      time range, measurements, wrong repairs, notes revealed, tools used, drills shown/skipped,
+      longest pause → next action, path context (above). Saved locally too: it feeds the rating
+      (D). Custom/imported boards stay "custom", no free text. Then: a weekly **puzzle health
+      report** script (solve rate, time, quits, notes, actual vs predicted solve rate → flags), a
+      one-tap "too easy / about right / too hard" after a solve, an "I'm stuck" button (opens help
+      and records where). A/B: variant picked and stored on the device, sent with each event; at
+      500/day only for early, high-traffic steps (~1,600 per arm for 50→55 %), elsewhere compare
+      puzzle versions before/after. **Self-hosted Umami** (if chosen): small EU server, Docker
+      (Umami + PostgreSQL) behind an HTTPS proxy at e.g. `stats.deadboard.org`, proxy access logs
+      without IPs, nightly off-site `pg_dump`, auto security updates; keep Umami unmodified, build
+      reports as SQL / our scripts; switch at a month start; the user rents the server and DNS.
+      Keep honouring Do Not Track; don't try to get around blockers.
+    - **D. Adaptive difficulty 1.0–10.0.** A puzzle = board × fault set × help. Computed
+      difficulty (board: parts, nets, rails, sequencing, both sides; faults: count, hops from the
+      failing check, visible vs measured-only, intermittent, masking; help: notes, guidance),
+      marked as an **estimate**, later fitted from C. Player rating with uncertainty (Glicko-like)
+      + sub-ratings per skill: strong early solves jump (2.0 → 5.0), struggling → more help first
+      (timed note offer, where-hint, guided steps generated from the fault data via the tutorial
+      step system), then smaller steps (2.1, 2.2) with fading help. Picker targets ~70 % success,
+      weakest skill, novelty, fault-kind variety. Revealing a note must cost less rating than
+      failing. Rough bands: 1–2 one-LED boards, visible fault, guided · 3–4 small boards, measured
+      fault · 5–6 ESP32-class, rail faults, ≤ 2 · 7–8 controllers / carriers, intermittent,
+      masking · 9–10 Reform/Jetson, deep power tree, multi-fault, no notes. Today:
+      `meta.difficulty` is an integer 1–5 by hand; only `pcbfix_solved` is stored per player.
+    - **E. Hand-made concept boards + teaching.** Players like the hand-made boards (easy to
+      read). Grow complexity slowly (4 → 10 → 25 parts) to fill the jump from ~6-part boards to
+      the 60-part ESP32s. One real circuit per board, original story devices: bike light
+      (transistor switch), battery toy (reverse polarity, P-MOSFET), USB gadget (5 V → 3.3 V LDO),
+      night light (light sensor + divider), USB fan (MOSFET + flyback), charger (small IC),
+      blinker (timer, needs the scope). The same circuit again later in an SMD look. **The builder
+      (`src/scenarios/builder.ts`) has no transistor, capacitor, regulator or IC**; the SPICE
+      library (`src/spice/devicelib.ts`) has MOSFET / BJT models. Teaching: puzzles declare
+      `teaches` / `needs` (tool:…, part:…, concept:…), at most one new thing per puzzle; a
+      30-second first-use drill per tool (only tutorial tools are taught today; hot air, scope,
+      freeze, rosin, press have a tooltip only), a tool library page; a **part card** (what it is ·
+      how to recognise it · what it does here · how it fails · how to test it; lines 1/2/4/5 per
+      part kind = universal, line 3 per board via knowledge packs, extended from rails to parts,
+      with confidence; Biga73's coach RFC, credit them); labelled circuit **blocks**; a **"What
+      happened" debrief** after each repair (builds on the generator's `fix` texts); **pick by
+      spec** in the parts bin (3 candidates, wrong ones fail safely with an explanation).
+      **Suggested first slice: the bike light** (builder transistor + transistor part card +
+      teaches/needs + debrief + pick-by-spec), shown to players before scaling up.
+
+- **Earlier — evening of 2026-11-21 (device themes; everything pushed and live, last commit
+  `02855cf` + its handoff; Pages deploys checked on deadboard.org).**
   **iOS and desktop apps are on hold. Graphics cards are skipped for now (user).**
   - **Shipped today (challenge track after The Sagging Rail, in this order):**
     | Board | Lvl | Faults | Licence |
