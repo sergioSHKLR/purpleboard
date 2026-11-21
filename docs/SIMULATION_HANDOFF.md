@@ -1,4 +1,4 @@
-# DEADBOARD — handoff (updated end of 2026-11-21: board notes, Community catalogue + Submit, onboarding fixes from player reports)
+# DEADBOARD — handoff (updated end of 2026-11-21: retention round from Umami; board notes, Community catalogue + Submit, onboarding fixes)
 
 Goal: make DEADBOARD (formerly PCB//FIX) a realistic board-repair trainer, as close to a real bench as possible,
 **universal** (any board, not just the MacBook), with honest provenance for every value.
@@ -7,7 +7,49 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
-- **START HERE — end of 2026-11-21 (everything pushed and live; last code commit `d15ec74`).**
+- **NEXT SESSION — start here (end of 2026-11-21, all pushed and live: code `be47b52`,
+  handoff after it).** Ask the user which thread; the default is the Umami re-read below.
+  **iOS and desktop apps are on hold.**
+  - **Live since 11-21 ~10:40 CET (deploy of `be47b52`):** First Light opens with "A broken
+    flashlight" (7 steps), phone board framing clear of the lesson card / readouts, phone layout
+    for Android phones with a fine pointer, WebGPU timeouts + boot screen + slow-start notice +
+    start-error screen, phone homepage 3D hero on tap + 1400 px image, new events. Details in
+    "Retention round" below.
+  - **1. Re-read Umami (from ~11-23; compare only data after 11-21 10:40 CET).** Baseline
+    (11-20 18:45 → 11-21 09:30, old version): First Light step 1 → 2 = 163 → 65 (40 % kept),
+    step 2 → 8 = 65 → 45; bench ready → active 1 min lost 38 % (phones 46 %); `/app.html` →
+    `bench ready` lost 19 %; home → bench lost 43 % (phones 56 %); Android phones on the desktop
+    layout 28 / 60. Questions: (a) step 1 → 2 now, and `prev` done vs skipped per step;
+    (b) `bench left early` by `reached` × `visible` × `layout` (loading + <5s = quick close);
+    (c) `bench failed` reason `slow start` by `stage` (= hangs), `start error`, `bench error` by
+    kind / tool / board; (d) `home left` on phones by `visible` / `scrolled` / `to` / `hero`;
+    (e) `bench ready` layout by OS (Android desktop layout should be ~0). Then fix what they show.
+  - **How to read Umami (scripts were in a session scratchpad, rebuild them):** launch
+    `~/Library/Caches/ms-playwright/chromium-1243/chrome-mac-arm64/Google Chrome for
+    Testing.app/Contents/MacOS/Google Chrome for Testing --remote-debugging-port=9333
+    --user-data-dir=<scratch>/umami-profile https://cloud.umami.is/login`; the user signs in
+    (Google). Helper = Node script: GET `http://localhost:9333/json`, take the cloud.umami.is page,
+    WebSocket `Runtime.evaluate` (awaitPromise, returnByValue) of a `fetch` to
+    `https://gateway-eu.umami.is/api/websites/f87071cc-1be3-4f31-9d52-a80861fa7e40/<path>` with
+    `Authorization: Bearer ` + `JSON.parse(localStorage['umami.auth'])` (never print the token).
+    Endpoints: `stats`, `metrics?type=path|event|device|os|browser|referrer|country|screen`,
+    `event-data/values?event=<name>&propertyName=<prop>` (+ filters `&device=mobile&os=…`),
+    POST `/api/reports/funnel` {websiteId, type:'funnel', parameters:{startDate, endDate,
+    window:60, steps:[{type:'path'|'event', value}]}, filters:{device:'mobile', …}},
+    `sessions?startAt&endAt&pageSize=100&page=n` and `sessions/<id>/activity?startAt&endAt`
+    (per-session event list; slow: ~1 s per session, run big loops in the background, print only
+    aggregates, never ids / cities). Close the window and delete the profile afterwards.
+  - **2. Event budget:** Umami Hobby = 100k events/month incl. page views; launch pace was
+    ~130k/month. If the plan page shows it near the limit: thin `tutorial step` (546 in 15 h)
+    and `tests run` (303) first, e.g. first run per board only, or drop once answered.
+  - **3. Candidates, not started:** phone homepage hero (bench image only peeks in at the bottom
+    of the first screen; fix without shrinking text), in-between regulator boards (plan with
+    the user), coach RFC gaps (below). Measuring tools used on 11-21 (rebuild if needed):
+    Playwright + Chrome for Testing with `Network.emulateNetworkConditions` (slow 4G) and
+    `Emulation.setCPUThrottlingRate` 4 for load time; a `longtask` PerformanceObserver for
+    freezes; a stubbed `window.umami` + `exposeBinding` to see exactly which events fire.
+
+- **Earlier START HERE — end of 2026-11-21, before the retention round (last code commit `d15ec74`).**
   Ask the user which thread to continue. **iOS and desktop apps are on hold** (as below).
   - **Coach RFC by Biga73 (Andrej, GitHub Biga73) — credit him by name on anything from it.**
     His RFC (knowledge pack, query layer, fault-candidate engine, optional LLM explainer) was
