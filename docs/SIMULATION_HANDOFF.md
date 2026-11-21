@@ -46,6 +46,11 @@ No reference hardware is available, so realism is validated against *design inte
   - **Buttons (`f633497`):** changeover switches are modelled (COM–NO pressed, COM–NC released) when
     the switch library (src/switchParts.ts) knows the part from its drawing: Kailh CMI126603D08 (LCSC
     C400256). The Tadpole is now L4 with a cracked SW2 NO joint, checked pressed and released.
+  - **Published 2026-11-21 ~17:55 (deploy of `bd39aaa`, checked):** deadboard.org serves all 7 demos;
+    MNT's 188 capacitances are no longer 0. **mod.io is live** (game 14808 in the public listing): the
+    in-app Browse mod.io tab lists the Starter kit and Install opens it (checked on the live site); the
+    mod.io file equals the repo zip. Empty in the mod.io profile (user, admin page): instructions,
+    instructions URL (https://deadboard.org/modding.html), other links (site, GitHub).
   - **Second controller (`Boards: Rana Tadpole V1`):** `demo-rana-tadpole-v1`, L2, cracked XC6206
     output pin. V1's buttons use RP2040 internal pull-ups (firmware), so no button faults there;
     OpenStick's RP2350 Duel has no licence file (can't ship).
