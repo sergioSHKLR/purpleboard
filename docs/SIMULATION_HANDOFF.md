@@ -1,4 +1,4 @@
-# DEADBOARD — handoff (updated end of 2026-11-21: retention round from Umami; board notes, Community catalogue + Submit, onboarding fixes)
+# DEADBOARD — handoff (updated end of 2026-11-21: mod feedback round from Biga73; retention round from Umami; board notes, Community catalogue + Submit, onboarding fixes)
 
 Goal: make DEADBOARD (formerly PCB//FIX) a realistic board-repair trainer, as close to a real bench as possible,
 **universal** (any board, not just the MacBook), with honest provenance for every value.
@@ -6,6 +6,51 @@ No reference hardware is available, so realism is validated against *design inte
 (schematic/BOM values, rail names, datasheets) and physics checks — not measurements.
 
 ## Status (start here)
+
+- **LATEST — mod feedback round (end of 2026-11-21, pushed and live: `7207be5`, `d4fdd6e`;
+  Pages deploy checked, `lookWorker` served on deadboard.org).** The default next thread is still
+  the Umami re-read (next entry); ask the user. **iOS and desktop apps are on hold.**
+  - **Done, from Biga73's test report on the mod updates** (Board notes, code mods, Local coach):
+    1. **Rules engine** (`src/mods/rules-engine.ts` `rankCandidates`): the 5 recall misses were
+       all cold joints at the supply (BT1, J1 ×4). Not pin count: the supply net (hop 0) already
+       reads wrong, and downstream parts piled up 3–4 rules on symptoms that follow from it. Now
+       when `firstBad === 0`, non-short / non-hot credit downstream counts ×0.5 (`follows`).
+       Recall 120/120 (test now demands all; new test: cold joint at BT1 / J1 ranks first).
+       low-source confirm names both terminals → `official-rules` 1.0.1.
+    2. **«Where to look?»** runs in a worker (`src/mods/lookWorker.ts`, main-thread fallback);
+       the `> 200` parts cap is gone. MNT Reform: ~6 s, longest frame gap 95 ms, both planted
+       faults in the top 3. Result keyed on the `VerifyResult` (was: stale after a re-run).
+       `referenceBoard()` caches the repaired demo (was re-cloned every render).
+    3. **Plug-in API 1.1.0:** `api.board.netsNear(ref, mm)` (`netsNear` in
+       `src/connectivity.ts`: nets whose copper is within mm of a part's pads, same layer,
+       nearest first, gap + pad; a pad's own net skipped, the part's other pins kept; host caps
+       mm at 5, no permission, names/gaps only) and `api.ui.highlight(net)` (needs `panel`;
+       `gotoNet` in app.ts). `groupOf` deliberately not added (net = copper group; documented in
+       CODE_MODS.md). mod-api package + docs regenerated; MOD_PLATFORM.md notes the review.
+    4. **`.gitattributes`** `* text=auto eol=lf` (+ binaries): fixes the false "zip is stale" on
+       Windows with `core.autocrlf=true` (reproduced: 78 CRs in mod.json). Renormalize = no change.
+  - **Not verified / open:** `ui.highlight` never clicked in the app (code mods are off by
+    default; only host tests + tsc). `netsNear` on a 204-pad SOM ≈ 130 ms (pours with many
+    edges); fine on demand, watch it if a mod calls it in a loop. Antmicro board: «Where to
+    look?» doesn't put its planted faults (U2, FB1) in the top 5 (J15 first). MNT: top hit C178
+    shows Net-(U9-SW) at 0.10 Ω to ground vs 1.4e5 Ω working — odd for a missing cap + residue,
+    worth a look in the shorts observation.
+  - **Replies drafted in chat (the user sends them; not sent by us):**
+    (a) to Biga73 on the 4 points above (all fixed; netsNear/highlight; `^1.1`; fresh clone for
+    LF). (b) to the contributor proposing **`api.net.fetch`** (host-mediated fetch so a local
+    Ollama accepts the request; sandbox sends `Origin: null`, Ollama 403s it by default; their
+    table: only `http://localhost:5173` and `app://deadboard` origins pass). **User's decision:
+    don't build it now, without saying no** — most players are on low-end phones, and the user
+    prefers **pregenerated** help (knowledge-pack `patterns`, reviewed data, bench-checked) over
+    live AI. The reply invites a PR for `patterns` (+ pack skeleton generator), offers a
+    "Connecting a local model" note in CODE_MODS.md (their Origin table, credited) and a clearer
+    local-coach error, and asks to keep the design in a GitHub Suggestion issue. Correction made
+    before sending: the mod can't detect the 403 (a failed preflight is a plain network error),
+    so the message should name both causes (server down / origin refused) with the Ollama
+    `OLLAMA_ORIGINS=*` and LM Studio CORS settings. Nothing in the code had to change for the
+    replies. They mention local-coach 1.1.1; the repo has 1.0.0 (their local copy).
+  - **If they answer with a PR:** `patterns` = open RFC gap (field in knowledge packs feeding
+    «Where to look?»); follow AGENTS.md "New item types / fields" steps; run the recall test.
 
 - **NEXT SESSION — start here (end of 2026-11-21, all pushed and live: code `be47b52`,
   handoff after it).** Ask the user which thread; the default is the Umami re-read below.
