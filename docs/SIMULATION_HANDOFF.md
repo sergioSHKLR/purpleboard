@@ -8,7 +8,7 @@ No reference hardware is available, so realism is validated against *design inte
 ## Status (start here)
 
 - **LATEST — device themes: real ESP32 boards (2026-11-21, committed, NOT pushed: `ea3d2db`,
-  `2d56da9`, `33b59b3`, `f93f389`, `da835b7`, `72e8016`).** The user wants whole device themes (ESP32, game
+  `2d56da9`, `33b59b3`, `f93f389`, `da835b7`, `72e8016`, `f633497`).** The user wants whole device themes (ESP32, game
   controllers, graphics cards…) at every difficulty, still 1:1 with real devices. Agreed order:
   real products that are open hardware first (KiCad + redistributable licence); for branded
   devices a self-drawn version of a unit you own; GPU = a "GPU-style" board from datasheet
@@ -43,8 +43,12 @@ No reference hardware is available, so realism is validated against *design inte
     4e114 °C); regulator / chip heat now warms its part. **Walkthrough videos for Antmicro (and MNT)
     may quote readings that moved: check before the next recording.** Parts by LCSC code; 3-pin LDOs
     by datasheet pins; bench supply prefers the most upstream input.
-  - **Open:** buttons on mouse switches (SPDT: COM / NO / NC) are modelled as 2-terminal; NO/NC
-    pad roles unknown from the files, so no button-press tests yet. Unpowered ICs don't clamp their pins (TXD reads 5 V through R6 on the DevKit);
+  - **Buttons (`f633497`):** changeover switches are modelled (COM–NO pressed, COM–NC released) when
+    the switch library (src/switchParts.ts) knows the part from its drawing: Kailh CMI126603D08 (LCSC
+    C400256). The Tadpole is now L4 with a cracked SW2 NO joint, checked pressed and released.
+  - **Flaky:** `test/solve.test.ts` "100x pickAt budget" (25 ms) fails ~half the runs on this Mac
+    under load, also on the committed code (27–35 ms). Not touched.
+  - **Open:** Unpowered ICs don't clamp their pins (TXD reads 5 V through R6 on the DevKit);
     reference designators of real parts still render large on small boards; Rust board +BATT floats
     with no battery (nothing defines it; left out of tests and calibration); Wi-Fi TX peaks (350 mA)
     not modelled in DC (a brown-out challenge needs a transient load); ESP32-POE Rev M2 has a
