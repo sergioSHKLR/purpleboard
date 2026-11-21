@@ -8,7 +8,7 @@ No reference hardware is available, so realism is validated against *design inte
 ## Status (start here)
 
 - **LATEST — device themes: real ESP32 boards (2026-11-21, committed, NOT pushed: `ea3d2db`,
-  `2d56da9`, `33b59b3`, `f93f389`, `da835b7`).** The user wants whole device themes (ESP32, game
+  `2d56da9`, `33b59b3`, `f93f389`, `da835b7`, `72e8016`).** The user wants whole device themes (ESP32, game
   controllers, graphics cards…) at every difficulty, still 1:1 with real devices. Agreed order:
   real products that are open hardware first (KiCad + redistributable licence); for branded
   devices a self-drawn version of a unit you own; GPU = a "GPU-style" board from datasheet
@@ -34,7 +34,17 @@ No reference hardware is available, so realism is validated against *design inte
     Antmicro demo: 1V8_SYS now powered (IC4 was never found; 0.43 V → 1.798 V, snapshot 57.2 mA).
   - **Parts from datasheets:** `npm run parts -- datasheets <MPN>` fetched them (jlcparts links,
     plain requests work). Added SY8089, HX6211A332, TP4054, BL4054B, IRLML6402, WPM2015, 1N5819.
-  - **Open:** unpowered ICs don't clamp their pins (TXD reads 5 V through R6 on the DevKit);
+  - **Controller theme started (`72e8016`):** `demo-rana-tadpole-v2` (L3, Rana Tadpole V2, CERN-OHL-S,
+    RP2040): C5 on +1V1 shorted → RP2040 regulator at 100 mA, chips warm, cap cool. Alpakka is
+    CC BY-NC-SA (no: the paid apps), PhobGCC (CERN-OHL-S) is mostly a Teensy + hall sensors (little
+    to simulate). **Same commit fixed live-site bugs:** every shipped demo had capacitance 0
+    (build rounding; MNT and Antmicro rebuilt from pinned commits → Antmicro 369 parts, bench at the
+    connector before F3, board-notes VIN note updated); thermal runaway on big pads (Antmicro SP6 at
+    4e114 °C); regulator / chip heat now warms its part. **Walkthrough videos for Antmicro (and MNT)
+    may quote readings that moved: check before the next recording.** Parts by LCSC code; 3-pin LDOs
+    by datasheet pins; bench supply prefers the most upstream input.
+  - **Open:** buttons on mouse switches (SPDT: COM / NO / NC) are modelled as 2-terminal; NO/NC
+    pad roles unknown from the files, so no button-press tests yet. Unpowered ICs don't clamp their pins (TXD reads 5 V through R6 on the DevKit);
     reference designators of real parts still render large on small boards; Rust board +BATT floats
     with no battery (nothing defines it; left out of tests and calibration); Wi-Fi TX peaks (350 mA)
     not modelled in DC (a brown-out challenge needs a transient load); ESP32-POE Rev M2 has a
