@@ -354,6 +354,9 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
     }
 
     let kind = classifyKind(ref, valText, fpName);
+    // a distributor order code the design carries names the exact part ("XC6206" + LCSC C5446)
+    const lcscRaw = kids(f, 'property').find((p) => /^(LCSC|LCSC Part|LCSC Part #|LCSC#|JLCPCB Part #|JLC)$/i.test(str(p, 1)));
+    const lcsc = lcscRaw && /^C\d{1,9}$/.test(str(lcscRaw, 2).trim()) ? str(lcscRaw, 2).trim() : undefined;
     const attrNode = kid(f, 'attr');
     const attrTokens = Array.isArray(attrNode) ? attrNode.slice(1).map(String) : [];
     if (kids(f, 'property').some((p) => /^dnp$/i.test(str(p, 1)) && !/^(no|false|0)?$/i.test(str(p, 2)))) attrTokens.push('dnp');
@@ -428,7 +431,7 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
       } else {
         // by pad name when the footprint numbers them (files may list pad 2 first)
         pins['1'] = pads.find((p) => p.name === '1')?.name ?? pads[0].name;
-        pins['2'] = pads.find((p) => p.name === '2')?.name ?? pads.find((p) => p.name !== pins['1'])!.name;
+        pins['2'] = pads.find((p) => p.name === '2')?.name ?? pads.find((p) => p.name !== pins['1'])?.name ?? pads[1].name;
       }
     } else if (pads.length === 1) {
       pins['1'] = pads[0].name;
@@ -458,6 +461,7 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
       value,
       color: kind === 'led' ? ((colorMatch?.[1] as Component['color']) ?? 'red') : undefined,
       label: /^L\d/.test(rPrefix) ? 'Inductor' : /^FB\d/.test(rPrefix) ? 'Ferrite bead' : /^NT\d/.test(rPrefix) ? 'Net tie' : valText || undefined,
+      ...(lcsc && { lcsc }),
       ...(guessed && ['resistor', 'capacitor', 'fuse', 'battery'].includes(kind) && { valueGuessed: true }),
       footprint: fpName,
       at: pos,

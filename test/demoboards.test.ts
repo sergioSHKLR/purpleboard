@@ -46,7 +46,7 @@ interface Expect {
 
 const EXPECT: Record<string, Expect> = {
   'demo-mnt-reform2-mb30': {
-    parts: 530, conductors: 701, named: 681, splits: [],
+    parts: 523, conductors: 692, named: 681, splits: [],
     converters: { U7: '+5V', U9: '+3V3', U13: '+1V2', U19: '+1V5', U14: 'LPC_VCC' },
     supply: { ref: 'J_BENCH', volts: 30 },
     fails: { index: 0, min: 0.3, max: 1.0 },
@@ -59,13 +59,13 @@ const EXPECT: Record<string, Expect> = {
     flag: 'DEAD{r3f0rm_3v3_sh0rt_g0n3}',
   },
   'demo-antmicro-jetson-nano-bb': {
-    parts: 392, conductors: 497, named: 485, splits: ['Net-(IC3-~{FAULT})'],
+    parts: 370, conductors: 489, named: 485, splits: ['Net-(IC3-~{FAULT})'],
     converters: { U6: '5V0_SYS', U2: '3V3_SYS' },
     supply: { ref: 'J_BENCH', volts: 12 },
     fails: { index: 0, min: -0.05, max: 0.1 },
     // 1V8_SYS: IC4 TPS7A0518 (fixed 1.8 V, EN on a divider), found since KiCad pin-role names (11-21)
     rails: { '5V0_SYS': 4.984, '3V3_SYS': 3.3, '1V8_SYS': 1.8 },
-    amps: 0.0572, // BSS138PW T2 (gate on the pulled-up #RESET) lights BOOT1: 6.4 mA; 1V8_SYS estimated loads ≈ 15 mA
+    amps: 0.0624, // BSS138PW T2 (gate on the pulled-up #RESET) lights BOOT1: 6.4 mA; 1V8_SYS / 1V8_DBG estimated loads
     meter: { '5V0_SYS': [0.516, 62e3], '3V3_SYS': [0.52, null], VIN: [0.547, null] },
     flag: 'DEAD{b4s3b0ard_3v3_b4ck}',
   },
@@ -99,6 +99,17 @@ const EXPECT: Record<string, Expect> = {
     amps: 0.0686, // U3 ESP32-C3-MINI-1 at 82 mA RX through the buck, from the connector
     meter: { '+3V3': [0.515, 122.1e3], '+5V': [0.554, 100.1e3], VBUS: [0.542, 100e3] },
     flag: 'DEAD{ru5t_b04rd_en_4nd_d4}',
+  },
+  'demo-rana-tadpole-v2': {
+    parts: 148, conductors: 122, named: 121, splits: [],
+    converters: { U1: 'Net-(D1-A)', U3: '+1V1' }, // XC6206 by its LCSC code (C5446), RP2040 core regulator by datasheet pins
+    supply: { ref: 'J_BENCH', volts: 5 },
+    fails: { index: 0, min: -0.05, max: 0.1 }, // C5 shorted: the RP2040 regulator at its 100 mA limit
+    // no hot-spot check: U1 (168 mW) and the RP2040 (297 mW) warm slowly (31 °C after 10 s, ≈40 K rise in steady state); the shorted cap stays cool
+    rails: { '+1V1': 1.1, 'Net-(D1-A)': 3.3 },
+    amps: 0.0283, // RP2040 core at 125 MHz (datasheet Fig. 168, estimate) through its regulator
+    meter: { '+1V1': [0.569, null], '3vDiode': [0.454, 15.7e3], AUX_USB_VBUS: [0.497, 15.6e3] },
+    flag: 'DEAD{t4dp0le_c0re_sh0rt_n0t_th3_ch1p}',
   },
 };
 

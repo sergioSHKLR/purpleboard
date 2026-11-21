@@ -27,6 +27,9 @@ export interface ChipLoadDef {
 }
 
 const CHIP_LOADS: ChipLoadDef[] = [
+  { mpn: 'RP2040', supply: '23', amps: 0.028, state: 'running, both cores at 125 MHz (core supply DVDD)', vmin: 0.9,
+    source: 'Raspberry Pi RP2040 Datasheet, build-date 2021-06-07',
+    note: 'DVDD current read from Fig. 168 (typical part, room temperature, 1.1 V, both cores running FFT) at 125 MHz: ≈28 mA, an upper estimate for controller firmware. IOVDD and USB_VDD (1.2 + 1.4 mA in BOOTSEL, Table 635) are not modelled. vmin: below the DVDD minimum 0.99 V (Table 634), estimate' },
   { mpn: 'ESP32-WROOM-32D', supply: '2', enable: '3', amps: 0.08, state: 'running, Wi-Fi on (average)', vmin: 2.5,
     source: 'Espressif ESP32-WROOM-32D & ESP32-WROOM-32U datasheet v2.4',
     note: 'average operating current 80 mA (the module sheet\'s own figure); supply must deliver ≥ 500 mA (TX peaks are not modelled in DC); VDD33 3.0–3.6 V; EN high = VIH 0.75 × VDD (the input threshold; no separate EN figure). vmin 2.5 V: estimate for the brown-out reset' },

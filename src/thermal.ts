@@ -130,9 +130,19 @@ export class ThermalModel {
     if (!c.pads.length) return;
     const cells = new Set<number>();
     let padArea = 0;
+    const dmm = this.dx * 1e3;
     for (const p of c.pads) {
       const a = (c.rot * Math.PI) / 180, cs = Math.cos(a), sn = Math.sin(a);
-      cells.add(this.cellAt(c.at[0] + p.at[0] * cs - p.at[1] * sn, c.at[1] + p.at[0] * sn + p.at[1] * cs));
+      const px = c.at[0] + p.at[0] * cs - p.at[1] * sn, py = c.at[1] + p.at[0] * sn + p.at[1] * cs;
+      cells.add(this.cellAt(px, py));
+      // a pad larger than a cell couples to every cell it covers: all of a big pad's conductance on
+      // one cell made the explicit board update unstable (a spacer's 7 mm ground pad ran away)
+      const pr = ((p.rot ?? 0) + c.rot) * Math.PI / 180;
+      const hx = (Math.abs(Math.cos(pr)) * p.size[0] + Math.abs(Math.sin(pr)) * p.size[1]) / 2;
+      const hy = (Math.abs(Math.sin(pr)) * p.size[0] + Math.abs(Math.cos(pr)) * p.size[1]) / 2;
+      if (hx > dmm / 2 || hy > dmm / 2) {
+        for (let x = px - hx + dmm / 2; x < px + hx; x += dmm) for (let y = py - hy + dmm / 2; y < py + hy; y += dmm) cells.add(this.cellAt(x, y));
+      }
       padArea += p.size[0] * p.size[1] * 1e-6;
     }
     const w = Math.max(0.2, c.body.w), h = Math.max(0.2, c.body.h), z = Math.max(0.15, c.body.z);

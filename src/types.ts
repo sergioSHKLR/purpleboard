@@ -79,6 +79,8 @@ export interface Component {
   valueGuessed?: boolean;
   color?: LedColor;
   label?: string;
+  /** Distributor order code from the design (KiCad "LCSC" field, e.g. "C5446"): names the exact part when the value doesn't. */
+  lcsc?: string;
   footprint?: string;
   /** Resistor power rating in watts (default 0.5). */
   rating?: number;

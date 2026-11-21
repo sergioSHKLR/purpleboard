@@ -2,7 +2,7 @@
 // schematic, a BOM CSV, a netlist…) → SPICE PartSpecs for every known discrete device.
 import type { Component } from '../types';
 import type { PartSpec } from './board';
-import { diodeModelParams, findDevice, inferDiodeConvention, resolveDevice, type DiodeConvention, type DiodeSpec } from './devicelib';
+import { deviceOf, diodeModelParams, findDevice, inferDiodeConvention, resolveDevice, type DiodeConvention, type DiodeSpec } from './devicelib';
 
 export interface DeviceResolution {
   parts: Record<string, PartSpec>;
@@ -47,7 +47,8 @@ export function resolveDevices(comps: Component[], partNumbers: Record<string, s
  */
 export function boardDevices(comps: Component[], skip: (ref: string) => boolean = () => false): DeviceResolution {
   const labels: Record<string, string> = {};
-  for (const c of comps) if (c.label && !skip(c.ref) && findDevice(c.label)) labels[c.ref] = c.label;
+  // by part number in the value, else by the LCSC code (a C8598 named "Schottky Diode")
+  for (const c of comps) { const d = !skip(c.ref) ? deviceOf(c) : undefined; if (d) labels[c.ref] = findDevice(c.label) ? c.label! : d.mpn; }
   const res = resolveDevices(comps, labels, skip);
   for (const c of comps) {
     const spec = res.parts[c.ref];

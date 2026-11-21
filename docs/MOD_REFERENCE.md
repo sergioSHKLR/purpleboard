@@ -313,6 +313,7 @@ how often the planted part is in the top 3, with and without your rules.
 | `official-boards/boards/demo-olimex-esp32-devkit-lipo` | Olimex ESP32-DevKit-LiPo · dead on USB, won't charge (demo, loads when opened) |
 | `official-boards/boards/demo-olimex-esp32-c3-devkit-lipo` | Olimex ESP32-C3-DevKit-Lipo · hot board, wrong 3.3 V (demo, loads when opened) |
 | `official-boards/boards/demo-esp32-c3-rust-board` | ESP32-C3 Rust board · rails fine, chip asleep (demo, loads when opened) |
+| `official-boards/boards/demo-rana-tadpole-v2` | Rana Tadpole · dead controller, warm chips (demo, loads when opened) |
 
 ### Solvers (`official-solvers`)
 

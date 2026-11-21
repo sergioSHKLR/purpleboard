@@ -5,7 +5,7 @@ import type { Board, Component } from '../types';
 import type { Conn } from '../connectivity';
 import { findDevice, type MosSpec } from './devicelib';
 import { rolePadName } from '../model';
-import { findRegulator } from './regulators';
+import { regulatorOf } from './regulators';
 
 // ---------------- net semantics ----------------
 
@@ -270,10 +270,26 @@ export function discoverPowerTree(board: Board, conn: Conn, opts: PowerTreeOptio
     });
   }
 
+  // 3b. Fixed regulators the part library knows by pin (3-pin LDOs: no enable, nets often unnamed)
+  for (const u of comps.filter(isIc)) {
+    const lib = regulatorOf(u);
+    if (!lib?.pins?.in || !lib.pins.out || lib.charger || sources.some((s) => s.ref === u.ref)) continue;
+    const nets = netsOf(u);
+    const inp = nets.get(lib.pins.in), out = nets.get(lib.pins.out);
+    if (!inp || !out || inp === out || isGroundName(out)) continue;
+    inferred.add(inp); inferred.add(out);
+    const v = lib.fixedOut ?? railVoltage(out);
+    sources.push({
+      kind: 'ldo', ref: u.ref, parts: [], input: inp, output: out, vTarget: v, vSource: v !== null && lib.fixedOut === undefined ? 'rail-name' : 'unknown', confidence: 'high',
+      why: `${u.ref} ${u.label ?? ''}: datasheet pins ${lib.pins.in} (in) → ${lib.pins.out} (out)${lib.fixedOut !== undefined ? `, fixed ${lib.fixedOut} V` : ''}, no enable`,
+    });
+    produced.add(out);
+  }
+
   // 3a. Linear Li-ion chargers the part library knows: pins from the datasheet, the charge current
   //     from the board's R_PROG (PROG to ground). The battery side becomes a power net.
   for (const u of comps.filter(isIc)) {
-    const ch = findRegulator(u.label)?.charger;
+    const ch = regulatorOf(u)?.charger;
     if (!ch) continue;
     const nets = netsOf(u);
     const inp = nets.get(ch.pins.in), bat = nets.get(ch.pins.bat), prog = nets.get(ch.pins.prog);
@@ -415,7 +431,7 @@ export function discoverPowerTree(board: Board, conn: Conn, opts: PowerTreeOptio
     if (!['buck', 'boost', 'ldo'].includes(src.kind)) continue;
     const ctrl = compByRef.get(src.ref);
     // FB by name, or by the datasheet pin when the part library knows the controller
-    const fbPin = ctrl ? findRegulator(ctrl.label)?.pins?.fb : undefined;
+    const fbPin = ctrl ? regulatorOf(ctrl)?.pins?.fb : undefined;
     const fbByPin = ctrl && fbPin !== undefined ? netsOf(ctrl).get(fbPin) : undefined;
     const fbNets = new Set<string>([...(src.feedback ? [src.feedback] : []), ...(fbByPin ? [fbByPin] : []), ...(ctrl ? [...netsOf(ctrl).values()].filter((n) => netRole(n) === 'feedback') : [])]);
     for (const fb of fbNets) {

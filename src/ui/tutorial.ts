@@ -57,6 +57,7 @@ export const CHALLENGE_TRACK_IDS = [
   'demo-olimex-esp32-devkit-lipo',
   'demo-olimex-esp32-c3-devkit-lipo',
   'demo-esp32-c3-rust-board',
+  'demo-rana-tadpole-v2',
   'demo-antmicro-jetson-nano-bb',
   'demo-mnt-reform2-mb30',
 ] as const;

@@ -1,0 +1,9 @@
+# Calibration data for the Rana Tadpole V2 demo (public/demos/demo-rana-tadpole-v2.pcbfix.json):
+#   npm run calibrate -- public/demos/demo-rana-tadpole-v2.pcbfix.json docs/calibration/demo-rana-tadpole-v2.csv --repair
+# Tier: "matches published board values" (design intent), NOT bench measurements. No meter was used.
+# Source design: github.com/rana-sylvatica/rana-tadpole @ db1d5a5 (CERN-OHL-S-2.0), 5 V bench supply on USB-C VBUS.
+kind,net,value,state,tol
+# U1 XC6206P332MR (LCSC C5446 in the design), fixed 3.3 V: 3.234–3.366 V (Torex ETR0305_004b)
+volt,Net-(D1-A),3.300,S0,0.025
+# RP2040 core regulator, VREG_VOUT 1.1 V nominal; DVDD 0.99–1.21 V (RP2040 Datasheet, Table 634)
+volt,+1V1,1.100,S0,0.05

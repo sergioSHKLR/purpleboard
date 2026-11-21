@@ -11,7 +11,7 @@ import { discoverPowerTree } from './powertree';
 import { powerTreeElements } from './powermodels';
 import { POWER_STATES, enablesForState, type PowerStateName } from './sequencer';
 import { chipLoads, estimateRailLoads, loadWatts, STATE_ACTIVITY } from './loads';
-import { findRegulator } from './regulators';
+import { regulatorOf } from './regulators';
 import { activeDmm } from './dmm';
 
 /** Last solution by unknown name: warm start for the next solve of a similar circuit. */
@@ -259,6 +259,23 @@ export function simulateSpice(board: Board, conn: Conn, opt: SpiceSimOpts = {}):
     comps.set(c.id, cs);
   }
 
+  // Heat of behavioral stand-ins goes to their part: a converter's loss (input power − output
+  // power: a linear regulator burns (Vin − Vout) × I) and a chip load's own power. Without it the
+  // thermal camera would show a regulator in current limit as cold.
+  const heat = new Map<string, number>();
+  for (const e of ckt.elements) {
+    if (e.kind !== 'B' || !e.note || !(/_(IN|OUT)$/.test(e.name) || /^B_CHIP\d+$/.test(e.name))) continue;
+    const ref = e.note.split(' ')[0];
+    heat.set(ref, (heat.get(ref) ?? 0) + (op.devices.get(e.name)?.p ?? 0));
+  }
+  for (const [ref, w] of heat) {
+    const c = w > 1e-6 ? board.components.find((x) => x.ref === ref) : undefined;
+    if (!c) continue;
+    const cs = comps.get(c.id) ?? { i: 0, v: 0, p: 0, on: false, bright: 0, over: false };
+    cs.p += w;
+    comps.set(c.id, cs);
+  }
+
   const amm = op.devices.get('R_AMMETER');
   const sim: SpiceSim = { nodeOfNet, V, ground, comps, source: op.converged, ccLimited, netlist: nl, op, injected, ...(opt.ammeter && { ammeterAmps: amm ? amm.i : 0 }) };
   return sim;
@@ -274,7 +291,7 @@ export function regulatorData(board: Board, tree: ReturnType<typeof discoverPowe
   const setpoints: Record<string, number> = {}, limits: Record<string, number> = {};
   for (const s of tree.sources) {
     const c = board.components.find((x) => x.ref === s.ref);
-    const r = findRegulator(c?.label);
+    const r = regulatorOf(c);
     if (!r || !s.output) continue;
     if (r.ilim) limits[s.ref] = r.ilim;
     if (r.fixedOut !== undefined && !s.divider) setpoints[s.output] = r.fixedOut;

@@ -26,6 +26,9 @@ export const DEMO_REPAIRS: Record<string, DemoRepair> = {
     installPart(part('C5'), { value: 22e-6 });
     installPart(part('R11'), { value: 49.9e3 });
   },
+  'demo-rana-tadpole-v2': (_sc, part) => {
+    installPart(part('C5'), { value: 100e-9 });
+  },
   'demo-esp32-c3-rust-board': (sc, part) => {
     const d4 = part('D4');
     toggleCold(d4, d4.pads.findIndex((p) => p.name === d4.pins.K));

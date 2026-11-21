@@ -54,3 +54,14 @@ demo-esp32-c3-rust-board.pcbfix.json
   Changes: converted to the DEADBOARD scenario format; bench supply added at the USB-C connector;
            a cracked joint at diode D4 and liquid residue (leakage) at C10 on CHIP_PU added; test
            objectives and an encrypted flag added.
+
+demo-rana-tadpole-v2.pcbfix.json
+  Source: Rana Tadpole V2 motherboard, rana-sylvatica; PCB design by Quark (github.com/Armastardo)
+          https://github.com/rana-sylvatica/rana-tadpole  (commit db1d5a5a0b4e00a272889078d7c9a62c2d0f7549,
+          PCBs/Motherboard V2/KiCAD/Rana Tadpole V2.kicad_pcb)
+  Licence: CERN-OHL-S-2.0 (strongly reciprocal; stated in the upstream README, which has no separate
+           licence file). This modified version is distributed under the same licence; its source is
+           this JSON file together with scripts/build-demos.ts in the DEADBOARD repository and the
+           upstream design above. The Rana Tadpole is an open-source project: see the repository.
+  Changes: converted to the DEADBOARD scenario format; bench supply added at the USB-C VBUS;
+           capacitor C5 on the RP2040 core rail shorted; test objectives and an encrypted flag added.

@@ -19,9 +19,15 @@ export interface SupplyChoice { net: string; volts: number; assumed: boolean; wh
 export function chooseInputRail(board: Board): SupplyChoice | null {
   const conn = buildConnectivity(board);
   const tree = discoverPowerTree(board, conn);
-  const produced = new Set(tree.sources.map((s) => s.output));
+  // A rail fed only through an OR-ing diode can still be the board's input (VBUS that a diode from
+  // the converter-fed logic rail also reaches), but not one fed through a diode from an external
+  // input: that is downstream of it (+5V after the USB diode).
+  const produced = new Set(tree.sources.filter((s) => s.kind !== 'diode-or').map((s) => s.output));
+  const derived = new Set(produced); // rails a converter feeds, directly or through further sources
+  for (let grew = true; grew;) { grew = false; for (const s of tree.sources) if (s.input && derived.has(s.input) && !derived.has(s.output)) { derived.add(s.output); grew = true; } }
+  const downstream = new Set(tree.sources.filter((s) => s.kind === 'diode-or' && s.input && !derived.has(s.input)).map((s) => s.output));
   const feeds = new Map<string, number>();
-  for (const s of tree.sources) if (s.input && !produced.has(s.input)) feeds.set(s.input, (feeds.get(s.input) ?? 0) + 1);
+  for (const s of tree.sources) if (s.input && !produced.has(s.input) && !downstream.has(s.input)) feeds.set(s.input, (feeds.get(s.input) ?? 0) + 1);
   if (!feeds.size) return null;
   const onConnector = new Set<string>();
   for (const c of board.components) if (c.kind === 'connector') for (const p of c.pads) if (p.net) onConnector.add(p.net);
@@ -29,7 +35,9 @@ export function chooseInputRail(board: Board): SupplyChoice | null {
   for (const [net, n] of feeds) {
     const base = netBase(net);
     const v = railVoltage(base);
-    const score = n + (INPUT_NAME.test(base) ? 3 : 0) + (onConnector.has(net) ? 2 : 0) + (v !== null ? v / 10 : 0);
+    // an input-style name, as the whole name or one of its tokens ("AUX_USB_VBUS")
+    const inputNamed = INPUT_NAME.test(base) || base.split(/[_\-./]/).some((t, i) => i > 0 && INPUT_NAME.test(t));
+    const score = n + (inputNamed ? 3 : 0) + (onConnector.has(net) ? 2 : 0) + (v !== null ? v / 10 : 0);
     if (!best || score > best.score) best = { net, score };
   }
   const base = netBase(best!.net);

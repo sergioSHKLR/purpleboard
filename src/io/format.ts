@@ -27,6 +27,7 @@ function normalizeComponent(c: Component): Component {
     rot: num(c.rot, 0),
     side: c.side === 'B' ? 'B' : 'F',
     pins: c.pins ?? {},
+    lcsc: typeof c.lcsc === 'string' && /^C\d{1,9}$/.test(c.lcsc) ? c.lcsc : undefined,
     body: c.body ?? { shape: 'box', w: 2, h: 2, z: 1 },
     state: {
       populated: c.state?.populated ?? true,

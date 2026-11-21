@@ -2,7 +2,7 @@
   "format": "deadboard-mod/2",
   "id": "board-notes",
   "name": "Board notes (knowledge packs for the shipped boards)",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "author": "Biga73 (idea) · DEADBOARD",
   "description": "An example data mod: a knowledge pack for every board that ships with DEADBOARD. Rails, where each one comes from, what to expect at which pin, and what a low reading usually means, each marked documented, derived or estimated. The packs describe the working board and point at likely causes, the way the board's hints do; they don't name the planted faults. Based on the device knowledge pack RFC by Biga73.",
   "license": "CC0-1.0",
@@ -334,9 +334,9 @@
       "rails": [
         {
           "net": "VIN", "nominal": 12, "domain": "input (bench supply)",
-          "source": { "ref": "J_BENCH", "kind": "bench supply, 12 V" },
+          "source": { "ref": "F3", "kind": "input fuse from the bench supply (12 V at the input connector)" },
           "checks": [ { "at": "TP16", "expect": "≈12 V" } ],
-          "notes": "The board's README recommends a 12 V 2 A supply (6–36 V input range). In this demo the bench supply is clipped onto VIN, after the input fuse F3. D14 sits across VIN and GND."
+          "notes": "The board's README recommends a 12 V 2 A supply (6–36 V input range). In this demo the bench supply is clipped at the input connector, before the input fuse F3: an open F3 shows as a dead VIN. D14 sits across VIN and GND."
         },
         {
           "net": "5V0_SYS", "nominal": 4.984, "domain": "from VIN",
@@ -590,6 +590,64 @@
       "notes": [
         "Power path, worked out from the board (derived): USB-C → D6 → VBUS → D4 → +5V → U5 (buck) → +3V3 → R8 → CHIP_PU; VBUS also → U6 → +BATT. Without USB, Q1 connects +BATT to +5V.",
         "Rails present but no current: the chip is in reset. A low +5V with a healthy VBUS: the power is coming from the battery side."
+      ]
+    },
+    {
+      "id": "rana-tadpole-v2",
+      "board": "official-boards/boards/demo-rana-tadpole-v2",
+      "title": "Rana Tadpole V2 (pocket controller, RP2040)",
+      "provenance": { "kind": "design files + datasheets", "where": "github.com/rana-sylvatica/rana-tadpole @ db1d5a5 (schematic LCSC codes) and the parts' datasheets (docs/calibration)", "confidence": "documented" },
+      "rails": [
+        {
+          "net": "AUX_USB_VBUS",
+          "nominal": 5,
+          "domain": "input (USB-C, bench supply)",
+          "source": { "ref": "J_BENCH", "kind": "bench supply, 5 V on USB-C VBUS" },
+          "checks": [
+            { "at": "C2", "pin": "2", "expect": "≈5.0 V" }
+          ],
+          "notes": "VBUS of the USB-C connector J4 (also on the console cable header J3). U5 / U6 (USBLC6-2P6) protect the USB data lines and sit on VBUS too."
+        },
+        {
+          "net": "Net-(D1-A)",
+          "nominal": 3.3,
+          "domain": "LDO output",
+          "source": { "ref": "U1", "kind": "LDO, XC6206P332MR (fixed 3.3 V; LCSC C5446 in the schematic)" },
+          "checks": [
+            { "at": "U1", "pin": "2", "expect": "3.2–3.4 V", "readsLowIf": "U1 has no input (pin 3), the logic rail behind D1 is shorted, or U1 is dead" },
+            { "at": "U1", "pin": "3", "expect": "≈5.0 V (input)" }
+          ],
+          "notes": "XC6206: 1 VSS, 2 VOUT, 3 VIN; no enable pin. It feeds the logic rail through the Schottky D1.",
+          "provenance": { "kind": "datasheet", "where": "Torex XC6206 ETR0305_004b: 3.234–3.366 V, 200 mA max", "confidence": "documented" }
+        },
+        {
+          "net": "3vDiode",
+          "nominal": 3.06,
+          "domain": "logic rail (USB or console)",
+          "source": { "ref": "D1", "kind": "Schottky diode from the LDO (B5819W, LCSC C8598)" },
+          "checks": [
+            { "at": "C9", "expect": "2.9–3.2 V", "readsLowIf": "D1 is open, or the LDO output is low" }
+          ],
+          "notes": "One Schottky drop below 3.3 V. The RP2040's IO, the button pull-ups and the 74LVC1G00 debounce latches run from it. On the console cable it comes from J3 pin 6 instead.",
+          "provenance": { "kind": "board + datasheet", "where": "B5819W forward curve (MDD Rev 2025A4); the drop depends on the load", "confidence": "derived" }
+        },
+        {
+          "net": "+1V1",
+          "nominal": 1.1,
+          "domain": "RP2040 core (DVDD)",
+          "source": { "ref": "U3", "kind": "RP2040 on-chip regulator (VREG_VIN pin 44 → VREG_VOUT pin 45)" },
+          "checks": [
+            { "at": "C4", "expect": "1.05–1.15 V", "readsLowIf": "a capacitor on the rail (C4, C5, C6) is shorted: the regulator then sits at its 100 mA limit and the chips feeding it warm up, while the shorted part stays cool. Find it with current injection (power off) or freeze spray" },
+            { "at": "U3", "pin": "44", "expect": "2.9–3.2 V (VREG_VIN, from the logic rail)" }
+          ],
+          "notes": "The RP2040 makes its own 1.1 V core supply; VREG_VOUT (45) is wired to DVDD (23, 50) on the board. A running RP2040 draws tens of mA here.",
+          "provenance": { "kind": "datasheet", "where": "RP2040 Datasheet (2021-06-07): VREG_VOUT 1.1 V, 100 mA max; DVDD 0.99–1.21 V", "confidence": "documented" }
+        }
+      ],
+      "powerUp": [ "AUX_USB_VBUS", "Net-(D1-A)", "3vDiode", "+1V1" ],
+      "notes": [
+        "Power path, worked out from the board (derived): USB-C → U1 (XC6206) → D1 → 3vDiode → RP2040 (IO, and its regulator → +1V1). D2 runs from 3vDiode back to VBUS for the console-cable case.",
+        "Buttons: each mouse switch (common on GND) has two contacts with 10 kΩ pull-ups (e.g. SW2: R40, R41) into a pair of 74LVC1G00 gates that debounce it. A pressed contact reads ≈0 V, a released one the logic rail."
       ]
     }
   ]

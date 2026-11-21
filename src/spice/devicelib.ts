@@ -39,6 +39,8 @@ export type UnitSpec = MosSpec | BjtSpec | DiodeSpec;
 
 export interface DeviceDef {
   mpn: string;
+  /** LCSC order codes of parts these numbers cover, for boards whose value names no part ("Schottky Diode" + C8598). */
+  lcsc?: string[];
   description: string;
   pkg: string;
   units: UnitSpec[];
@@ -189,7 +191,7 @@ const DEVICES: DeviceDef[] = [
     source: 'Diodes Incorporated DMG3415U, DS31735 Rev. 13-3, March 2018', thetaJA: 139,
     note: 'Pinout 1 G, 2 S, 3 D (board net-checked: gate on VBUS). VGS(th) typical 0.55 V; RDS(on) typical 31 mΩ at 4.5 V, 40 mΩ at 2.5 V (51 mΩ at 1.8 V). Body diode only in Fig. 8 (linear scale): ≈0.62 V at 1 A at 25 °C, read to about ±30 mV. Not recommended for new designs (maker: use DMP2045U)',
     units: [{ kind: 'pmos', vth: 0.55, rds: [[4.5, 0.031], [2.5, 0.040]], body: [0.62, 1], caps: [294e-12, 25e-12, 104e-12], pins: { G: '1', S: '2', D: '3' } }] },
-  { mpn: 'B5819W', description: 'Schottky 40 V 1 A', pkg: 'SOD-123', verified: true,
+  { mpn: 'B5819W', lcsc: ['C8598'], description: 'Schottky 40 V 1 A', pkg: 'SOD-123', verified: true,
     source: 'MDD (microdiode.com) B5817W thru B5819W, Rev: 2025A4', thetaJA: 160,
     note: 'One maker\'s B5819W (the board\'s BOM names no maker). Table gives only VF maximum (0.60 V at 1 A for B5819W); 0.31 V at 0.1 A and 0.44 V at 1 A read from the 25 °C forward curve (about ±20 mV; the curve starts at 0.1 A). CJO ≈ the 0 V end of the capacitance curve (≈330 pF). BV is the 40 V rating',
     units: [{ kind: 'schottky', vf: [[0.31, 0.1], [0.44, 1]], bv: [40, 1e-3], cj: 330e-12, pins: { K: '1', A: '2' } }] },
@@ -253,6 +255,11 @@ export function findDevice(partNumber: string | undefined): DeviceDef | undefine
 }
 
 export function allDevices(): readonly DeviceDef[] { return DEVICES; }
+
+/** The device a board part is: by the part number in its value, else by its LCSC order code. */
+export function deviceOf(c: { label?: string; lcsc?: string }): DeviceDef | undefined {
+  return findDevice(c.label) ?? (c.lcsc ? [...overlayList, ...DEVICES].find((d) => d.lcsc?.includes(c.lcsc!)) : undefined);
+}
 
 // ---------------- fitting ----------------
 

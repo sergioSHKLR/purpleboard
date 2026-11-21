@@ -14,8 +14,13 @@ export interface RegulatorDef {
   ilim?: number;
   /** Operating quiescent current, not switching (A). Data only; far below the estimated rail loads. */
   iq?: number;
-  /** Pad names by role (datasheet pinout), for nets the design leaves unnamed: FB on "Net-(C6-Pad2)". */
-  pins?: { fb?: string };
+  /** LCSC order codes of exactly this part, for boards whose value field names only the family ("XC6206"). */
+  lcsc?: string[];
+  /**
+   * Pad names by role (datasheet pinout), for nets the design leaves unnamed: FB on "Net-(C6-Pad2)";
+   * `in` / `out` make a fixed regulator recognisable whatever its nets are called (3-pin LDOs).
+   */
+  pins?: { fb?: string; in?: string; out?: string };
   /** A linear single-cell Li-ion charger (CC/CV) rather than a regulator. */
   charger?: ChargerDef;
   source: string;
@@ -57,6 +62,10 @@ const REGULATORS: RegulatorDef[] = [
   ...['MCP73831-2AC', 'MCP73831T-2AC'].map((mpn) => ({ mpn, source: 'Microchip MCP73831/2 datasheet DS20001984G (rev. G)',
     charger: { pins: { stat: '1', bat: '3', in: '4', prog: '5' }, vfloat: 4.2, kprog: 1000, uvlo: 3.45, headroom: 0.05, trickleV: 2.793, trickleFrac: 0.1 },
     note: '-2 = VREG 4.168–4.232 V; I_REG = 1000 V / R_PROG (90–110 mA at 10 k); option AC: precondition 10 % below 66.5 % of VREG (2.793 V), termination 7.5 %; VSTART 3.3–3.6 V (3.45 typ.); headroom 50 mV is an estimate (the sheet gives sleep below VBAT − 50 mV); PROG floating = no charge' })),
+  { mpn: 'XC6206P332', lcsc: ['C5446'], pins: { in: '3', out: '2' }, fixedOut: 3.3, ilim: 0.2, iq: 1e-6, source: 'Torex XC6206 series datasheet ETR0305, rev. 004b',
+    note: 'SOT-23: 1 VSS, 2 VOUT, 3 VIN; 3.3 V type 3.234–3.366 V (±2 %); ilim = maximum output current 200 mA (3.0–4.4 V types, E-2); supply current 1 µA typ.; no enable pin' },
+  { mpn: 'RP2040', pins: { in: '44', out: '45' }, fixedOut: 1.1, ilim: 0.1, source: 'Raspberry Pi RP2040 Datasheet, build-date 2021-06-07',
+    note: 'the on-chip core regulator: VREG_VIN (pin 44) 1.62–3.63 V → VREG_VOUT (pin 45) 1.1 V nominal, 100 mA max; wired to DVDD (pins 23, 50) on the board' },
   { mpn: 'TP4054', source: 'ShenZhen TPOWER TP4054 datasheet, rev. V2.2 (Chinese)',
     charger: { pins: { stat: '1', bat: '3', in: '4', prog: '5' }, vfloat: 4.2, kprog: 1000, uvlo: 3.7, headroom: 0.1, trickleV: 2.9, trickleFrac: 0.12 },
     note: 'VFLOAT 4.158–4.242 V; R_PROG = 1000 V / I_BAT (VPROG 1.0 V); UVLO 3.5–3.9 V rising; charges once VCC > BAT + 100 mV; trickle 60 mA of 500 mA (R_PROG 2 k) below 2.9 V; C/10 termination; CHRG open drain, low while charging' },
@@ -75,3 +84,9 @@ export function findRegulator(value: string | undefined): RegulatorDef | undefin
 }
 
 export function allRegulators(): readonly RegulatorDef[] { return REGULATORS; }
+
+/** The regulator a board part is: by its value, else by the order code the design gives (LCSC field). */
+export function regulatorOf(c: { label?: string; lcsc?: string } | undefined): RegulatorDef | undefined {
+  if (!c) return undefined;
+  return findRegulator(c.label) ?? (c.lcsc ? REGULATORS.find((r) => r.lcsc?.includes(c.lcsc!)) : undefined);
+}

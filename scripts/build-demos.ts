@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Component, Objective, Scenario } from '../src/types';
 import { importScenarioOrPcb } from '../src/io/kicad';
+import { parseScenario } from '../src/io/format';
 import { buildConnectivity } from '../src/connectivity';
 import { lockFlag, topology } from '../src/crypto';
 import { verifyScenario } from '../src/verify';
@@ -52,7 +53,7 @@ const DEMOS: Demo[] = [
     title: 'MNT Reform 2 · dead 3.3 V rail',
     difficulty: 4,
     description:
-      'An open-hardware laptop mainboard (529 parts) that came back from a repair desk: it powers up, but the system never starts. ' +
+      'An open-hardware laptop mainboard (522 parts) that came back from a repair desk: it powers up, but the system never starts. ' +
       'The bench supply is clipped onto the gated input rail. Find out why the 3.3 V rail is missing, fix it, and leave the board clean.',
     hints: [
       'Power it up with Solver: SPICE + PWR. Compare the supply current with what a board at idle should draw, then measure +5V, +3V3 and +1V2.',
@@ -82,7 +83,7 @@ const DEMOS: Demo[] = [
     title: 'Antmicro baseboard · no 3.3 V, flaky 5 V',
     difficulty: 3,
     description:
-      'An open-source carrier board for a compute module (392 parts), fed 12 V on VIN. The module will not start: 3.3 V is missing, ' +
+      'An open-source carrier board for a compute module (369 parts), fed 12 V at its input. The module will not start: 3.3 V is missing, ' +
       'and the customer says the 5 V rail "sometimes" drops out when the board is handled.',
     hints: [
       'With Solver: SPICE + PWR, measure 5V0_SYS and 3V3_SYS. Then follow 3.3 V back from its output to its input. Is the converter switching (scope, key O)?',
@@ -193,13 +194,50 @@ const DEMOS: Demo[] = [
     },
     repair: DEMO_REPAIRS['demo-esp32-c3-rust-board'],
   },
+  {
+    id: 'demo-rana-tadpole-v2',
+    repo: 'https://github.com/rana-sylvatica/rana-tadpole.git',
+    commit: 'db1d5a5a0b4e00a272889078d7c9a62c2d0f7549',
+    file: 'PCBs/Motherboard V2/KiCAD/Rana Tadpole V2.kicad_pcb',
+    license: 'CERN-OHL-S-2.0',
+    licenseFile: 'README.md',
+    licenseText: {
+      file: 'public/demos/licenses/demo-mnt-reform2-mb30.LICENSE.txt',
+      note: 'Rana Tadpole V2 by rana-sylvatica, PCB design by Quark (github.com/Armastardo): the upstream README releases the design under CERN-OHL-S-2.0 (the repository has no separate licence file). Licence text:',
+    },
+    credits: 'Rana Tadpole V2 motherboard, by rana-sylvatica; PCB design by Quark. CERN-OHL-S-2.0. Converted and modified (planted fault) for DEADBOARD; no endorsement implied.',
+    title: 'Rana Tadpole · dead controller, warm chips',
+    difficulty: 3,
+    description:
+      'A real, sold pocket controller for platform fighters (147 parts: RP2040, 20 mouse-switch buttons, USB-C). On USB the computer sees nothing, ' +
+      'and the owner says it gets warm in the middle. Is the RP2040 dead?',
+    hints: [
+      'With Solver: SPICE + PWR, compare the supply current with what an RP2040 board should draw (tens of mA). Then measure the logic rail 3vDiode (C9) and the RP2040\'s core rail +1V1 (C4).',
+      'A rail held near 0 V while its regulator works means a short on that rail. The warm chips are the ones feeding the short, not necessarily the culprit: with the power off, inject current into +1V1 and watch the thermal camera, or use freeze spray.',
+      'Replace the shorted part (the Inspector shows its value). The RP2040 itself is fine.',
+    ],
+    flag: 'DEAD{t4dp0le_c0re_sh0rt_n0t_th3_ch1p}',
+    objectives: [
+      { type: 'voltage', a: 'C4', min: 1.05, max: 1.15 },
+      { type: 'voltage', a: 'C9', min: 2.9, max: 3.2 },
+    ],
+    plant: (sc, part) => {
+      injectFault(part('C5'), 'mlcc-dead-short', rng(seedOf(sc.id + 'C5')), { severity: 0.1 });
+    },
+    repair: DEMO_REPAIRS['demo-rana-tadpole-v2'],
+  },
 ];
 
-const round = (_k: string, v: unknown) => (typeof v === 'number' ? Math.round(v * 1000) / 1000 : v);
+// Geometry to 1 µm (keeps the files small); part values and fault parameters at 6 significant
+// digits: rounding them to 0.001 made every capacitance 0 (100 nF → 0) in the shipped demos.
+const KEEP_PRECISION = new Set(['value', 'ohms', 'drift', 'threshold', 'hysteresis', 'amount', 'rating']);
+const round = (k: string, v: unknown) => (typeof v !== 'number' ? v : KEEP_PRECISION.has(k) ? Number(v.toPrecision(6)) : Math.round(v * 1000) / 1000);
 
 async function build(d: Demo, srcDir: string) {
   const path = join(srcDir, d.id, d.file);
-  const sc = importScenarioOrPcb(d.file.split('/').pop()!, readFileSync(path, 'utf8'));
+  // lock and verify exactly what ships: the saved file rounds coordinates to 1 µm, which can decide
+  // whether two copper shapes touch (a pad that just meets its pour)
+  const sc = parseScenario(JSON.stringify(importScenarioOrPcb(d.file.split('/').pop()!, readFileSync(path, 'utf8')), round));
   sc.id = d.id;
   sc.solver = 'spice-power';
   sc.meta = {
