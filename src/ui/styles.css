@@ -112,7 +112,7 @@ body.resizing-panel, body.resizing-panel * { cursor: col-resize !important; }
 .brand-sub { color: var(--muted); font-size: 12px; white-space: nowrap; }
 
 /* ---------- Form controls ---------- */
-select, input[type="text"], input[type="number"], textarea {
+select, input[type="text"], input[type="url"], input[type="number"], textarea {
   height: 28px;
   background: var(--surface-2);
   color: var(--text);
@@ -975,6 +975,15 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); }
   .modio-logo { width: 96px; }
 }
 .is-mobile .modio-bar input[type=search] { height: 40px; font-size: 16px; }
+.community-card { grid-template-columns: 44px 1fr; }
+.community-card .modio-logo { width: 44px; aspect-ratio: 1; }
+.community-card .badge { display: inline-flex; align-items: center; gap: 4px; }
+@media (max-width: 560px) { .community-card { grid-template-columns: 1fr; } .community-card .modio-logo { display: none; } }
+.submit-card { display: flex; flex-direction: column; gap: 10px; }
+.submit-card .fb-field { display: grid; gap: 4px; font-size: 12px; color: var(--text-2); }
+.submit-card input[type=url], .submit-card input[type=text], .submit-card textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 12.5px; }
+.submit-card .mod-toggle { align-items: flex-start; white-space: normal; font-size: 12px; color: var(--text-2); }
+.submit-card .fail { color: #ff8a84; font-size: 12px; }
 .mod-warn { font-size: 12px; color: var(--text-2); }
 .mod-warn summary { cursor: pointer; color: var(--warn); }
 .mod-warn ul { margin: 6px 0 0; padding-left: 18px; }
@@ -1229,6 +1238,7 @@ body.is-mobile {
 body.is-mobile .btn.sm { height: 34px; padding: 0 12px; font-size: 13px; }
 body.is-mobile select,
 body.is-mobile input[type="text"],
+body.is-mobile input[type="url"],
 body.is-mobile input[type="number"],
 body.is-mobile input:not([type]) { height: 38px; font-size: 16px; }
 body.is-mobile textarea { font-size: 16px; }

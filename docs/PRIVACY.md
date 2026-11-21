@@ -40,6 +40,16 @@ many people use DEADBOARD and for how long. You can't be identified, and you are
 sites or from one month to the next. If your browser sends Do Not Track, nothing is counted.
 Content blockers usually block it too.
 
+**Submitting a mod.** If you press **Submit** on a mod in the Mods window and send it, the mod
+(its `.zip`, or the link you give), your note and the contact you chose to give (optional) are sent
+to the developer by email through FormSubmit, like feedback. They are used to review the mod and
+answer you. If the mod is accepted it is published on deadboard.org under its licence, with the
+author name in its `mod.json`; your note and contact are never published.
+
+**Community mods (deadboard.org).** The **Community** tab of the Mods window loads the list of mods
+from deadboard.org and, when you press Install, downloads that mod from deadboard.org. Nothing about
+you is sent.
+
 **Community mods (mod.io).** The Mods window can list and install mods that players publish on
 mod.io. This happens only when you open its **Browse mod.io** tab: the app then asks
 mod.io for the list of DEADBOARD mods, loads their pictures and, when you press Install, downloads

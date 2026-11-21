@@ -10,11 +10,13 @@
 // a long snapshot code is complete here even when the email client clipped the message.
 //
 // Reports land in .feedback/ (git-ignored, they can hold a player's contact): one <id>.json per
-// report with the raw fields, plus <id>.repro.txt after --repro.
+// report with the raw fields, plus <id>.repro.txt after --repro. A mod submission (Mods window →
+// Submit) also gets <id>.mod.zip: review it, then `npm run community -- --add .feedback/<id>.mod.zip`.
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { decodeSnapshot } from '../src/snapshot';
+import { SUBMISSION_TYPE, submissionZip } from '../src/mods/community';
 
 const DIR = '.feedback';
 const args = process.argv.slice(2);
@@ -91,11 +93,29 @@ async function main() {
   }
   console.log(`${reports.length} reports from FormSubmit, ${fresh} new, saved in ${DIR}/\n`);
 
+  // mod submissions: the file next to the report, and what to do with it
+  const subs2 = reports.filter((r) => r.form_data.type === SUBMISSION_TYPE);
+  if (subs2.length) {
+    console.log('Mod submissions (review each before adding it):');
+    for (const r of subs2) {
+      const f = r.form_data;
+      let where = f.link && f.link !== '(none)' ? `link only: ${f.link}` : 'no file';
+      try {
+        const zip = await submissionZip(f);
+        if (zip) { writeFileSync(`${DIR}/${r.id}.mod.zip`, zip); where = `npm run community -- --add ${DIR}/${r.id}.mod.zip`; }
+      } catch (e) { where = `BROKEN: ${e instanceof Error ? e.message : String(e)}`; }
+      console.log(`  ${r.id}  ${f.mod ?? '?'} «${f.name ?? ''}» ${f.license ?? ''} · bench: ${f.bench ?? '?'} · contact: ${f.contact && f.contact !== '(none)' ? 'yes' : '-'}`);
+      console.log(`      ${where}`);
+    }
+    console.log('');
+  }
+
   const rows: string[][] = [['id', 'type', 'build', 'browser', 'view', 'description', 'contact', 'details', 'snapshot']];
   const tally: Record<string, number> = {};
   const count = (k: string) => { tally[k] = (tally[k] ?? 0) + 1; };
   const gpuFail = new Map<string, number>();
   for (const r of [...reports].reverse()) {
+    if (r.form_data.type === SUBMISSION_TYPE) continue; // listed above
     const f = r.form_data, details = f.details ?? '';
     const msg = (f.message ?? '').trim();
     const described = msg && !msg.startsWith('(no description');

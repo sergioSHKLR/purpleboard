@@ -35,6 +35,7 @@ import type { PanelNode } from '../mods/api/types';
 import { buildNetlist, simFromResult } from '../mods/api/netlist';
 import { ModioError, downloadMod, forgetModioInstall, listMods, modioConfig, modioState, rememberModioInstall, type ModioMod, type ModioSort } from '../mods/modio';
 import { desktop, emptyModResult, installMod, loadAllMods, modsFolderPath, removeInstalled, type ModLoadResult } from '../mods/sources';
+import type { CommunityUi } from './community-ui';
 import { MY_MODS, OFFICIAL, bootBegin, bootDone, bootModsRunning, deleteLoadout, isModOn, newLoadout, readLoadouts, safeMode, setModOn, switchLoadout, writeLoadouts, type LoadoutStore } from '../mods/loadouts';
 import type { ModNeed } from '../mods/resolve';
 import { writeZip } from '../mods/zip';
@@ -226,7 +227,10 @@ export class PcbApp {
   private boardFilter: 'all' | 'tutorials' | 'challenges' | 'hardware' | 'mods' = 'all';
   private showMods = false;
   /** Mods window tab, and the mod.io browser's state (set up at build time, see src/mods/modio.ts). */
-  private modsView: 'installed' | 'browse' = 'installed';
+  private modsView: 'installed' | 'community' | 'browse' = 'installed';
+  /** Community tab + Submit form (src/ui/community-ui.ts), loaded when first opened. */
+  private communityUi: CommunityUi | null = null;
+  private communityUiLoad: Promise<CommunityUi> | null = null;
   private readonly modio = modioConfig();
   private modioQ = '';
   private modioSort: ModioSort = 'downloads';
@@ -4716,6 +4720,9 @@ export class PcbApp {
   private renderModsModal() {
     const { mods, failed } = this.modResult;
     const browse = this.modsView === 'browse' && !!this.modio;
+    const community = this.modsView === 'community';
+    const cu = community ? this.loadCommunityUi() : this.communityUi;
+    const submitFor = cu?.submitFor ?? null;
     const boardIdx = (b: ModBoard) => this.scenarios.findIndex((s) => this.modBoards.get(s) === b);
     const official = this.loadouts.active === OFFICIAL;
     const needLine = (n: ModNeed) => {
@@ -4782,15 +4789,16 @@ export class PcbApp {
             </div>
           </div>
           <div class="cat-body">
-            ${this.modio ? `
+            ${submitFor ? '' : `
               <div class="seg mods-tabs">
-                <button class="${browse ? '' : 'on'}" data-mods-view="installed">${t('Installed')} · ${mods.length}</button>
-                <button class="${browse ? 'on' : ''}" data-mods-view="browse">${icon('globe', 12)} ${t('Browse mod.io')}</button>
-              </div>` : ''}
-            ${browse ? this.modioBrowseHtml() : `
+                <button class="${browse || community ? '' : 'on'}" data-mods-view="installed">${t('Installed')} · ${mods.length}</button>
+                <button class="${community ? 'on' : ''}" data-mods-view="community">${icon('users', 12)} ${t('Community')}</button>
+                ${this.modio ? `<button class="${browse ? 'on' : ''}" data-mods-view="browse">${icon('globe', 12)} ${t('Browse mod.io')}</button>` : ''}
+              </div>`}
+            ${submitFor ? cu!.submitHtml(submitFor) : community ? (cu ? cu.communityHtml() : `<div class="muted modio-msg">${t('Loading mods…')}</div>`) : browse ? this.modioBrowseHtml() : `
             <div class="card">
               <p class="text-2" style="margin:0">
-                ${t("Mods add boards made by other people: KiCad or boardview files, repair challenges from the Author tab, with their BOM and schematic. Mods are data only, they can't run code.")}
+                ${this.mobile ? t('Boards, puzzles, notes and rules made by others. A mod with code runs only if you turn code mods on.') : t('Mods add what other people made: boards with their BOM and schematic, repair puzzles, board notes, part models, fault types and rules. Most mods are data only. A mod with code runs only if you turn code mods on, and then in a sandbox.')}
                 ${desktop ? t('Install a .zip here, or put mod folders / .zip files into the mods folder and reload (Ctrl/Cmd+R).') : t('Install a .zip here or drop it on the bench; it stays in this browser.')}
               </p>
               <div class="row wrap">
@@ -4833,11 +4841,19 @@ export class PcbApp {
     });
     root.querySelector('#mods-folder')?.addEventListener('click', () => void desktop?.openModsFolder());
     root.querySelectorAll<HTMLButtonElement>('[data-mods-view]').forEach((b) => b.addEventListener('click', () => {
-      this.modsView = b.dataset.modsView === 'browse' ? 'browse' : 'installed';
+      const v = b.dataset.modsView;
+      this.modsView = v === 'browse' ? 'browse' : v === 'community' ? 'community' : 'installed';
       this.renderModsModal();
       if (this.modsView === 'browse' && !this.modioList.length && !this.modioLoading && !this.modioError) void this.loadModioPage(true);
     }));
-    if (browse) this.bindModioBrowse(root);
+    if (community && cu?.unloaded) void cu.loadCommunity();
+    if (browse && !submitFor) this.bindModioBrowse(root);
+    if (community && cu && !submitFor) cu.bindCommunity(root);
+    if (submitFor) cu!.bindSubmit(root, submitFor);
+    root.querySelectorAll<HTMLButtonElement>('[data-mod-submit]').forEach((b) => b.addEventListener('click', () => {
+      const id = b.dataset.modSubmit!;
+      void this.communityUiReady().then((x) => x.openSubmit(id));
+    }));
     root.querySelector('#mods-export')?.addEventListener('click', () => void this.exportBoardAsMod());
     root.querySelectorAll<HTMLButtonElement>('[data-mod-open]').forEach((b) => b.addEventListener('click', () => {
       const i = Number(b.dataset.modOpen);
@@ -5007,6 +5023,7 @@ export class PcbApp {
       <div class="bench">
         <div class="row wrap">
           <button class="btn sm ghost" data-mod-bench="${this.esc(modId)}" ${this.benchRunning ? 'disabled' : ''} title="${t('Test this mod on the simulator: its boards, puzzles, patches, knowledge and devices')}">${icon('play', 11)}<span>${running ? t('Checking…') : t('Bench check')}</span></button>
+          ${this.modResult.mods.some((m) => m.manifest.id === modId && m.source.origin === 'Installed') ? `<button class="btn sm ghost" data-mod-submit="${this.esc(modId)}" title="${t('Send this mod for review; once accepted it is listed under Community for everyone')}">${icon('upload', 11)}<span>${t('Submit')}</span></button>` : ''}
           ${running ? `<span class="muted" id="bench-step"></span>` : ''}
           ${r && !running ? `<span class="bench-sum"><span class="pass">✓ ${n('pass')}</span> <span class="warn">! ${n('warn')}</span> <span class="fail">✗ ${n('fail')}</span> <span class="muted">· ${(r.ms / 1000).toFixed(1)} s</span></span>` : ''}
         </div>
@@ -5104,6 +5121,38 @@ export class PcbApp {
     return location.pathname + (q ? `?${q}` : '') + location.hash;
   }
 
+  // ---------------- Community tab + Submit (src/ui/community-ui.ts, loaded on first use) ----------------
+
+  /** The Community UI if it's loaded; otherwise starts loading it (the window redraws when ready). */
+  private loadCommunityUi(): CommunityUi | null {
+    if (!this.communityUi && !this.communityUiLoad) void this.communityUiReady().then(() => { if (this.showMods) this.renderModsModal(); });
+    return this.communityUi;
+  }
+
+  private communityUiReady(): Promise<CommunityUi> {
+    this.communityUiLoad ??= import('./community-ui').then(({ CommunityUi }) => {
+      const app = this; // `mobile` is read live (a getter), and getters have their own `this`
+      this.communityUi = new CommunityUi({
+        esc: (s) => app.esc(s),
+        get mobile() { return app.mobile; },
+        siteBase: desktop ? BRAND.site : './',
+        mods: () => app.modResult.mods,
+        benchReport: (id) => app.benchReports.get(id),
+        benchRunning: () => app.benchRunning,
+        runBenchCheck: (id) => app.runBenchCheck(id),
+        installModBytes: (bytes, file) => app.installModBytes(bytes, file),
+        modActive: (id) => app.modActive(id),
+        toast: (msg, kind) => app.toast(msg, kind),
+        isOpen: () => app.showMods,
+        view: () => app.modsView,
+        rerender: () => { if (app.showMods) app.renderModsModal(); },
+        closeMods: () => { app.showMods = false; app.renderModal(); },
+      });
+      return this.communityUi;
+    });
+    return this.communityUiLoad;
+  }
+
   // ---------------- mod.io browser (src/mods/modio.ts) ----------------
 
   private modioBrowseHtml(): string {
@@ -5117,7 +5166,7 @@ export class PcbApp {
       </div>
       <div id="modio-list" class="modio-list">${this.modioListHtml()}</div>
       <div class="muted modio-foot">
-        ${t('Made by players, hosted by mod.io. Mods are data only: boards, part lists and schematics.')}
+        ${t('Made by players, hosted by mod.io. A mod with code runs only if you turn code mods on (Installed tab).')}
         <a href="https://mod.io/terms" target="_blank" rel="noopener">${t('mod.io Terms')}</a> ·
         <a href="https://mod.io/privacy" target="_blank" rel="noopener">${t('mod.io Privacy')}</a>
       </div>`;

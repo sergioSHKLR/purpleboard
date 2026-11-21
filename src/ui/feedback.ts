@@ -50,28 +50,31 @@ export function diagnostics(ctx: FeedbackContext): string {
 
 export interface FeedbackMessage { kind: FeedbackKind; message: string; contact: string; details: string; snapshot?: string }
 
-export async function sendFeedback(m: FeedbackMessage): Promise<void> {
+/** Posts one message to the maintainer through FormSubmit (feedback, mod submissions). */
+export async function postToMaintainer(fields: Record<string, string>): Promise<void> {
   if (!feedbackConfigured) throw new Error('feedback is not set up on this build');
-  const label = m.kind === 'bug' ? 'Bug report' : 'Suggestion';
-  const firstLine = m.message.trim().split('\n')[0].slice(0, 60);
   const res = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(TO)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({
-      _subject: `[DEADBOARD] ${label}: ${firstLine}`,
-      _template: 'box',
-      _captcha: 'false',
-      ...(m.contact.includes('@') && { _replyto: m.contact.trim() }),
-      type: label,
-      message: m.message.trim(),
-      contact: m.contact.trim() || '(none)',
-      details: m.details || '(not included)',
-      // last, so the code is easy to copy; scripts/repro.ts reads it back
-      ...(m.snapshot && { snapshot: m.snapshot }),
-    }),
+    body: JSON.stringify({ _template: 'box', _captcha: 'false', ...fields }),
   });
   const body = await res.json().catch(() => null) as { success?: string | boolean; message?: string } | null;
   if (!res.ok || !body || String(body.success) !== 'true') throw new Error(body?.message || `HTTP ${res.status}`);
+}
+
+export async function sendFeedback(m: FeedbackMessage): Promise<void> {
+  const label = m.kind === 'bug' ? 'Bug report' : 'Suggestion';
+  const firstLine = m.message.trim().split('\n')[0].slice(0, 60);
+  await postToMaintainer({
+    _subject: `[DEADBOARD] ${label}: ${firstLine}`,
+    ...(m.contact.includes('@') && { _replyto: m.contact.trim() }),
+    type: label,
+    message: m.message.trim(),
+    contact: m.contact.trim() || '(none)',
+    details: m.details || '(not included)',
+    // last, so the code is easy to copy; scripts/repro.ts reads it back
+    ...(m.snapshot && { snapshot: m.snapshot }),
+  });
 }
 
 /** A prefilled issue on GitHub (needs an account; the form does not). */

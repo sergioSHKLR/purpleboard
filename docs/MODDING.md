@@ -22,6 +22,10 @@ you can make a mod.
 
 ## Try a mod first
 
+The quickest way: open **Boards → Mods → Community** and press **Install** on any mod listed
+there. Those are the examples from this guide and mods other players sent in, each one checked
+before it was listed. Or install a file yourself:
+
 1. Download the example mod: [starter-kit.zip](https://deadboard.org/examples/starter-kit.zip).
 2. Open the bench and click the board name at the top left to open the board list. Click **Mods**,
    then **Install mod (.zip)**, and pick the file. Dropping the `.zip` onto the bench works too.
@@ -614,6 +618,24 @@ The schematic is for reading. Part values for the simulation come from the board
 Installing a mod with the same `id` again replaces the old version, so you can fix and re-install
 as often as you like.
 
+## Share it on deadboard.org
+
+Mods on deadboard.org are listed in the app under **Boards → Mods → Community**, where anyone
+installs them with one click. To send yours:
+
+1. Install your mod in the app (**Install mod (.zip)**) and run its **Bench check**.
+2. Press **Submit** on its card. Add a note for the reviewer and, if you'd like an answer, a contact.
+   Tick the box that you made the mod (or may share it) and agree to it being published under its
+   licence, then **Send for review**. No account is needed.
+3. The maintainer reviews it (opens it, reads its `mod.json`, and its code if it has any) and adds
+   it to the catalogue. It appears under **Community** with the next update of the site.
+
+A mod up to 256 kB travels inside the message; most data mods are a few kB. A bigger one (board
+files, PDFs) needs a link to where you host the `.zip` (a GitHub release, a cloud drive). A mod
+whose bench check fails can't be sent. To release a fix, raise `version` and submit again: players
+who installed it see **Update**. You can also open an issue on
+[GitHub](https://github.com/tholtman1-del/deadboard/issues) and attach the `.zip`.
+
 ## Share it on mod.io
 
 DEADBOARD's mod hub is on [mod.io](https://mod.io). Mods published there show up in the app under
@@ -712,5 +734,6 @@ Players see the credits, licence and source link in the board's Overview tab.
   (`npm run example-mod` rebuilds its challenge and the download; `test/mods.test.ts` checks both).
 - Board ids: a `.pcbfix.json` keeps its own `id` (its flag lock and players' progress depend on it);
   imported boards get `mod-<mod id>-<board id>`. A board whose id is already in use is skipped.
-- Mods are data only by design: the same importers that handle a dropped file read every board,
-  schematics are shown as PDF or images, and nothing in a mod is executed.
+- A data mod is data only by design: the same importers that handle a dropped file read every
+  board, schematics are shown as PDF or images, and nothing in it is executed. A code mod's code
+  runs only with code mods turned on, in the sandbox (see [Code mods](#code-mods)).

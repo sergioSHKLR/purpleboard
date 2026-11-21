@@ -16,6 +16,7 @@ a desktop (Electron) and an iOS app.
 | `npx tsx test/<name>.test.ts` | One suite. |
 | `npm run build` | Type-check + production build (also renders the docs pages). |
 | `npm run bench-check -- <mod> [mods it needs]` | Test a mod on the simulator (`--run-code`: your own code mod, unsandboxed). |
+| `npm run community` | Rebuild `public/community/index.json`, the Community mods list (bench-checks every listed zip). `-- --add <zip>` adds a reviewed submission (`npm run feedback` saves them to `.feedback/`). Run it after `npm run example-mod`. |
 | `npm run example-mod` | Rebuild the example mods' zips in `public/examples/`. **Also re-locks the starter kit challenge with a new random salt:** afterwards run `git checkout -- examples/mods/starter-kit/boards/night-light-repair.pcbfix.json public/examples/starter-kit.zip` unless you meant to change it. |
 | `npm run mod-api` | Regenerate `packages/mod-api` from `src/mods/api/types.ts`. |
 | `npm run docs` | Regenerate the generated blocks in `docs/MOD_REFERENCE.md` and `docs/CODE_MODS.md`. |

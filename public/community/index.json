@@ -1,0 +1,145 @@
+{
+  "format": "deadboard-community/1",
+  "mods": [
+    {
+      "id": "board-notes",
+      "name": "Board notes (knowledge packs for the shipped boards)",
+      "version": "1.0.0",
+      "author": "Biga73 (idea) · DEADBOARD",
+      "description": "An example data mod: a knowledge pack for every board that ships with DEADBOARD. Rails, where each one comes from, what to expect at which pin, and what a low reading usually means, each marked documented, derived or estimated. The packs describe the working board and point at likely causes, the way the board's hints do; they don't name the planted faults. Based on the device knowledge pack RFC by Biga73.",
+      "license": "CC0-1.0",
+      "file": "examples/board-notes.zip",
+      "size": 5715,
+      "sha256": "7a2522355e9f5617bd0c0e6d30037b3bae713cafeaf9784cb8c7b4e3ef13a1a3",
+      "requires": {
+        "official-boards": "^1.0"
+      },
+      "contents": {
+        "knowledge": 13
+      },
+      "code": false,
+      "example": true,
+      "bench": {
+        "pass": 13,
+        "warn": 0,
+        "fail": 0
+      }
+    },
+    {
+      "id": "ideal-dc",
+      "name": "Ideal DC solver (example code mod)",
+      "version": "1.0.0",
+      "author": "DEADBOARD",
+      "description": "An example code mod: a small DC solver in plain JavaScript (resistors, batteries, switches, fuses, diodes and LEDs with a fixed forward voltage). Copy it to start your own engine. It runs in DEADBOARD's sandbox and needs no permissions.",
+      "license": "CC0-1.0",
+      "file": "examples/ideal-dc.zip",
+      "size": 3411,
+      "sha256": "d2a10e18b82ff5ae3f46dbc7e76868c6528a0a594eeee6c4b299c8e082bcdf4c",
+      "requires": {},
+      "contents": {},
+      "code": true,
+      "example": true,
+      "bench": {
+        "pass": 0,
+        "warn": 1,
+        "fail": 0
+      }
+    },
+    {
+      "id": "local-coach",
+      "name": "Local coach (example code mod)",
+      "version": "1.0.0",
+      "author": "DEADBOARD",
+      "description": "An example code mod: ask a language model running on your own computer (Ollama, llama.cpp, vLLM: any OpenAI-compatible server) about the board on the bench. It sends the parts, the test results and the readings, never leaves your machine, and removes any part name the board doesn't have from the answer.",
+      "license": "CC0-1.0",
+      "file": "examples/local-coach.zip",
+      "size": 3305,
+      "sha256": "2933c0b6e9578fb14266e9d608cc74e8c008eb03ec99fc40b640de32cdf21cd9",
+      "requires": {},
+      "contents": {},
+      "code": true,
+      "example": true,
+      "bench": {
+        "pass": 0,
+        "warn": 1,
+        "fail": 0
+      }
+    },
+    {
+      "id": "night-light-extras",
+      "name": "Night light extras",
+      "version": "1.0.0",
+      "author": "DEADBOARD",
+      "description": "An example mod that builds on other mods: a knowledge pack and a puzzle for the starter kit's night light, and one more note for the built-in Ghost Short challenge. No board files of its own.",
+      "license": "CC0-1.0",
+      "file": "examples/night-light-extras.zip",
+      "size": 1597,
+      "sha256": "39cb2cc0436f10ff1906ab33c876508fbfeb90a8bf6b16960856948cd3463baf",
+      "requires": {
+        "starter-kit": "^1.0",
+        "official-boards": "^1.0"
+      },
+      "contents": {
+        "puzzles": 1,
+        "knowledge": 1,
+        "patches": 1
+      },
+      "code": false,
+      "example": true,
+      "bench": {
+        "pass": 3,
+        "warn": 0,
+        "fail": 0
+      }
+    },
+    {
+      "id": "repair-lab",
+      "name": "Repair lab extras",
+      "version": "1.0.0",
+      "author": "DEADBOARD",
+      "description": "An example data mod: a new fault type (salt-water damage), a budget multimeter, one more diagnostic rule for «Where to look?», and a puzzle on the built-in voltage divider that uses the new fault.",
+      "license": "CC0-1.0",
+      "file": "examples/repair-lab.zip",
+      "size": 1260,
+      "sha256": "44c5db59bbf04e6232c01b48253244f806284de867eecc86d226faf552fe1716",
+      "requires": {
+        "official-boards": "^1.0"
+      },
+      "contents": {
+        "puzzles": 1,
+        "faultTypes": 1,
+        "meters": 1,
+        "rules": 1
+      },
+      "code": false,
+      "example": true,
+      "bench": {
+        "pass": 4,
+        "warn": 0,
+        "fail": 0
+      }
+    },
+    {
+      "id": "starter-kit",
+      "name": "Starter kit",
+      "version": "1.0.0",
+      "author": "DEADBOARD",
+      "description": "An example mod to copy: one KiCad board with its BOM and schematic, and the same board as a repair challenge.",
+      "license": "CC0-1.0",
+      "file": "examples/starter-kit.zip",
+      "size": 4190,
+      "sha256": "6db34902768d663f08bbea866aae90ebb97dbe6a2d61bf634741164b0777701b",
+      "requires": {},
+      "contents": {
+        "boards": 2
+      },
+      "code": false,
+      "example": true,
+      "bench": {
+        "pass": 2,
+        "warn": 0,
+        "fail": 0
+      }
+    }
+  ]
+}

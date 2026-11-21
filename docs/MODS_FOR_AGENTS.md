@@ -19,6 +19,8 @@ new solver, importer or panel.
    `npm install && npm run bench-check -- path/to/mod [paths of mods it needs]`. Fix every `✗`;
    read every `!`. Errors in `mod.json` are listed all at once.
 5. Zip the folder (`mod.json` at the zip's top, or in one top-level folder).
+6. To publish it, the person installs the zip in the app and presses **Submit** on its card (Mods
+   window); it is listed under **Community** after review. Agents can't submit on their behalf.
 
 ## Hard rules
 

@@ -46,6 +46,13 @@ export async function installMod(bytes: Uint8Array, file: string, takenIds?: (id
   return mod;
 }
 
+/** An installed mod's .zip as the player added it (to submit it), or null. */
+export async function installedPackage(id: string): Promise<{ file: string; bytes: Uint8Array } | null> {
+  if (typeof indexedDB === 'undefined') return null;
+  const m = await tx<StoredMod | undefined>('readonly', (s) => s.get(id) as IDBRequest<StoredMod | undefined>);
+  return m ? { file: m.file, bytes: m.bytes } : null;
+}
+
 export async function removeInstalled(id: string): Promise<void> {
   await tx('readwrite', (s) => s.delete(id));
 }
