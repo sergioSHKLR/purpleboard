@@ -22,11 +22,35 @@ No reference hardware is available, so realism is validated against *design inte
       live in it.
     - Self-hosting Umami: the user is interested (Cloud Hobby cap is 100k events/month, launch
       pace was ~130k). Not decided yet.
-  - **Still open (ask the user):** show levels as numbers ("2.4") or named tiers? Placement
-    "skip test" offers, or jumps only through the rating? Struggling help as a guided walk-through
-    (tutorial steps) or lighter hints? Story devices (bike light, USB fan) vs abstract boards?
-    Who builds most boards (agent from a circuit list / Author tab / community)? Simple schematic
-    view for hand-made boards? Self-host Umami now or when attempt records are ready?
+    - **Answered later the same evening (these override the workstreams below where they
+      differ):**
+      - **Levels are numbers 0.0–10.0 with colour bands, like CVSS scores** in the security
+        community (e.g. 0.1–3.9 / 4.0–6.9 / 7.0–8.9 / 9.0–10.0; colours from `docs/BRAND.md`).
+      - **The adaptive system stays invisible**, like Resident Evil 4's hidden difficulty: no
+        player rating on screen, no "you jumped" messages, no placement tests. It quietly picks
+        deeper or shallower faults, more or fewer of them, and how soon help is offered. Puzzles
+        show their own level number; the player's rating is never shown. (So workstream A's
+        "Your path" shows skills learned, not "Level 2 → 3".)
+      - **Teach by playing, not by watching.** Reading a note or watching a video is the last
+        resort. Ideas to try: tools unlock one by one and a new one appears exactly when the
+        puzzle needs it (fewer tools early); the first puzzle with a new tool is built so that
+        tool is the obvious next move; tools answer at once (sound, frost, smoke, a beep) so the
+        player learns from the response; wrong moves fail safely and visibly. Help ladder, in
+        order: the board's design → a subtle nudge on the bench (a glow, a beep) → a one-line
+        hint → the full note → a video.
+      - **Abstract boards for now** (many puzzles, tuning quantity and quality); a story mode
+        (a repair-shop job) maybe later. Boards named after their circuit, not a device.
+      - **The agent builds most boards** from a list of circuits. The open-hardware boards are
+        the **end game**; most players are expected to be novices (check with analytics), so most
+        new content goes to levels ~1–5.
+      - **Still 1:1 with real life**, so players can use what they learn on a real bench: real
+        circuits (datasheet reference designs / app notes), real part values and packages, real
+        failure modes, real meter readings (devicelib parts, honest provenance).
+      - **Not Hetzner** for self-hosted Umami. Options to put to the user: another EU VPS
+        (Scaleway, OVHcloud, UpCloud, netcup), DigitalOcean in an EU region, a managed platform
+        (app + managed PostgreSQL), or a paid Umami Cloud plan (no server work). Check current
+        prices before quoting.
+    - **Still open:** a schematic view for hand-made boards; when to self-host Umami, and where.
   - **Workstreams, in the suggested order:**
     - **A. Board picker redesign** (`renderBoardsModal`, `phoneCatalogSection` in `src/ui/app.ts`).
       Today it is grouped by source (Tutorials / Challenges / Real Hardware / Mods), has no "what
