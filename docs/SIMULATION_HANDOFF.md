@@ -7,7 +7,33 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
-- **LATEST — mod feedback round (end of 2026-11-21, pushed and live: `7207be5`, `d4fdd6e`;
+- **LATEST — device themes: real ESP32 boards (2026-11-21, committed, NOT pushed: `ea3d2db`,
+  `2d56da9`, `33b59b3`, `f93f389`).** The user wants whole device themes (ESP32, game
+  controllers, graphics cards…) at every difficulty, still 1:1 with real devices. Agreed order:
+  real products that are open hardware first (KiCad + redistributable licence); for branded
+  devices a self-drawn version of a unit you own; GPU = a "GPU-style" board from datasheet
+  reference designs, labelled as such (proprietary files never ship). ESP32 → controller → GPU.
+  - **Shipped (in the track after The Sagging Rail):** `demo-olimex-esp32-devkit-lipo` (L2: D1
+    cracked joint + R4 PROG missing) and `demo-olimex-esp32-c3-devkit-lipo` (L3: C5 shorted hiding
+    R11 22 k for 49.9 k → 4.48 V once the short is gone). Checked in the app (Playwright): both
+    load from Real Hardware, bench reads 0.0 mA / 322.6 mA as simulated, no console errors.
+  - **Simulator / importer fixes on the way (all universal):** keepouts, paste-only pads and NPTH
+    were copper (merged nets into GND); KiCad `Net-(REF-PIN)` pin roles; unnamed converter inputs;
+    EN-tied LDOs (always on, not driven by the power controller); diode-OR by A/K; buck-boost
+    double switch nodes skipped; **chargers** (new kind, CC/CV, PROG open = off); battery sockets
+    are connectors; a stated feedback divider is trusted; buck ≤ its input; UVLO from the nominal
+    rail; **engine false convergence fixed** (diode current test + B-source value test, as ngspice;
+    a C3 state solved to 44.9 V, ngspice and now ours 4.213 V); KiCad text keeps its font height.
+    Antmicro demo: 1V8_SYS now powered (IC4 was never found; 0.43 V → 1.798 V, snapshot 57.2 mA).
+  - **Parts from datasheets:** `npm run parts -- datasheets <MPN>` fetched them (jlcparts links,
+    plain requests work). Added SY8089, HX6211A332, TP4054, BL4054B, IRLML6402, WPM2015, 1N5819.
+  - **Open:** no ESP32 module load model (supply currents are decoupling-count estimates, too
+    low); unpowered ICs don't clamp their pins (TXD reads 5 V through R6 on the DevKit); reference
+    designators render large on small boards; ESP32-POE Rev M2 has a +5V_USB track over R23 pad
+    upstream. Candidates ready in the scratchpad pattern: esp-rs Rust board (needs MCP73831,
+    SY8088, B5819W), ESP32-POE (TPS2378, TX4138, TPS62A02A). Then the controller theme.
+
+- **Earlier — mod feedback round (end of 2026-11-21, pushed and live: `7207be5`, `d4fdd6e`;
   Pages deploy checked, `lookWorker` served on deadboard.org).** The default next thread is still
   the Umami re-read (next entry); ask the user. **iOS and desktop apps are on hold.**
   - **Done, from Biga73's test report on the mod updates** (Board notes, code mods, Local coach):
