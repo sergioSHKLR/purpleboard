@@ -290,6 +290,12 @@ knowledge**, and clicking a part name selects it on the board.
 Part refs and net names are checked against the board. Ones the board doesn't have (a pack written
 for another revision) are struck through and listed under **Not on this board**.
 
+For a pack on every board that ships with the game, from the one-LED tutorials to the MNT Reform
+and Antmicro demos (regulators, enables, set points worked out from the feedback dividers), see
+[board-notes.zip](https://deadboard.org/examples/board-notes.zip). It describes the working board
+and points at likely causes, the way the hints do, without naming the planted faults. The idea
+comes from Biga73's RFC for device knowledge packs.
+
 ## Puzzles
 
 A puzzle is a repair challenge written as a recipe: a working board, the faults to plant and the

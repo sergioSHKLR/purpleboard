@@ -107,10 +107,24 @@ export function parseKnowledge(raw: unknown, at: string, errs: string[], warning
   return { id, board, rails, powerUp, notes, provenance: packProv, ...(text(raw.title, 120) && { title: text(raw.title, 120) }) };
 }
 
+/**
+ * Net names a board has: on pads, traces, vias or zones, wherever its file keeps them (an imported
+ * design names pads; a board drawn in DEADBOARD names its copper). The names connectivity uses.
+ */
+export function boardNetNames(board: Board): Set<string> {
+  const out = new Set<string>();
+  const add = (n: string | undefined) => { if (n) out.add(n); };
+  for (const c of board.components) for (const p of c.pads) add(p.net);
+  for (const t of board.traces) add(t.net);
+  for (const v of board.vias) add(v.net);
+  for (const z of board.zones ?? []) add(z.net);
+  return out;
+}
+
 /** Part refs and net names the pack mentions that this board doesn't have. */
 export function staleEntries(pack: KnowledgePack, board: Board): { refs: string[]; nets: string[] } {
   const refs = new Set(board.components.map((c) => c.ref));
-  const nets = new Set(board.components.flatMap((c) => c.pads.map((p) => p.net).filter((n): n is string => !!n)));
+  const nets = boardNetNames(board);
   const badRefs = new Set<string>(), badNets = new Set<string>();
   for (const r of pack.rails) {
     if (!nets.has(r.net)) badNets.add(r.net);

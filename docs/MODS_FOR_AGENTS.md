@@ -185,4 +185,4 @@ Item addresses of everything shipped (boards, devices, fault classes, rules, the
 [Mod reference → Official items](MOD_REFERENCE.md#official-items). API types for code mods:
 [Code mods → API types](CODE_MODS.md#api-types). Examples to copy:
 https://deadboard.org/examples/starter-kit.zip, night-light-extras.zip, repair-lab.zip, ideal-dc.zip,
-local-coach.zip.
+local-coach.zip, board-notes.zip (knowledge packs for every shipped board).

@@ -23,6 +23,7 @@ agents"; it has the exact schemas, the hard rules and a validate-and-fix loop.
 - [repair-lab.zip](https://deadboard.org/examples/repair-lab.zip): a fault type, a meter, a rule and a puzzle
 - [ideal-dc.zip](https://deadboard.org/examples/ideal-dc.zip): a code mod with a circuit solver
 - [local-coach.zip](https://deadboard.org/examples/local-coach.zip): a code mod with a panel that asks a local language model
+- [board-notes.zip](https://deadboard.org/examples/board-notes.zip): knowledge packs (rails, sources, expected readings) for every shipped board
 
 ## Optional
 

@@ -1,6 +1,7 @@
 // Mod platform, phase 2 (docs/MOD_PLATFORM.md): patches (JSON merge patch, board fields, order,
 // conflicts, invalid patches skipped, undo), knowledge packs, puzzles built on known-good boards,
-// official mods as dependencies, and the night-light-extras example mod end to end.
+// official mods as dependencies, the night-light-extras example mod end to end, and the board-notes
+// packs checked against the simulator.
 import { loadMod, parseManifest, type ModSource } from '../src/mods/mods';
 import { applyBoardPatches, boardView, mergePatch, writeBoardView, type PatchEntry } from '../src/mods/patches';
 import { parseKnowledge, staleEntries } from '../src/mods/knowledge';
@@ -9,7 +10,9 @@ import { resolveMods } from '../src/mods/resolve';
 import { officialBoardAddress, officialVersions } from '../src/mods/official';
 import { builtinScenarios } from '../src/scenarios/builtin';
 import { referenceBoard } from '../src/scenarios/reference';
-import { verifyScenario } from '../src/verify';
+import { runSolver, verifyScenario } from '../src/verify';
+import { buildConnectivity, padNet } from '../src/connectivity';
+import { parseScenario } from '../src/io/format';
 import { installPart } from '../src/ops';
 import { readZip } from '../src/mods/zip';
 
@@ -187,6 +190,57 @@ async function run() {
     for (const f of folder.files) assert(same(zipped.get(`night-light-extras/${f}`)!, await folder.read(f)), `${f} in night-light-extras.zip is stale: run npm run example-mod`);
   }
 
+  // ---- the board-notes example: a pack for every shipped board, its numbers held to the simulator ----
+  {
+    const notes = await loadMod(folderSource('examples/mods/board-notes'));
+    assert(notes.warnings.length === 0, `board-notes loads cleanly (${notes.warnings.join('; ')})`);
+    const demos = (JSON.parse(new TextDecoder().decode(fs.readFileSync('public/demos/index.json'))) as { id: string; file: string }[])
+      .map((d) => parseScenario(new TextDecoder().decode(fs.readFileSync(`public/demos/${d.file}`))));
+    const shipped = [...scenarios, ...demos];
+    const packs = notes.manifest.knowledge;
+    assert(packs.length === shipped.length && shipped.every((s) => packs.some((k) => k.board === officialBoardAddress(s.id))), `one pack per shipped board (${packs.length} packs, ${shipped.length} boards)`);
+    // the first voltage an expectation names: "≈2.0 V …" (±3 %, at least 30 mV) or "4.85–5.15 V …"
+    const expected = (s: string) => {
+      const m = /(\d+(?:\.\d+)?)(?:\s*–\s*(\d+(?:\.\d+)?))?\s*V\b/.exec(s);
+      if (!m) return null;
+      const a = Number(m[1]);
+      return m[2] ? { lo: a, hi: Number(m[2]) } : { lo: a - Math.max(0.03 * a, 0.03), hi: a + Math.max(0.03 * a, 0.03) };
+    };
+    for (const pack of packs) {
+      const sc = shipped.find((s) => officialBoardAddress(s.id) === pack.board)!;
+      const st = staleEntries(pack, sc.board);
+      assert(!st.refs.length && !st.nets.length, `${pack.id}: names what the board doesn't have: ${[...st.refs, ...st.nets].join(', ')}`);
+      const good = referenceBoard(sc)!;
+      const conn = buildConnectivity(good);
+      const solver = sc.solver ?? 'spice';
+      // every switch setting the board's tests use (a reading may hold only with a button pressed)
+      const settings = [undefined, ...sc.objectives.flatMap((o) => (o.switches ? [o.switches] : []))];
+      const solves = settings.map((sw) => runSolver(solver, good, conn, { ...(sw && { switches: sw }), ...(solver === 'spice-power' && { powerState: 'S0SW' as const }) }));
+      const volts = (net: number) => solves.map((sim) => { const k = sim.nodeOfNet.get(net); return k === undefined ? 0 : sim.V[k]; });
+      for (const rail of pack.rails) {
+        const net = conn.netNames.indexOf(rail.net);
+        assert(net >= 0, `${pack.id}: rail ${rail.net} is a net of the working board`);
+        if (rail.nominal !== undefined) {
+          const tol = Math.max(0.03 * rail.nominal, 0.03);
+          assert(volts(net).some((v) => Math.abs(v - rail.nominal!) <= tol), `${pack.id}: ${rail.net} nominal ${rail.nominal} V, the working board reads ${volts(net).map((v) => v.toFixed(3)).join(' / ')} V`);
+        }
+        for (const c of rail.checks) {
+          const part = good.components.find((x) => x.ref === c.at)!;
+          if (c.pin) assert(part.pads.some((p) => p.name === c.pin), `${pack.id}: ${c.at} has a pin ${c.pin}`);
+          const want = expected(c.expect);
+          if (!want) continue;
+          const at = c.pin ? padNet(conn, part, c.pin) : net;
+          const got = volts(at);
+          assert(got.some((v) => v >= want.lo && v <= want.hi), `${pack.id}: ${c.at}${c.pin ? ` pin ${c.pin}` : ''} "${c.expect}", the working board reads ${got.map((v) => v.toFixed(3)).join(' / ')} V`);
+        }
+      }
+      for (const n of pack.powerUp) assert(conn.netNames.includes(n), `${pack.id}: power-up rail ${n} is on the board`);
+    }
+    // the published download is current (npm run example-mod)
+    const zipped = await readZip(new Uint8Array(fs.readFileSync('public/examples/board-notes.zip')));
+    assert(zipped.size === 1 && same(zipped.get('board-notes/mod.json')!, fs.readFileSync('examples/mods/board-notes/mod.json')), 'board-notes.zip is stale: run npm run example-mod');
+  }
+
   // ---- a puzzle on an official board: Ghost Short's working board, D1 opened ----
   {
     const gs = byId('builtin-ghost-short');
@@ -198,7 +252,7 @@ async function run() {
     assert((await verifyScenario(pz, pz.board)).allPassed, 'replacing D1 passes');
   }
 
-  console.log('MOD CONTENT TESTS PASSED (merge patch, shipped references pass + unlock, board patches: order, conflicts, skipped, undo; manifest rules, official dependencies, example mod: patch, knowledge + stale entries, puzzle fails → repair unlocks, misfit faults explained, download current; puzzle on an official board)');
+  console.log('MOD CONTENT TESTS PASSED (merge patch, shipped references pass + unlock, board patches: order, conflicts, skipped, undo; manifest rules, official dependencies, example mod: patch, knowledge + stale entries, puzzle fails → repair unlocks, misfit faults explained, download current; board-notes: a pack per shipped board, pins and voltages match the working boards; puzzle on an official board)');
 }
 
 run().catch((e) => { console.error(e); (globalThis as unknown as { process: { exitCode: number } }).process.exitCode = 1; });

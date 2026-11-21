@@ -4,7 +4,7 @@
 //
 // examples/mods/starter-kit/boards/night-light-repair.pcbfix.json: the KiCad night light + its BOM,
 // flag locked to the healthy board, then one fault planted (the same steps as the Author tab).
-// public/examples/starter-kit.zip, night-light-extras.zip, ideal-dc.zip, repair-lab.zip, local-coach.zip: the mod folders, linked from the modding guide.
+// public/examples/starter-kit.zip, night-light-extras.zip, ideal-dc.zip, repair-lab.zip, local-coach.zip, board-notes.zip: the mod folders, linked from the modding guide.
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { importScenarioOrPcb } from '../src/io/kicad';
@@ -56,6 +56,7 @@ async function main() {
   console.log(`ideal-dc: zip with ${await zipMod('ideal-dc')} files`);
   console.log(`repair-lab: zip with ${await zipMod('repair-lab')} files`);
   console.log(`local-coach: zip with ${await zipMod('local-coach')} files`);
+  console.log(`board-notes: zip with ${await zipMod('board-notes')} files`);
 }
 
 /** Zips examples/mods/<name> (in a top-level <name>/ folder) to public/examples/<name>.zip. */

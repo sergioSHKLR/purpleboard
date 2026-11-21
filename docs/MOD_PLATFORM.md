@@ -408,12 +408,12 @@ mod.io stays the hub (see [MODDING.md](MODDING.md) and `src/mods/modio.ts`).
 
 ## How the coach RFC fits
 
-An outside RFC proposed a knowledge pack, a board query layer, an offline fault-candidate engine
+An outside RFC by Biga73 proposed a knowledge pack, a board query layer, an offline fault-candidate engine
 and an optional LLM coach. On this platform:
 
 | RFC piece | Where it lands | Phase |
 |---|---|---|
-| 1. Knowledge pack | `knowledge` item type: data, attached to a board by address (**built**; fingerprints open) | 2 |
+| 1. Knowledge pack | `knowledge` item type: data, attached to a board by address (**built**; fingerprints open). Packs for all 13 shipped boards: example `board-notes`, its readings tested against the simulator | 2 |
 | 2. Board query layer | The core: it *is* plug-in API v1's board queries (**built**) | 4 |
 | 3. Fault-candidate engine | `rules` item type, data (**built**: [rules.ts](../src/mods/rules.ts), «Where to look?», recall test in the bench check) | 5 |
 | 4. Explanation coach | A code mod with `panel` + `network:localhost` (**built**: example `local-coach`, grounding enforced by the mod with `findRef`). Opt-in by installing it, so no LLM is ever in the core. | 6 |
@@ -449,7 +449,7 @@ review.
 - **mod.io curation** for code mods only: possible per tag, or game-wide only?
 - **Board fingerprint:** what goes into the hash so it survives cosmetic edits (silkscreen, trace
   geometry) but changes when the circuit does. The flag `topology` string is a starting point.
-- **Order of item types after phase 3:** follow what authors ask for first; the coach RFC's author
+- **Order of item types after phase 3:** follow what authors ask for first; the coach RFC's author (Biga73)
   is the first known user.
 - **Official mods' trust:** whether official code should, over time, run through the public API
   only, so it proves the API is enough.

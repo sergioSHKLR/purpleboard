@@ -1,0 +1,376 @@
+{
+  "format": "deadboard-mod/2",
+  "id": "board-notes",
+  "name": "Board notes (knowledge packs for the shipped boards)",
+  "version": "1.0.0",
+  "author": "Biga73 (idea) · DEADBOARD",
+  "description": "An example data mod: a knowledge pack for every board that ships with DEADBOARD. Rails, where each one comes from, what to expect at which pin, and what a low reading usually means, each marked documented, derived or estimated. The packs describe the working board and point at likely causes, the way the board's hints do; they don't name the planted faults. Based on the device knowledge pack RFC by Biga73.",
+  "license": "CC0-1.0",
+  "homepage": "https://github.com/tholtman1-del/deadboard/tree/main/examples/mods/board-notes",
+  "requires": { "official-boards": "^1.0" },
+  "knowledge": [
+    {
+      "id": "first-light",
+      "board": "official-boards/boards/builtin-first-light",
+      "title": "First Light",
+      "provenance": { "kind": "board design + simulator", "where": "part values from the board; readings from DEADBOARD's simulator on the working board", "confidence": "derived" },
+      "rails": [
+        {
+          "net": "+3V", "nominal": 3.0, "domain": "always on",
+          "source": { "ref": "BT1", "kind": "3 V coin cell" },
+          "checks": [ { "at": "BT1", "expect": "≈3.0 V idle, ≈2.93 V with SW1 pressed", "readsLowIf": "the cell is flat or its holder doesn't make contact" } ],
+          "notes": "The cell sags about 70 mV under the LED's 9 mA: that's its internal resistance."
+        },
+        {
+          "net": "SW_OUT", "nominal": 2.93, "domain": "while SW1 is pressed",
+          "source": { "ref": "SW1", "kind": "push button" },
+          "checks": [ { "at": "R1", "pin": "1", "expect": "≈2.9 V pressed, 0 V released", "readsLowIf": "SW1 doesn't close, or a joint on SW1 is open" } ]
+        },
+        {
+          "net": "LED_A", "nominal": 2.0, "domain": "while SW1 is pressed",
+          "source": { "ref": "R1", "kind": "100 Ω series resistor" },
+          "checks": [
+            { "at": "R1", "pin": "2", "expect": "≈2.0 V pressed", "readsLowIf": "R1 is open (then R1 pin 2 reads 0 V while pin 1 reads 2.9 V)" },
+            { "at": "D1", "pin": "2", "expect": "≈2.0 V pressed (red LED), 0 V released", "readsLowIf": "the copper from R1 to D1 is open: compare with R1 pin 2" }
+          ],
+          "notes": "I = (2.93 − 2.00) V / 100 Ω ≈ 9 mA. If D1 pin 2 reads the full 2.9 V and D1 stays dark, no current flows through D1: it's open or reversed."
+        }
+      ],
+      "notes": [ "Current path: BT1 + → SW1 → R1 → D1 (anode pin 2, cathode pin 1) → BT1 −." ]
+    },
+    {
+      "id": "tut-cold-joint",
+      "board": "official-boards/boards/builtin-tut-cold-joint",
+      "title": "Cold Joint 101",
+      "provenance": { "kind": "board design + simulator", "where": "part values from the board; readings from DEADBOARD's simulator on the working board", "confidence": "derived" },
+      "rails": [
+        {
+          "net": "+3V", "nominal": 3.0, "domain": "always on",
+          "source": { "ref": "BT1", "kind": "3 V coin cell" },
+          "checks": [ { "at": "BT1", "expect": "≈2.95 V with D1 lit (≈7 mA)", "readsLowIf": "the cell is flat" } ]
+        },
+        {
+          "net": "LED_A", "nominal": 2.26, "domain": "always on",
+          "source": { "ref": "R1", "kind": "100 Ω series resistor" },
+          "checks": [ { "at": "D1", "pin": "2", "expect": "≈2.26 V (green LED)", "readsLowIf": "nothing reaches D1 through R1: an open joint or trace on either side of R1 (0 V, and the supply delivers no current)" } ],
+          "notes": "I = (2.95 − 2.26) V / 100 Ω ≈ 7 mA."
+        }
+      ],
+      "notes": [ "A through-hole part is soldered on the bottom side: a joint can look fine from the top and still be open." ]
+    },
+    {
+      "id": "tut-solder-bridge",
+      "board": "official-boards/boards/builtin-tut-solder-bridge",
+      "title": "Solder Bridge 101",
+      "provenance": { "kind": "board design + simulator", "where": "part values from the board; readings from DEADBOARD's simulator on the working board", "confidence": "derived" },
+      "rails": [
+        {
+          "net": "+3V", "nominal": 3.0, "domain": "always on",
+          "source": { "ref": "BT1", "kind": "3 V coin cell" },
+          "checks": [ { "at": "BT1", "expect": "≈2.93 V with D1 lit (≈9 mA)", "readsLowIf": "the cell is flat, or something downstream draws far more than 9 mA" } ]
+        },
+        {
+          "net": "LED_A", "nominal": 2.0, "domain": "always on",
+          "source": { "ref": "R1", "kind": "100 Ω series resistor" },
+          "checks": [ { "at": "D1", "pin": "2", "expect": "≈2.0 V (red LED)", "readsLowIf": "≈0 V while the supply still delivers current: D1's two pins are shorted together, so the current goes around it" } ],
+          "notes": "I = (2.93 − 2.00) V / 100 Ω ≈ 9 mA. With D1 shorted, R1 alone limits the current: about 3 V / 100 Ω."
+        }
+      ]
+    },
+    {
+      "id": "tut-polarity",
+      "board": "official-boards/boards/builtin-tut-polarity",
+      "title": "One-Way LED",
+      "provenance": { "kind": "board design + simulator", "where": "part values from the board; readings from DEADBOARD's simulator on the working board", "confidence": "derived" },
+      "rails": [
+        {
+          "net": "+3V", "nominal": 3.0, "domain": "always on",
+          "source": { "ref": "BT1", "kind": "3 V coin cell" },
+          "checks": [ { "at": "BT1", "expect": "≈2.94 V with D1 lit (≈7.6 mA)", "readsLowIf": "the cell is flat" } ]
+        },
+        {
+          "net": "LED_A", "nominal": 2.18, "domain": "always on",
+          "source": { "ref": "R1", "kind": "100 Ω series resistor" },
+          "checks": [ { "at": "D1", "pin": "2", "expect": "≈2.18 V (yellow LED)", "readsLowIf": "R1's path is open (0 V). The full cell voltage here with D1 dark means D1 doesn't conduct: open, or fitted the wrong way round" } ],
+          "notes": "I = (2.94 − 2.18) V / 100 Ω ≈ 7.6 mA."
+        }
+      ],
+      "notes": [ "An LED conducts from anode (pin 2) to cathode (pin 1, the flat side of the body and the K mark on the silkscreen)." ]
+    },
+    {
+      "id": "tut-resistor",
+      "board": "official-boards/boards/builtin-tut-resistor",
+      "title": "Resistor & Ohm's Law",
+      "provenance": { "kind": "board design + simulator", "where": "part values from the board; readings from DEADBOARD's simulator on the working board", "confidence": "derived" },
+      "rails": [
+        {
+          "net": "+5V", "nominal": 5.0, "domain": "always on",
+          "source": { "ref": "J1", "kind": "USB 5 V header" },
+          "checks": [ { "at": "J1", "expect": "≈5.0 V", "readsLowIf": "the supply isn't connected" } ]
+        },
+        {
+          "net": "LED_A", "nominal": 3.24, "domain": "always on",
+          "source": { "ref": "R1", "kind": "150 Ω series resistor" },
+          "checks": [ { "at": "D1", "pin": "2", "expect": "≈3.24 V (blue LED, ≈12 mA)", "readsLowIf": "too little current reaches D1: R1's value is far above 150 Ω, or a joint on R1 is open. Measure R1 with the power off" } ],
+          "notes": "I = (5.0 − 3.24) V / 150 Ω ≈ 12 mA (the simulator gives 11.7 mA)."
+        }
+      ]
+    },
+    {
+      "id": "tut-divider",
+      "board": "official-boards/boards/builtin-tut-divider",
+      "title": "Voltage Divider 101",
+      "provenance": { "kind": "board design + simulator", "where": "part values from the board; readings from DEADBOARD's simulator on the working board", "confidence": "derived" },
+      "rails": [
+        {
+          "net": "+5V", "nominal": 5.0, "domain": "always on",
+          "source": { "ref": "J1", "kind": "5 V input header" },
+          "checks": [ { "at": "R1", "pin": "1", "expect": "≈5.0 V", "readsLowIf": "the supply isn't connected" } ]
+        },
+        {
+          "net": "VOUT", "nominal": 2.5, "domain": "always on",
+          "source": { "ref": "R1", "kind": "divider top, 10 kΩ" },
+          "checks": [ { "at": "TP1", "expect": "2.50 V (2.3–2.7 V passes)", "readsLowIf": "the bottom resistor R2 is lower than R1, or R1 is open (then ≈0 V)" } ],
+          "notes": "Vout = 5 V × R2 / (R1 + R2) = 2.50 V with R1 = R2 = 10 kΩ, 0.25 mA through both. Nothing pulling VOUT down (R2 missing or open) leaves it at the full 5 V."
+        }
+      ]
+    },
+    {
+      "id": "bridge-troll",
+      "board": "official-boards/boards/builtin-bridge-troll",
+      "title": "Bridge Troll",
+      "provenance": { "kind": "board design + simulator", "where": "part values from the board; readings from DEADBOARD's simulator on the working board", "confidence": "derived" },
+      "rails": [
+        {
+          "net": "+3V", "nominal": 3.0, "domain": "always on",
+          "source": { "ref": "BT1", "kind": "3 V coin cell" },
+          "checks": [ { "at": "BT1", "expect": "≈3.0 V idle, ≈2.88 V with SW1 pressed (≈15 mA)", "readsLowIf": "the cell is flat, or something on BUS draws far more than 15 mA" } ]
+        },
+        {
+          "net": "BUS", "nominal": 2.88, "domain": "while SW1 is pressed",
+          "source": { "ref": "SW1", "kind": "push button" },
+          "checks": [
+            { "at": "R1", "pin": "2", "expect": "≈2.88 V pressed, 0 V released", "readsLowIf": "SW1 doesn't close" },
+            { "at": "D1", "pin": "2", "expect": "≈2.0 V pressed (red LED, ≈8.8 mA)", "readsLowIf": "no current reaches D1 through R1: an open joint on R1 or D1" },
+            { "at": "D2", "pin": "2", "expect": "≈2.25 V pressed (green LED, ≈6.3 mA)", "readsLowIf": "≈0 V: D2's pins are shorted together, or R2's path is open" }
+          ],
+          "notes": "Each LED has its own 100 Ω resistor from BUS: R1 feeds D1, R2 feeds D2. The two branches don't depend on each other, so each can have its own fault."
+        }
+      ]
+    },
+    {
+      "id": "backwards-day",
+      "board": "official-boards/boards/builtin-backwards-day",
+      "title": "Backwards Day",
+      "provenance": { "kind": "board design + simulator", "where": "part values from the board; readings from DEADBOARD's simulator on the working board", "confidence": "derived" },
+      "rails": [
+        {
+          "net": "+5V", "nominal": 5.0, "domain": "always on",
+          "source": { "ref": "J1", "kind": "USB 5 V header" },
+          "checks": [
+            { "at": "J1", "expect": "≈5.0 V (≈20 mA with both LEDs lit)", "readsLowIf": "the supply isn't connected" },
+            { "at": "D1", "pin": "2", "expect": "≈2.19 V (yellow LED, ≈8.5 mA through R1)", "readsLowIf": "R1 is a much higher value than 330 Ω, or its path is open" }
+          ]
+        },
+        {
+          "net": "BLUE_A", "nominal": 3.24, "domain": "always on",
+          "source": { "ref": "R2", "kind": "150 Ω series resistor" },
+          "checks": [ { "at": "D2", "pin": "2", "expect": "≈3.24 V (blue LED, ≈11.7 mA)", "readsLowIf": "≈0 V at D2 while R2 pin 2 reads 5 V: the copper from R2 to D2 is open" } ]
+        }
+      ],
+      "notes": [ "Both LEDs hang straight off +5V, each through its own resistor: R1 330 Ω for the yellow D1, R2 150 Ω for the blue D2.", "The full 5 V at an LED's anode with the LED dark means no current flows through it: open, or fitted the wrong way round." ]
+    },
+    {
+      "id": "ghost-short",
+      "board": "official-boards/boards/builtin-ghost-short",
+      "title": "Ghost Short",
+      "provenance": { "kind": "board design + simulator", "where": "part values from the board; readings from DEADBOARD's simulator on the working board", "confidence": "derived" },
+      "rails": [
+        {
+          "net": "+5V_RAW", "nominal": 5.0, "domain": "input, before the fuse",
+          "source": { "ref": "J1", "kind": "5 V input header" },
+          "checks": [ { "at": "F1", "pin": "1", "expect": "≈5.0 V", "readsLowIf": "the supply isn't connected, or it is current-limiting into a short" } ]
+        },
+        {
+          "net": "+5V", "nominal": 5.0, "domain": "after the fuse",
+          "source": { "ref": "F1", "kind": "0.5 A fuse" },
+          "checks": [
+            { "at": "F1", "pin": "2", "expect": "≈5.0 V, the same as pin 1", "readsLowIf": "F1 is open. Before fitting a new one, measure +5V to GND with the power off: a fuse blows for a reason" },
+            { "at": "D1", "pin": "2", "expect": "≈2.24 V (green LED, ≈5.9 mA through R3 470 Ω)", "readsLowIf": "+5V is missing, or R3's path is open" }
+          ],
+          "notes": "Healthy board: ≈6.1 mA from J1 (the LED's 5.9 mA plus 0.25 mA through the divider). A short that blew F1 is on the fuse's output side: one before the fuse would never have blown it."
+        },
+        {
+          "net": "VOUT", "nominal": 2.5, "domain": "always on",
+          "source": { "ref": "R1", "kind": "divider top, 10 kΩ" },
+          "checks": [ { "at": "TP1", "expect": "2.50 V (2.3–2.7 V passes)", "readsLowIf": "+5V is missing, the bottom resistor R2 is lower than R1, or R1 is open" } ],
+          "notes": "Vout = 5 V × R2 / (R1 + R2) = 2.50 V with R1 = R2 = 10 kΩ."
+        }
+      ],
+      "powerUp": [ "+5V_RAW", "+5V" ]
+    },
+    {
+      "id": "smoke-test",
+      "board": "official-boards/boards/builtin-smoke-test",
+      "title": "Smoke Test",
+      "provenance": { "kind": "board design + simulator", "where": "part values from the board; readings from DEADBOARD's simulator on the working board", "confidence": "derived" },
+      "rails": [
+        {
+          "net": "+5V_IN", "nominal": 5.0, "domain": "input, before the fuse",
+          "source": { "ref": "J1", "kind": "5 V DC header" },
+          "checks": [ { "at": "F1", "pin": "1", "expect": "≈5.0 V", "readsLowIf": "the supply isn't connected, or it is current-limiting into a short" } ]
+        },
+        {
+          "net": "FUSED", "nominal": 5.0, "domain": "after the fuse",
+          "source": { "ref": "F1", "kind": "0.5 A fuse" },
+          "checks": [ { "at": "D1", "pin": "2", "expect": "≈5.0 V (D1's anode)", "readsLowIf": "F1 is open. Measure VRAIL to GND with the power off before fitting a new one" } ]
+        },
+        {
+          "net": "VRAIL", "nominal": 4.28, "domain": "after the series diode",
+          "source": { "ref": "D1", "kind": "1N4007 series diode" },
+          "checks": [
+            { "at": "TP1", "expect": "≈4.28 V (3.9–4.5 V passes)", "readsLowIf": "≈0 V: F1 is open or D1 blocks (fitted the wrong way round). Low but not zero: something leaks from VRAIL to GND" },
+            { "at": "D2", "pin": "2", "expect": "≈2.30 V (green LED, ≈9 mA through R1 220 Ω)", "readsLowIf": "VRAIL is low, or R1's path is open" }
+          ],
+          "notes": "D1 drops ≈0.72 V at 9 mA, so VRAIL sits a diode drop below the input. With the power off, diode mode across D1 reads about 0.7 V with red on the anode (pin 2) and OL the other way round."
+        }
+      ],
+      "powerUp": [ "+5V_IN", "FUSED", "VRAIL" ]
+    },
+    {
+      "id": "sagging-rail",
+      "board": "official-boards/boards/builtin-sagging-rail",
+      "title": "The Sagging Rail",
+      "provenance": { "kind": "board design + simulator", "where": "part values from the board; readings from DEADBOARD's simulator on the working board", "confidence": "derived" },
+      "rails": [
+        {
+          "net": "+5V", "nominal": 5.0, "domain": "always on",
+          "source": { "ref": "J1", "kind": "USB 5 V header" },
+          "checks": [ { "at": "R1", "pin": "1", "expect": "≈5.0 V (≈5.9 mA total)", "readsLowIf": "the supply isn't connected" } ]
+        },
+        {
+          "net": "VREF", "nominal": 2.5, "domain": "always on",
+          "source": { "ref": "R1", "kind": "divider top, 10 kΩ" },
+          "checks": [ { "at": "TP1", "expect": "2.50 V (2.3–2.7 V passes)", "readsLowIf": "the bottom resistor R2 is a lower value than R1 (10 kΩ), or VREF leaks to GND" } ],
+          "notes": "Vref = 5 V × R2 / (R1 + R2) = 2.50 V with R1 = R2 = 10 kΩ."
+        },
+        {
+          "net": "LED_A", "nominal": 3.14, "domain": "always on",
+          "source": { "ref": "R3", "kind": "330 Ω series resistor" },
+          "checks": [ { "at": "D1", "pin": "2", "expect": "≈3.14 V (blue LED, ≈5.6 mA)", "readsLowIf": "R3's path is open. The full 5 V here with D1 dark means no current flows through D1: check its path back to GND" } ]
+        }
+      ],
+      "notes": [ "This board uses both copper layers: D1's ground return runs through a via and the bottom side to TP2." ]
+    },
+    {
+      "id": "mnt-reform2-mb30",
+      "board": "official-boards/boards/demo-mnt-reform2-mb30",
+      "title": "MNT Reform 2 motherboard rev 3.0",
+      "provenance": { "kind": "design files + datasheets", "where": "set points from source.mnt.re/reform/reform @ c3b7fad and the regulators' datasheets (docs/calibration)", "confidence": "documented" },
+      "rails": [
+        {
+          "net": "30V_GATE", "nominal": 30, "domain": "input (bench supply)",
+          "source": { "ref": "J_BENCH", "kind": "bench supply, 30 V" },
+          "checks": [
+            { "at": "U7", "pin": "2", "expect": "≈30 V (U7's input)" },
+            { "at": "U9", "pin": "2", "expect": "≈30 V (U9's input)" }
+          ],
+          "notes": "In this demo the bench supply is clipped onto the gated input rail, after the input switch Q15. U7, U9 and U14 all run from it.",
+          "provenance": { "kind": "demo description", "where": "the board's description in DEADBOARD", "confidence": "documented" }
+        },
+        {
+          "net": "LPC_VCC", "nominal": 3.3, "domain": "always on",
+          "source": { "ref": "U14", "kind": "buck, LMR16006YQ3" },
+          "checks": [ { "at": "U18", "pin": "8", "expect": "≈3.3 V (the LPC's supply)", "readsLowIf": "U14 has no input (30V_GATE at pin 5) or isn't switching, or a part on LPC_VCC pulls it down" } ],
+          "notes": "U14's EN (pin 4) isn't connected, so LPC_VCC is there as soon as 30V_GATE is. It powers U18, the LPC11U24 system controller, which switches the other rails on.",
+          "provenance": { "kind": "board + part number", "where": "U14 is the fixed 3.3 V option (Q3 suffix); its FB pin (3) senses the output directly", "confidence": "derived" }
+        },
+        {
+          "net": "+5V", "nominal": 5.016, "domain": "switched on by the LPC",
+          "source": { "ref": "U7", "kind": "buck, LM62460" },
+          "checks": [
+            { "at": "C35", "expect": "4.85–5.15 V", "readsLowIf": "5V_PWR_EN (U7 pin 13) is low, U7 has no input, or a part on +5V pulls the rail down" },
+            { "at": "U7", "pin": "13", "expect": "high (≈3.3 V) once the LPC turns +5V on" }
+          ],
+          "notes": "Set point: 1.0 V × (1 + R90 100 kΩ / R93 24.9 kΩ) = 5.016 V. 5V_PWR_EN comes from U18 pin 43; R92 holds it low when the LPC doesn't drive it.",
+          "provenance": { "kind": "datasheet + divider", "where": "LM62460 VFB 1.0 V ±1 % (TI SNVSBZ4A); R90 / R93 as fitted", "confidence": "documented" }
+        },
+        {
+          "net": "+3V3", "nominal": 3.315, "domain": "switched on by the LPC",
+          "source": { "ref": "U9", "kind": "buck, LM62460" },
+          "checks": [
+            { "at": "C29", "expect": "3.2–3.4 V", "readsLowIf": "3V3_PWR_EN (U9 pin 13) is low, U9 has no input, or a part on +3V3 pulls the rail down. Enable high and the rail far below target: look for the part that gets hot" },
+            { "at": "U9", "pin": "13", "expect": "high (≈3.3 V) once the LPC turns +3V3 on" }
+          ],
+          "notes": "Set point: 1.0 V × (1 + R100 100 kΩ / R106 43.2 kΩ) = 3.315 V. 3V3_PWR_EN comes from U18 pin 48; R105 holds it low when the LPC doesn't drive it.",
+          "provenance": { "kind": "datasheet + divider", "where": "LM62460 VFB 1.0 V ±1 % (TI SNVSBZ4A); R100 / R106 as fitted", "confidence": "documented" }
+        },
+        {
+          "net": "+1V2", "nominal": 1.2, "domain": "from +5V, switched by the LPC",
+          "source": { "ref": "U13", "kind": "buck, TLV62568" },
+          "checks": [ { "at": "C37", "expect": "1.15–1.25 V", "readsLowIf": "+5V is missing (U13's input, pin 4), or its enable (U13 pin 1) is low" } ],
+          "notes": "Set point: 0.6 V × (1 + R178 100 kΩ / R179 100 kΩ) = 1.2 V. Enable: U18 pin 2 (1V2_PWR_EN) → R185 (0 Ω) → U13 pin 1; R188 holds it low.",
+          "provenance": { "kind": "datasheet + divider", "where": "TLV62568 VFB 0.6 V ±2 % (TI SLVSD89B); R178 / R179 as fitted", "confidence": "documented" }
+        },
+        {
+          "net": "+1V5", "nominal": 1.5, "domain": "from +5V, switched by the LPC",
+          "source": { "ref": "U19", "kind": "buck, TLV62568" },
+          "checks": [ { "at": "C34", "expect": "1.44–1.56 V", "readsLowIf": "+5V is missing (U19's input, pin 4), or its enable (U19 pin 1) is low" } ],
+          "notes": "Set point: 0.6 V × (1 + R180 150 kΩ / R181 100 kΩ) = 1.5 V. Enable: U18 pin 9 (PCIE1_PWR_EN) → R186 (0 Ω) → U19 pin 1; R189 holds it low.",
+          "provenance": { "kind": "datasheet + divider", "where": "TLV62568 VFB 0.6 V ±2 % (TI SLVSD89B); R180 / R181 as fitted", "confidence": "documented" }
+        }
+      ],
+      "powerUp": [ "30V_GATE", "LPC_VCC", "+5V", "+3V3", "+1V2", "+1V5" ],
+      "notes": [
+        "Power-up order, worked out from the board (derived): 30V_GATE → U14 (always on) → LPC_VCC → U18 drives the enables → +5V and +3V3 → +1V2 and +1V5, which take +5V as their input. Which rail the LPC switches first within a step is up to its firmware and isn't documented here.",
+        "A rail far below its target while its regulator has input and enable is usually being pulled down by a load, not a dead regulator."
+      ]
+    },
+    {
+      "id": "antmicro-jetson-nano-bb",
+      "board": "official-boards/boards/demo-antmicro-jetson-nano-bb",
+      "title": "Antmicro Jetson Nano / Xavier NX baseboard",
+      "provenance": { "kind": "design files + datasheets", "where": "set points from github.com/antmicro/jetson-nano-baseboard @ d8d0b2d and the regulators' datasheets (docs/calibration)", "confidence": "documented" },
+      "rails": [
+        {
+          "net": "VIN", "nominal": 12, "domain": "input (bench supply)",
+          "source": { "ref": "J_BENCH", "kind": "bench supply, 12 V" },
+          "checks": [ { "at": "TP16", "expect": "≈12 V" } ],
+          "notes": "The board's README recommends a 12 V 2 A supply (6–36 V input range). In this demo the bench supply is clipped onto VIN, after the input fuse F3. D14 sits across VIN and GND."
+        },
+        {
+          "net": "5V0_SYS", "nominal": 4.984, "domain": "from VIN",
+          "source": { "ref": "U6", "kind": "buck, SiC477" },
+          "checks": [
+            { "at": "C32", "expect": "4.7–5.2 V", "readsLowIf": "U6 has no input (pin 1), or its enable (pin 3, TP15) is low" },
+            { "at": "U6", "pin": "1", "expect": "≈12 V (VIN through FB1)", "readsLowIf": "the input path from VIN through FB1 is open" }
+          ],
+          "notes": "Set point: 0.8 V × (1 + R117 52.3 kΩ / R120 10 kΩ) = 4.984 V. R91 (100 kΩ) pulls the enable up from U6's input; TP15 is on the enable.",
+          "provenance": { "kind": "datasheet + divider", "where": "SiC477 VFB 0.800 V ±1 % over temperature (Vishay doc. 77113); R117 / R120 as fitted", "confidence": "documented" }
+        },
+        {
+          "net": "VDD_MOD", "nominal": 4.984, "domain": "compute module supply",
+          "source": { "ref": "FB2", "kind": "ferrite bead from 5V0_SYS" },
+          "checks": [ { "at": "TP38", "expect": "the same as 5V0_SYS (≈5.0 V)", "readsLowIf": "5V0_SYS is low, or FB2 or one of its joints is open" } ],
+          "provenance": { "kind": "board", "where": "FB2 joins 5V0_SYS to the module connector J15", "confidence": "derived" }
+        },
+        {
+          "net": "3V3_SYS", "nominal": 3.3, "domain": "from VIN, enabled by #RESET",
+          "source": { "ref": "U2", "kind": "buck, LM62440 (fixed 3.3 V)" },
+          "checks": [
+            { "at": "C26", "expect": "3.2–3.4 V", "readsLowIf": "U2 has no input (pins 8 and 12), its enable (pin 7) is low, or it isn't switching: look at /Supply/3V3_SW with the scope" },
+            { "at": "U2", "pin": "8", "expect": "≈12 V (VIN through FB3)" },
+            { "at": "U2", "pin": "7", "expect": "high (the simulator reads ≈3.3 V)" }
+          ],
+          "notes": "Fixed 3.3 V option: FB (pin 4) is tied to the output through R48 (0 Ω); 3.2587–3.3413 V. The enable comes through R44 (10 kΩ) from #RESET, the module's reset line on J15 pin 239; RST1 can pull it to GND.",
+          "provenance": { "kind": "datasheet + design", "where": "LM62440 fixed 3.3 V trim (TI SNVSAW8E); R48 fitted, R118 / R119 not fitted", "confidence": "documented" }
+        }
+      ],
+      "powerUp": [ "VIN", "5V0_SYS", "VDD_MOD", "3V3_SYS" ],
+      "notes": [
+        "Power-up order, worked out from the board (derived): VIN → U6 → 5V0_SYS → FB2 → VDD_MOD (the module). U2 also runs from VIN but is enabled from #RESET, so 3V3_SYS follows the module coming out of reset.",
+        "A converter with input and enable present and no output is a dead part; a converter whose input comes and goes when the board is pressed has a cracked joint on its input path."
+      ]
+    }
+  ]
+}
