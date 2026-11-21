@@ -1486,6 +1486,8 @@ export class PcbApp {
       if (!isModOn(this.loadouts, mod.manifest.id)) this.setLoadouts(setModOn(this.loadouts, mod.manifest.id, true));
       await this.loadMods();
       this.refreshScenarioSelect();
+      // the open board may have gained notes, patches or part models: redraw it (as turning a mod on does)
+      if (this.started) { this.recompute(true); this.renderUI(); }
       const st = this.modResult.status.get(mod.manifest.id);
       if (st?.state === 'blocked') {
         this.toast(t('Installed mod «{name}», but it needs: {needs}. See Mods.', { name: mod.manifest.name, needs: st.needs.map((n) => `${n.id} ${n.range}`).concat(st.conflicts.map((c) => t('not {mod}', { mod: c }))).join(', ') }), 'info');
@@ -4918,6 +4920,7 @@ export class PcbApp {
         forgetModioInstall(id);
         await this.loadMods();
         this.refreshScenarioSelect();
+        if (this.started) { this.recompute(true); this.renderUI(); }
         this.toast(t('Removed mod «{name}»', { name }), 'success');
       } catch (e) {
         this.toast(t('Could not remove the mod: {error}', { error: e instanceof Error ? e.message : String(e) }), 'danger');
