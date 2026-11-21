@@ -81,6 +81,30 @@ function run() {
     assert(pinNet(conn, get(b, 'R3'), '1') === zoneNet, 'a pad reached only by a relief spoke is connected to the pour');
   }
 
+  // ---- no copper, no connection: keepout areas, paste-only windows, non-plated holes ----
+  {
+    // R4 (VIN / +5V) and R5 (+3.3V / GND) sit under a keepout rule area; U1 has a GND thermal pad
+    // split into paste windows that reach over the +5V pad beside it; a mounting hole spans
+    // VIN and GND pads. Real board files (Olimex ESP32 boards) have all three.
+    const keep = `(zone (net 0) (net_name "") (layer "F.Cu") (hatch edge 0.5) (connect_pads (clearance 0))
+        (keepout (tracks allowed) (vias allowed) (pads allowed) (copperpour not_allowed) (footprints allowed))
+        (polygon (pts (xy 5 5) (xy 25 5) (xy 25 15) (xy 5 15))))`;
+    const paste = (at: string) => `(pad "" smd rect (at ${at}) (size 1.6 1.2) (layers "F.Paste"))`;
+    const npth = '(pad "" np_thru_hole circle (at 0 0) (size 3.3 3.3) (drill 3.3) (layers "F&B.Cu" "*.Mask"))';
+    const b = board(`${keep}
+      ${fp('R4', '1k', '10 10 0', pad('1', '-1 0', 1) + pad('2', '1 0', 7))}
+      ${fp('R5', '1k', '20 10 0', pad('1', '-1 0', 3) + pad('2', '1 0', 2))}
+      ${fp('U1', 'QFN', '40 10 0', pad('EP', '0 0', 2, 'F.Cu', '2 2') + pad('1', '1.9 0', 7, 'F.Cu', '0.6 0.6') + paste('0.6 0') + paste('-0.6 0'))}
+      ${fp('H1', 'MountingHole', '40 30 0', npth)}
+      ${fp('R6', '1k', '38.9 30 0', pad('1', '0 0', 1) + pad('2', '-3 0', 4))}
+      ${fp('R7', '1k', '41.1 30 0', pad('1', '0 0', 2) + pad('2', '3 0', 4))}`);
+    const conn = buildConnectivity(b);
+    const nets = new Set(['R4', 'R5'].flatMap((r) => ['1', '2'].map((p) => pinNet(conn, get(b, r), p))));
+    assert(nets.size === 4 && !b.zones.length, 'a keepout area is a design rule, not copper: the four pads under it stay four nets');
+    assert(get(b, 'U1').pads.length === 2 && pinNet(conn, get(b, 'U1'), 'EP') !== pinNet(conn, get(b, 'U1'), '1'), 'paste-only windows are not copper and do not join the thermal pad to its neighbour');
+    assert(!get(b, 'H1').pads.length && pinNet(conn, get(b, 'R6'), '1') !== pinNet(conn, get(b, 'R7'), '1'), 'a non-plated hole has no copper');
+  }
+
   // ---- fitted / not fitted, protection diodes, ferrites ----
   {
     const b = board(`${fp('R9', 'R_0R_0402', '30 30 0', pad('1', '-1 0', 7) + pad('2', '1 0', 2), '(attr smd dnp)')}

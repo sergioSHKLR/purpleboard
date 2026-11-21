@@ -299,6 +299,9 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
 
   // copper pours: every filled island on every layer (KiCad 7+ zones may span several layers)
   for (const z of kids(root, 'zone')) {
+    // keepout / rule areas are design rules, not copper: imported as a pour, their outline would
+    // join every pad and track inside it into one net
+    if (kid(z, 'keepout')) continue;
     const net = netOf(z) ?? (str(kid(z, 'net_name'), 1) || undefined);
     const single = str(kid(z, 'layer'));
     const multi = (kid(z, 'layers') as SExpr[] | undefined)?.slice(1).map(String) ?? [];
@@ -324,7 +327,6 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
     const filled = fills.length > 0;
     if (fills.length) for (const fp of fills) addZone(str(kid(fp, 'layer')) || single, polyPts(fp));
     else for (const l of zoneLayers) addZone(l, polyPts(kid(z, 'polygon')));
-    // keepout / rule areas carry no net and no copper
     if (!net) continue;
     for (const l of zoneLayers) if (isInner(l)) hidden.add(net);
   }
@@ -362,8 +364,11 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
       if (!pat || !psize) continue;
       const pLayersNode = kid(pd, 'layers');
       const layerTokens = Array.isArray(pLayersNode) ? pLayersNode.slice(1).map(String) : [];
+      // no copper, no pad: a non-plated hole, or an aperture only on paste / mask (split paste
+      // windows on a thermal pad). Kept, they would join the pours and pads they sit on.
+      if (pType === 'np_thru_hole' || (layerTokens.length && !layerTokens.some((l) => l.endsWith('.Cu')))) continue;
       let layers: PadLayers = pType === 'thru_hole' ? 'FB' : side;
-      if (layerTokens.includes('*.Cu') || (layerTokens.includes('F.Cu') && layerTokens.includes('B.Cu'))) layers = 'FB';
+      if (layerTokens.includes('*.Cu') || layerTokens.includes('F&B.Cu') || (layerTokens.includes('F.Cu') && layerTokens.includes('B.Cu'))) layers = 'FB';
       else if (layerTokens.includes('B.Cu') && !layerTokens.includes('F.Cu')) layers = 'B';
       else if (layerTokens.includes('F.Cu') && !layerTokens.includes('B.Cu')) layers = 'F';
 

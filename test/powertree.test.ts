@@ -86,6 +86,57 @@ async function run() {
   assert(op2.converged, 'disabled case converges');
   assert(e2.voltage(op2.x, nameToNode.get('PP3V3_S0')!)! < 0.2, 'rails collapse when the root converter is disabled');
 
+  // ---- a board that names only its rails (Olimex ESP32 style): KiCad auto names elsewhere ----
+  assert(netRole('Net-(U5-EN)') === 'enable' && netRole('Net-(U2-FB)') === 'feedback' && netRole('Net-(U2-LX)') === 'switch', 'KiCad auto names carry the pin role');
+  assert(netRole('Net-(D2-K)') === 'signal' && netRole('Net-(R28-Pad1)') === 'signal' && netRole('Net-(IC3-~{FAULT})') === 'signal', 'other auto names are signals');
+  assert(netRole('unconnected-(U7-PG-Pad6)') === 'signal', 'an open pin has no role');
+  {
+    // USB → D1 → +5V → D2 → unnamed input → buck U2 (VIN and EN tied) → +3.3V, and an LDO U3 with
+    // EN tied to VIN fed from the same input. D1's pads are listed cathode first.
+    const pd = (ref: string, nets: [string, string], pins: Record<string, string>, names: [string, string]) => {
+      const c = part(ref, 'diode', nets, 0, pins);
+      c.pads.forEach((p, i) => { p.name = names[i]; });
+      return c;
+    };
+    const cs: Component[] = [
+      part('J1', 'battery', ['+5V_USB', 'GND'], 5, { '+': '1', '-': '2' }),
+      pd('D1', ['+5V', '+5V_USB'], { A: '2', K: '1' }, ['1', '2']),
+      pd('D2', ['Net-(D2-K)', '+5V'], { A: '2', K: '1' }, ['1', '2']),
+      part('C1', 'capacitor', ['Net-(D2-K)', 'GND'], 10e-6, { '1': '1', '2': '2' }),
+      part('U2', 'ic', ['Net-(D2-K)', 'GND', 'Net-(U2-LX)', 'Net-(D2-K)', 'Net-(U2-FB)']),
+      part('L1', 'resistor', ['Net-(U2-LX)', '+3.3V'], 0.02, { '1': '1', '2': '2' }),
+      part('C2', 'capacitor', ['+3.3V', 'GND'], 22e-6, { '1': '1', '2': '2' }),
+      part('R1', 'resistor', ['+3.3V', 'Net-(U2-FB)'], 220e3, { '1': '1', '2': '2' }),
+      part('R2', 'resistor', ['Net-(U2-FB)', 'GND'], 49.9e3, { '1': '1', '2': '2' }),
+      part('U3', 'ic', ['Net-(C6-Pad1)', 'GND', 'Net-(C6-Pad1)', 'Net-(U3-Pad4)', '+1.8V']),
+      part('C6', 'capacitor', ['Net-(C6-Pad1)', 'GND'], 1e-6, { '1': '1', '2': '2' }),
+      part('R3', 'resistor', ['+3.3V', 'Net-(C6-Pad1)'], 0, { '1': '1', '2': '2' }),
+      part('C7', 'capacitor', ['+1.8V', 'GND'], 1e-6, { '1': '1', '2': '2' }),
+      part('R4', 'resistor', ['+1.8V', 'GND'], 1800, { '1': '1', '2': '2' }),
+    ];
+    cs.find((c) => c.ref === 'L1')!.label = 'Inductor';
+    const ob: Board = { w: 200, h: 30, thickness: 1.6, components: cs, traces: [], vias: [], blobs: [], jumpers: [], zones: [], silk: [], texts: [], nextId: 1 };
+    const oc = buildConnectivity(ob);
+    const ot = discoverPowerTree(ob, oc);
+    const src = (out: string) => ot.sources.find((s) => s.output === out);
+    assert(src('+5V')?.kind === 'diode-or' && src('+5V')!.input === '+5V_USB', `diode direction from anode / cathode, not pad order: ${JSON.stringify(src('+5V'))}`);
+    assert(src('Net-(D2-K)')?.kind === 'diode-or' && src('Net-(D2-K)')!.input === '+5V', `an unnamed converter input is a power net: ${JSON.stringify(src('Net-(D2-K)'))}`);
+    const buck = src('+3.3V');
+    assert(buck?.kind === 'buck' && buck.ref === 'U2' && buck.input === 'Net-(D2-K)' && buck.feedback === 'Net-(U2-FB)' && buck.divider?.rTop === 220e3, `buck with an unnamed input and auto-named FB: ${JSON.stringify(buck)}`);
+    const ldo = src('+1.8V');
+    assert(ldo?.kind === 'ldo' && ldo.ref === 'U3' && ldo.input === 'Net-(C6-Pad1)' && ldo.enable === 'Net-(C6-Pad1)', `LDO with EN tied to VIN: ${JSON.stringify(ldo)}`);
+    const onl = boardToCircuit(ob, oc, { unmodeled: 'omit' });
+    const node = new Map<string, string>();
+    for (const [net, nd] of onl.netNode) node.set(oc.netNames[net], nd);
+    const opm = powerTreeElements(ot, (n) => node.get(n));
+    onl.circuit.elements.push(...opm.elements);
+    const oe = new Engine(onl.circuit, { gshunt: 1e-12 });
+    const oop = oe.op();
+    assert(oop.converged, 'Olimex-style board converges');
+    near(oe.voltage(oop.x, node.get('+3.3V')!), 3.3, 0.05, 'buck behind two diodes regulates');
+    near(oe.voltage(oop.x, node.get('+1.8V')!), 1.8, 0.05, 'tied-enable LDO regulates');
+  }
+
   // ---- power-state sequencing (design intent from state names) ----
   assert(expectedUp('PP3V3_S0', 'S5') === false && expectedUp('PP3V3_S0', 'S0') === true && expectedUp('PP3V42_G3H', 'G3H') === true, 'expected-up from state names');
   const s5 = enablesForState(tree, 'S5').map((d) => d.net), s0 = enablesForState(tree, 'S0').map((d) => d.net);

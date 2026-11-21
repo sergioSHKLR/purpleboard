@@ -63,8 +63,9 @@ const EXPECT: Record<string, Expect> = {
     converters: { U6: '5V0_SYS', U2: '3V3_SYS' },
     supply: { ref: 'J_BENCH', volts: 12 },
     fails: { index: 0, min: -0.05, max: 0.1 },
-    rails: { '5V0_SYS': 4.984, '3V3_SYS': 3.3 },
-    amps: 0.0418, // BSS138PW T2 (gate on the pulled-up #RESET) lights BOOT1: 6.4 mA
+    // 1V8_SYS: IC4 TPS7A0518 (fixed 1.8 V, EN on a divider), found since KiCad pin-role names (11-21)
+    rails: { '5V0_SYS': 4.984, '3V3_SYS': 3.3, '1V8_SYS': 1.8 },
+    amps: 0.0572, // BSS138PW T2 (gate on the pulled-up #RESET) lights BOOT1: 6.4 mA; 1V8_SYS estimated loads ≈ 15 mA
     meter: { '5V0_SYS': [0.516, 62e3], '3V3_SYS': [0.52, null], VIN: [0.547, null] },
     flag: 'DEAD{b4s3b0ard_3v3_b4ck}',
   },

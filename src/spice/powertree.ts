@@ -4,6 +4,7 @@
 import type { Board, Component } from '../types';
 import type { Conn } from '../connectivity';
 import { findDevice, type MosSpec } from './devicelib';
+import { rolePadName } from '../model';
 
 // ---------------- net semantics ----------------
 
@@ -43,6 +44,15 @@ const ROLE_TOKENS: [NetRole, RegExp][] = [
 export function netRole(name: string): NetRole {
   name = netBase(name);
   if (isGroundName(name)) return 'ground';
+  // KiCad's automatic names say which pin the net comes from: Net-(U2-FB), Net-(U5-EN),
+  // Net-(U2-LX); a pin left open (unconnected-(U7-PG-Pad6)) has no role at all
+  if (/^unconnected-/i.test(name)) return 'signal';
+  const auto = /^Net-\((.+)-([^()-]+)\)$/i.exec(name);
+  if (auto) {
+    const pin = auto[2].toUpperCase().replace(/^~\{(.*)\}$/, '$1_L');
+    for (const [role, re] of ROLE_TOKENS) if (re.test(pin) || re.test(pin.replace(/\d+$/, ''))) return role;
+    return 'signal';
+  }
   const n = name.toUpperCase();
   const toks = n.split(/[_\-.]/);
   const pp = /^PP/.test(n);
@@ -153,7 +163,19 @@ export function discoverPowerTree(board: Board, conn: Conn, opts: PowerTreeOptio
     return m;
   };
   const sources: PowerSource[] = [];
-  const isRail = (n: string | undefined): n is string => !!n && netRole(n) === 'rail';
+  // Power nets found by topology, not by name: a converter's input when the designer left it
+  // unnamed (KiCad "Net-(D2-K)" after an input diode). They take part in the rest of the tree.
+  const inferred = new Set<string>();
+  const isRail = (n: string | undefined): n is string => !!n && (inferred.has(n) || netRole(n) === 'rail');
+  const capsToGnd = (n: string) => (ix.pins.get(n) ?? []).filter((p) => prefixOf(p.c.ref) === 'C' && [...netsOf(p.c).values()].some((m) => isGroundName(m))).length;
+  /** A controller's unnamed input: decoupled to ground, no other role; on most pins (VIN + EN tied), then most caps. */
+  const unnamedInput = (c: Component, skip: Set<string>): string | undefined => {
+    const pinsOn = new Map<string, number>();
+    for (const n of netsOf(c).values()) pinsOn.set(n, (pinsOn.get(n) ?? 0) + 1);
+    return [...pinsOn.keys()]
+      .filter((n) => !skip.has(n) && !isGroundName(n) && netRole(n) === 'signal' && capsToGnd(n) > 0)
+      .sort((a, b) => pinsOn.get(b)! - pinsOn.get(a)! || capsToGnd(b) - capsToGnd(a))[0];
+  };
 
   // FET terminal roles: device library when known, else by net semantics.
   const fetRoles = (c: Component): { D?: string; G?: string; S?: string; pmos?: boolean } | null => {
@@ -178,12 +200,14 @@ export function discoverPowerTree(board: Board, conn: Conn, opts: PowerTreeOptio
     const [n1, n2] = nets;
     // Switch node = the side with no capacitors to ground but power-switch pins (FET/IC/diode);
     // the regulated side carries the bulk capacitors. Names are only a tie-breaker.
-    const capsToGnd = (n: string) => (ix.pins.get(n) ?? []).filter((p) => prefixOf(p.c.ref) === 'C' && [...netsOf(p.c).values()].some((m) => isGroundName(m))).length;
     const switchy = (n: string) => (ix.pins.get(n) ?? []).some((p) => p.c !== L && (isFet(p.c) || isIc(p.c) || prefixOf(p.c.ref) === 'D'));
     const score = (n: string) => (capsToGnd(n) === 0 ? 2 : 0) + (switchy(n) ? 1 : 0) + (netRole(n) === 'switch' ? 2 : 0) - (isRail(n) && /^PP/.test(n) ? 3 : 0);
     const s1 = score(n1), s2 = score(n2);
     if (Math.abs(s1 - s2) < 2) continue; // symmetric: a filter inductor between two rails (pass-through below)
     const sw = s1 > s2 ? n1 : n2, rail = s1 > s2 ? n2 : n1;
+    // both ends switched (four-switch buck-boost, e.g. a charger's SW1 / SW2): the "rail" side has
+    // power switches and no bulk capacitor. Not a buck; no model for it, so leave it out.
+    if (capsToGnd(rail) === 0 && (ix.pins.get(rail) ?? []).some((p) => p.c !== L && (isFet(p.c) || prefixOf(p.c.ref) === 'D'))) continue;
     const swPins = (ix.pins.get(sw) ?? []).filter((p) => p.c !== L);
     // controller: an IC on the switch node, or the IC driving the gates of FETs on the switch node
     const fets = [...new Set(swPins.filter((p) => isFet(p.c)).map((p) => p.c))];
@@ -212,7 +236,12 @@ export function discoverPowerTree(board: Board, conn: Conn, opts: PowerTreeOptio
     const vOut = railVoltage(rail);
     // highest voltage first; on a tie a net named as an input (VIN / PVIN) beats a bias or VCC pin
     const inputNamed = (n: string) => (/(^|_)P?VIN($|_)|_IN$/i.test(netBase(n)) ? 1 : 0);
-    const input = [...inCands].sort((a, b) => (railVoltage(b) ?? 99) - (railVoltage(a) ?? 99) || inputNamed(b) - inputNamed(a))[0] ?? null;
+    let input: string | null = [...inCands].sort((a, b) => (railVoltage(b) ?? 99) - (railVoltage(a) ?? 99) || inputNamed(b) - inputNamed(a))[0] ?? null;
+    if (!input && ctrl) {
+      const fbNet = pick('feedback');
+      input = unnamedInput(ctrl, new Set([sw, rail, ...(fbNet ? [fbNet] : [])])) ?? null;
+      if (input) inferred.add(input);
+    }
     sources.push({
       kind: 'buck', ref: ctrl?.ref ?? fets[0]?.ref ?? L.ref, parts: [L.ref, ...fets.map((f) => f.ref)],
       input, output: rail, enable: pick('enable'), pgood: pick('pgood'), feedback: pick('feedback'), switchNode: sw,
@@ -241,17 +270,27 @@ export function discoverPowerTree(board: Board, conn: Conn, opts: PowerTreeOptio
   // 3. ICs passing one rail to another: LDOs and integrated load switches (small pin count, enable pin).
   for (const u of comps.filter(isIc)) {
     const nets = [...new Set(netsOf(u).values())];
-    if (nets.length > 12) continue; // large ICs are consumers, not regulators
+    if (nets.length > 12 || sources.some((s) => s.ref === u.ref)) continue; // large ICs are consumers, not regulators
+    // A small regulator with EN tied to VIN (an LDO in SOT-23-5): one unnamed, decoupled net on two
+    // pins beside a voltage-named rail. The tie is the enable; it is always on.
+    let tied: string | undefined;
+    if (nets.length <= 6 && !nets.some((n) => inferred.has(n))) {
+      const pinsOn = new Map<string, number>();
+      for (const n of netsOf(u).values()) pinsOn.set(n, (pinsOn.get(n) ?? 0) + 1);
+      const named = nets.filter((n) => netRole(n) === 'rail' && railVoltage(n) !== null && !produced.has(n));
+      const cand = unnamedInput(u, new Set(named));
+      if (cand && pinsOn.get(cand)! >= 2 && named.length === 1) { tied = cand; inferred.add(cand); }
+    }
     const rails = nets.filter((n) => isRail(n));
     // A chip with no enable-named pin whose only control net is a power-good is being *enabled*
     // by that upstream PG (common "PG of stage N enables stage N+1" sequencing).
-    const en0 = nets.find((n) => netRole(n) === 'enable');
+    const en0 = nets.find((n) => netRole(n) === 'enable') ?? tied;
     const pg0 = nets.find((n) => netRole(n) === 'pgood');
     const en = en0 ?? pg0;
     const pg = en0 ? pg0 : undefined;
-    if (rails.length < 2 || sources.some((s) => s.ref === u.ref)) continue;
+    if (rails.length < 2) continue;
     // output: a rail not produced elsewhere, preferring lower voltage / power-state-suffixed names
-    const cand = rails.filter((n) => !produced.has(n));
+    const cand = rails.filter((n) => !produced.has(n) && n !== tied); // a tied EN/VIN net is the input
     for (const out of cand) {
       const others = rails.filter((n) => n !== out);
       const vo = railVoltage(out);
@@ -268,7 +307,7 @@ export function discoverPowerTree(board: Board, conn: Conn, opts: PowerTreeOptio
       sources.push({
         kind: isSwitch ? 'load-switch' : 'ldo', ref: u.ref, parts: [], input, output: out, enable: en, pgood: pg,
         vTarget: isSwitch ? null : vo, vSource: isSwitch ? 'input' : vo !== null ? 'rail-name' : 'unknown',
-        confidence: en ? 'medium' : 'low', why: `${u.ref} (${nets.length} nets) has ${input} and ${out}${en ? `, enable ${en}` : ''}`,
+        confidence: en ? 'medium' : 'low', why: `${u.ref} (${nets.length} nets) has ${input} and ${out}${en === tied ? ', EN tied to the input' : en ? `, enable ${en}` : ''}`,
       });
       produced.add(out);
       break;
@@ -283,6 +322,14 @@ export function discoverPowerTree(board: Board, conn: Conn, opts: PowerTreeOptio
     // common-cathode duals: the cathode net is shared by both diodes → output; single: pad 2 heuristic
     const counts = new Map<string, number>();
     for (const n of netsOf(d).values()) counts.set(n, (counts.get(n) ?? 0) + 1);
+    // a two-terminal diode with known anode / cathode conducts A → K, whatever the pad order
+    const padNets = netsOf(d);
+    const a = rolePadName(d, 'A'), k = rolePadName(d, 'K');
+    const an = a !== undefined ? padNets.get(a) : undefined, kn = k !== undefined ? padNets.get(k) : undefined;
+    if (nets.length === 2 && an && kn && an !== kn && isRail(an) && isRail(kn)) {
+      sources.push({ kind: 'diode-or', ref: d.ref, parts: [], input: an, output: kn, vTarget: null, vSource: 'input', confidence: 'medium', why: `${d.ref} anode on ${an}, cathode on ${kn}` });
+      continue;
+    }
     const out = rails.find((n) => !produced.has(n) && (nets.length === 2 || (counts.get(n) ?? 0) >= 1 && rails.indexOf(n) === rails.length - 1)) ?? rails[rails.length - 1];
     for (const inp of rails.filter((n) => n !== out)) {
       sources.push({ kind: 'diode-or', ref: d.ref, parts: [], input: inp, output: out, vTarget: null, vSource: 'input', confidence: 'low', why: `${d.ref} between ${inp} and ${out}` });
