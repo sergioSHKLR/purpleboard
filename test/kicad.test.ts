@@ -5,6 +5,7 @@ import { parseScenario } from '../src/io/format';
 import { buildConnectivity, pinNet } from '../src/connectivity';
 import { netRole, railVoltage } from '../src/spice/powertree';
 import type { Board } from '../src/types';
+import { runSolver } from '../src/verify';
 
 function assert(c: unknown, m: string): asserts c { if (!c) throw new Error(m); }
 
@@ -146,6 +147,27 @@ function run() {
       ${fp('BT3', '3.7V LiPo', '30 10 0', pad('1', '-1 0', 4) + pad('2', '1 0', 2))}`);
     assert(get(b, 'BAT1').kind === 'connector' && get(b, 'BAT2').kind === 'connector', 'a pack socket (JST "DW02S", "18650" holder) has nothing plugged in on the bench');
     assert(get(b, 'BT3').kind === 'battery' && get(b, 'BT3').value === 3.7, 'a stated voltage makes it a cell');
+  }
+
+  // ---- a changeover (SPDT) switch: the part's drawing says which throw is normally open ----
+  {
+    // Kailh CMI126603D08 (LCSC C400256): 1 COM, 2 NO, 3 NC. COM on GND, NO on N1 and NC on SW, each
+    // pulled up to +5V by 10 kΩ (a mouse-switch button with a debounce latch behind it)
+    const lc = '(property "LCSC" "C400256")';
+    const b = board(`${fp('J1', '5V', '5 20 0', pad('1', '0 -1', 7) + pad('2', '0 1', 2))}
+      ${fp('SW2', '~', '20 20 0', pad('1', '0 -5', 2) + pad('2', '0 0', 4) + pad('3', '0 5', 6), lc)}
+      ${fp('R1', '10k', '30 15 0', pad('1', '-1 0', 7) + pad('2', '1 0', 4))}
+      ${fp('R2', '10k', '30 25 0', pad('1', '-1 0', 7) + pad('2', '1 0', 6))}`);
+    const sw = get(b, 'SW2');
+    assert(sw.pins.COM === '1' && sw.pins.NO === '2' && sw.pins.NC === '3' && sw.lcsc === 'C400256', `switch roles from the part's drawing: ${JSON.stringify(sw.pins)}`);
+    const conn = buildConnectivity(b);
+    const no = conn.netNames.indexOf('N1'), nc = conn.netNames.indexOf('SW');
+    for (const solver of ['fast', 'spice'] as const) for (const pressed of [false, true]) {
+      const sim = runSolver(solver, b, conn, { switches: { SW2: pressed } });
+      const v = (net: number) => { const k = sim.nodeOfNet.get(net); return k === undefined ? NaN : sim.V[k]; };
+      const [vNo, vNc] = [v(no), v(nc)];
+      assert(pressed ? vNo < 0.05 && vNc > 4.5 : vNo > 4.5 && vNc < 0.05, `${solver}, ${pressed ? 'pressed' : 'released'}: NO ${vNo.toFixed(3)} V, NC ${vNc.toFixed(3)} V`);
+    }
   }
 
   // ---- board text keeps the designer's font height (small boards use < 1 mm) ----

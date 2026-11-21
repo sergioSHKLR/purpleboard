@@ -206,23 +206,28 @@ const DEMOS: Demo[] = [
       note: 'Rana Tadpole V2 by rana-sylvatica, PCB design by Quark (github.com/Armastardo): the upstream README releases the design under CERN-OHL-S-2.0 (the repository has no separate licence file). Licence text:',
     },
     credits: 'Rana Tadpole V2 motherboard, by rana-sylvatica; PCB design by Quark. CERN-OHL-S-2.0. Converted and modified (planted fault) for DEADBOARD; no endorsement implied.',
-    title: 'Rana Tadpole · dead controller, warm chips',
-    difficulty: 3,
+    title: 'Rana Tadpole · dead controller, warm chips, one dead button',
+    difficulty: 4,
     description:
       'A real, sold pocket controller for platform fighters (147 parts: RP2040, 20 mouse-switch buttons, USB-C). On USB the computer sees nothing, ' +
-      'and the owner says it gets warm in the middle. Is the RP2040 dead?',
+      'and the owner says it gets warm in the middle. Is the RP2040 dead? And before it died, one button (SW2) had stopped registering.',
     hints: [
       'With Solver: SPICE + PWR, compare the supply current with what an RP2040 board should draw (tens of mA). Then measure the logic rail 3vDiode (C9) and the RP2040\'s core rail +1V1 (C4).',
       'A rail held near 0 V while its regulator works means a short on that rail. The warm chips are the ones feeding the short, not necessarily the culprit: with the power off, inject current into +1V1 and watch the thermal camera, or use freeze spray.',
-      'Replace the shorted part (the Inspector shows its value). The RP2040 itself is fine.',
+      'Each button is a mouse switch with two contacts (COM on GND, NO and NC pulled up by 10 kΩ into a debounce latch). Press SW2 and measure its NO line at U16 pin 1: pressed it must read ≈0 V. A switch that doesn\'t pull it down has a cracked joint: mouse switches crack after thousands of clicks.',
+      'Replace the shorted part (the Inspector shows its value) and reflow the cracked switch joint. The RP2040 itself is fine.',
     ],
     flag: 'DEAD{t4dp0le_c0re_sh0rt_n0t_th3_ch1p}',
     objectives: [
       { type: 'voltage', a: 'C4', min: 1.05, max: 1.15 },
       { type: 'voltage', a: 'C9', min: 2.9, max: 3.2 },
+      { type: 'voltage', a: 'U16', min: -0.1, max: 0.4, switches: { SW2: true } },
+      { type: 'voltage', a: 'U16', min: 2.9, max: 3.2, switches: { SW2: false } },
     ],
     plant: (sc, part) => {
       injectFault(part('C5'), 'mlcc-dead-short', rng(seedOf(sc.id + 'C5')), { severity: 0.1 });
+      const sw2 = part('SW2');
+      toggleCold(sw2, sw2.pads.findIndex((p) => p.name === sw2.pins.NO));
     },
     repair: DEMO_REPAIRS['demo-rana-tadpole-v2'],
   },

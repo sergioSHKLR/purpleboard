@@ -28,6 +28,8 @@ export const DEMO_REPAIRS: Record<string, DemoRepair> = {
   },
   'demo-rana-tadpole-v2': (_sc, part) => {
     installPart(part('C5'), { value: 100e-9 });
+    const sw2 = part('SW2');
+    toggleCold(sw2, sw2.pads.findIndex((p) => p.name === sw2.pins.NO));
   },
   'demo-esp32-c3-rust-board': (sc, part) => {
     const d4 = part('D4');

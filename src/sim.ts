@@ -43,7 +43,8 @@ export const LED_MAX_I = 0.03;
 export const LED_ON_I = 0.002;
 
 /** seg: diode segment in its PWL curve (-1 = off, no conduction). */
-interface El { c: Component; a: number; b: number; seg: number }
+/** `nc`: the normally-closed contact of a changeover switch (conducts while released). */
+interface El { c: Component; a: number; b: number; seg: number; nc?: boolean }
 
 function solve(A: Float64Array, b: Float64Array, n: number): Float64Array {
   for (let k = 0; k < n; k++) {
@@ -145,6 +146,7 @@ export function simulate(board: Board, conn: Conn, opt: SimOpts = {}): Sim {
     }
     const el: El = { c, a: node(aNet), b: node(bNet), seg: -1 };
     els.push(el);
+    if (c.kind === 'switch' && c.pins.NC !== undefined) els.push({ c, a: el.a, b: node(pinNet(conn, c, 'NC')), seg: -1, nc: true });
     if (c.kind === 'battery' && !firstBattery) firstBattery = el;
   }
 
@@ -251,7 +253,7 @@ export function simulate(board: Board, conn: Conn, opt: SimOpts = {}): Sim {
           case 'resistor': stampG(e.a, e.b, 1 / Math.max(c.value, 1e-3)); break;
           case 'fuse': stampG(e.a, e.b, 10); break;
           case 'switch':
-            if (sw?.[c.ref] ?? !!c.state.closed) stampG(e.a, e.b, 50);
+            if ((sw?.[c.ref] ?? !!c.state.closed) !== !!e.nc) stampG(e.a, e.b, 50);
             break;
           case 'led': case 'diode':
             if (e.seg >= 0 && !opt.ohm) {
@@ -309,12 +311,14 @@ export function simulate(board: Board, conn: Conn, opt: SimOpts = {}): Sim {
 
   for (const e of els) {
     const c = e.c;
+    // a changeover switch reports the contact that conducts: NO while pressed, NC while released
+    if (e.nc && (sw?.[c.ref] ?? !!c.state.closed)) continue;
     const v = V[e.a] - V[e.b];
     let i = 0;
     switch (c.kind) {
       case 'resistor': i = c.state.burnt ? 0 : v / Math.max(c.value, 1e-3); break;
       case 'fuse': i = c.state.burnt ? 0 : v * 10; break;
-      case 'switch': i = (sw?.[c.ref] ?? c.state.closed) && !c.state.burnt ? v * 50 : 0; break;
+      case 'switch': i = (sw?.[c.ref] ?? !!c.state.closed) !== !!e.nc && !c.state.burnt ? v * 50 : 0; break;
       case 'led': case 'diode': i = c.state.burnt || opt.ohm ? 0 : segmentCurrent(junctionPwl(c), e.seg, v); break;
       case 'battery': i = ((batV.get(c.id) ?? c.value) - v) / batteryRint(c.value); break;
     }

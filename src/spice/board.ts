@@ -418,6 +418,11 @@ export function boardToCircuit(board: Board, conn: Conn, opts: BoardSpiceOptions
           const name = elName('R', c.ref);
           els.push({ kind: 'R', name, n: [a, b], value: 0.02, note: note('switch closed') });
           parts.get(c.id)!.device = name;
+        } else if (c.pins.NC !== undefined) {
+          // changeover switch at rest: COM rests on its normally-closed contact
+          const name = elName('R', c.ref + '_NC');
+          els.push({ kind: 'R', name, n: [a, roleNode(c, 'NC')], value: 0.02, note: note('switch released: COM–NC') });
+          parts.get(c.id)!.device = name;
         }
         report.push({ ref: c.ref, as: closed ? 'switch closed (20 mΩ)' : 'switch open', source: 'board' });
         break;

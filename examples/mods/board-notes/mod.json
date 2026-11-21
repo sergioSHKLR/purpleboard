@@ -647,7 +647,7 @@
       "powerUp": [ "AUX_USB_VBUS", "Net-(D1-A)", "3vDiode", "+1V1" ],
       "notes": [
         "Power path, worked out from the board (derived): USB-C → U1 (XC6206) → D1 → 3vDiode → RP2040 (IO, and its regulator → +1V1). D2 runs from 3vDiode back to VBUS for the console-cable case.",
-        "Buttons: each mouse switch (common on GND) has two contacts with 10 kΩ pull-ups (e.g. SW2: R40, R41) into a pair of 74LVC1G00 gates that debounce it. A pressed contact reads ≈0 V, a released one the logic rail."
+        "Buttons: each mouse switch (common on GND) has two contacts with 10 kΩ pull-ups (e.g. SW2: R40, R41) into a pair of 74LVC1G00 gates that debounce it. The NO line (pad 2) reads ≈0 V while the button is pressed and the logic rail when released; the NC line (pad 3) the other way round (Kailh CMI126603D08: 1 COM, 2 NO, 3 NC). A NO line that stays high when pressed: a cracked switch joint."
       ]
     }
   ]

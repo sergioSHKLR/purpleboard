@@ -52,9 +52,9 @@
   {
     "id": "demo-rana-tadpole-v2",
     "file": "demo-rana-tadpole-v2.pcbfix.json",
-    "title": "Rana Tadpole · dead controller, warm chips",
-    "difficulty": 3,
-    "description": "A real, sold pocket controller for platform fighters (147 parts: RP2040, 20 mouse-switch buttons, USB-C). On USB the computer sees nothing, and the owner says it gets warm in the middle. Is the RP2040 dead?",
+    "title": "Rana Tadpole · dead controller, warm chips, one dead button",
+    "difficulty": 4,
+    "description": "A real, sold pocket controller for platform fighters (147 parts: RP2040, 20 mouse-switch buttons, USB-C). On USB the computer sees nothing, and the owner says it gets warm in the middle. Is the RP2040 dead? And before it died, one button (SW2) had stopped registering.",
     "credits": "Rana Tadpole V2 motherboard, by rana-sylvatica; PCB design by Quark. CERN-OHL-S-2.0. Converted and modified (planted fault) for DEADBOARD; no endorsement implied.",
     "license": "CERN-OHL-S-2.0",
     "source": "https://github.com/rana-sylvatica/rana-tadpole @ db1d5a5"

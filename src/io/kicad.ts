@@ -1,5 +1,6 @@
 import type { Board, Body, Component, ComponentKind, InnerCopper, Pad, PadLayers, PadShape, Scenario, Side, V2 } from '../types';
 import { parseValue } from '../model';
+import { switchPartOf } from '../switchParts';
 import { parseScenario } from './format';
 import { emptyBoard } from '../scenarios/builder';
 import { isBrdData, parseBrd } from './brd';
@@ -435,6 +436,14 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
       }
     } else if (pads.length === 1) {
       pins['1'] = pads[0].name;
+    }
+    // a changeover switch the part library knows: which throw is normally open comes from its drawing
+    if (kind === 'switch' && new Set(pads.map((p) => p.name)).size >= 3) {
+      const sp = switchPartOf({ label: valText, lcsc });
+      if (sp && Object.values(sp.pins).every((n) => pads.some((p) => p.name === n))) {
+        for (const k of Object.keys(pins)) delete pins[k];
+        Object.assign(pins, sp.pins);
+      }
     }
 
     // library-style values carry a type prefix and a package suffix: "C_100n_0402", "R_10k_0402"

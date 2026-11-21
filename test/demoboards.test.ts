@@ -107,8 +107,8 @@ const EXPECT: Record<string, Expect> = {
     fails: { index: 0, min: -0.05, max: 0.1 }, // C5 shorted: the RP2040 regulator at its 100 mA limit
     // no hot-spot check: U1 (168 mW) and the RP2040 (297 mW) warm slowly (31 °C after 10 s, ≈40 K rise in steady state); the shorted cap stays cool
     rails: { '+1V1': 1.1, 'Net-(D1-A)': 3.3 },
-    amps: 0.0283, // RP2040 core at 125 MHz (datasheet Fig. 168, estimate) through its regulator
-    meter: { '+1V1': [0.569, null], '3vDiode': [0.454, 15.7e3], AUX_USB_VBUS: [0.497, 15.6e3] },
+    amps: 0.0344, // RP2040 core at 125 MHz (datasheet Fig. 168, estimate) through its regulator + 20 released buttons: NC pull-ups 0.3 mA each
+    meter: { '+1V1': [0.569, null], '3vDiode': [0.412, 485], AUX_USB_VBUS: [0.464, 628] }, // 20 NC contacts: 10 kΩ / 20 to ground
     flag: 'DEAD{t4dp0le_c0re_sh0rt_n0t_th3_ch1p}',
   },
 };

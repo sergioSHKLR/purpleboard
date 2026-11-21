@@ -10,6 +10,8 @@ export const MODELED: ReadonlySet<ComponentKind> = new Set<ComponentKind>([
 export const SYMMETRIC: ReadonlySet<ComponentKind> = new Set<ComponentKind>(['resistor', 'capacitor', 'fuse', 'switch']);
 const POLAR: Partial<Record<ComponentKind, [string, string]>> = {
   led: ['A', 'K'], diode: ['A', 'K'], battery: ['+', '-'],
+  // a changeover switch (pins COM / NO / NC): its main contact is COM–NO, closed while pressed
+  switch: ['COM', 'NO'],
 };
 
 export function twoRoles(c: Component): [string, string] | null {
