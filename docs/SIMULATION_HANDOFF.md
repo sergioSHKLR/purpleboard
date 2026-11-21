@@ -8,7 +8,7 @@ No reference hardware is available, so realism is validated against *design inte
 ## Status (start here)
 
 - **LATEST — device themes: real ESP32 boards (2026-11-21, committed, NOT pushed: `ea3d2db`,
-  `2d56da9`, `33b59b3`, `f93f389`).** The user wants whole device themes (ESP32, game
+  `2d56da9`, `33b59b3`, `f93f389`, `da835b7`).** The user wants whole device themes (ESP32, game
   controllers, graphics cards…) at every difficulty, still 1:1 with real devices. Agreed order:
   real products that are open hardware first (KiCad + redistributable licence); for branded
   devices a self-drawn version of a unit you own; GPU = a "GPU-style" board from datasheet
@@ -17,6 +17,13 @@ No reference hardware is available, so realism is validated against *design inte
     cracked joint + R4 PROG missing) and `demo-olimex-esp32-c3-devkit-lipo` (L3: C5 shorted hiding
     R11 22 k for 49.9 k → 4.48 V once the short is gone). Checked in the app (Playwright): both
     load from Real Hardware, bench reads 0.0 mA / 322.6 mA as simulated, no console errors.
+    Then `demo-esp32-c3-rust-board` (L4, `da835b7`: D4 cracked → runs backwards through Q1's body
+    diode, +5V 3.6–3.8 V; residue at C10 on CHIP_PU → ESP32 in reset, 0.3 mA with all rails up).
+  - **`da835b7` also:** datasheet **chip loads** (ESP32-WROOM-32D 80 mA, ESP32-C3-MINI-1 82 mA; EN
+    gated; replace the decoupling estimate on their rail); "not fitted" values (NA/…, DNP…) are DNP
+    (the DevKit-LiPo had R7 "NA" fitted); pad-less footprints are not parts (Rust board 97 → 55);
+    bench supply clips at the connector before a series diode; FB from datasheet pins; tied enables
+    on named rails (Antmicro IC15 → 1V8_DBG).
   - **Simulator / importer fixes on the way (all universal):** keepouts, paste-only pads and NPTH
     were copper (merged nets into GND); KiCad `Net-(REF-PIN)` pin roles; unnamed converter inputs;
     EN-tied LDOs (always on, not driven by the power controller); diode-OR by A/K; buck-boost
@@ -27,11 +34,12 @@ No reference hardware is available, so realism is validated against *design inte
     Antmicro demo: 1V8_SYS now powered (IC4 was never found; 0.43 V → 1.798 V, snapshot 57.2 mA).
   - **Parts from datasheets:** `npm run parts -- datasheets <MPN>` fetched them (jlcparts links,
     plain requests work). Added SY8089, HX6211A332, TP4054, BL4054B, IRLML6402, WPM2015, 1N5819.
-  - **Open:** no ESP32 module load model (supply currents are decoupling-count estimates, too
-    low); unpowered ICs don't clamp their pins (TXD reads 5 V through R6 on the DevKit); reference
-    designators render large on small boards; ESP32-POE Rev M2 has a +5V_USB track over R23 pad
-    upstream. Candidates ready in the scratchpad pattern: esp-rs Rust board (needs MCP73831,
-    SY8088, B5819W), ESP32-POE (TPS2378, TX4138, TPS62A02A). Then the controller theme.
+  - **Open:** unpowered ICs don't clamp their pins (TXD reads 5 V through R6 on the DevKit);
+    reference designators of real parts still render large on small boards; Rust board +BATT floats
+    with no battery (nothing defines it; left out of tests and calibration); Wi-Fi TX peaks (350 mA)
+    not modelled in DC (a brown-out challenge needs a transient load); ESP32-POE Rev M2 has a
+    +5V_USB track over R23 pad upstream. Next candidates: ESP32-POE (TPS2378, TX4138, TPS62A02A,
+    ESP32-WROOM-32E needs its own sheet), then the controller theme.
 
 - **Earlier — mod feedback round (end of 2026-11-21, pushed and live: `7207be5`, `d4fdd6e`;
   Pages deploy checked, `lookWorker` served on deadboard.org).** The default next thread is still
