@@ -42,6 +42,21 @@ export const TUTORIAL_SCENARIO_IDS = [
   'builtin-tut-divider',
 ] as const;
 
+/**
+ * After the tutorials: the repair challenges by difficulty (small boards, more than one fault),
+ * then the open-hardware demos (hundreds of parts). Shown as a track so the step from one-LED
+ * tutorials to real boards isn't a jump (a player's report, 2026-11-21).
+ */
+export const CHALLENGE_TRACK_IDS = [
+  'builtin-bridge-troll',
+  'builtin-backwards-day',
+  'builtin-smoke-test',
+  'builtin-ghost-short',
+  'builtin-sagging-rail',
+  'demo-antmicro-jetson-nano-bb',
+  'demo-mnt-reform2-mb30',
+] as const;
+
 export const TUTORIAL_TOPICS: Record<string, string[]> = {
   'builtin-first-light': ['Traces & Pads', 'V⎓ & Ω Meter', 'Bridge Cut Trace'],
   'builtin-tut-cold-joint': ['Bottom Side (F)', 'Cold Solder Joint', 'Iron Reflow'],

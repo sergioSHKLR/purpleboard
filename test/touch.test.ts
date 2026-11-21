@@ -2,6 +2,7 @@
 // touch wording of every tutorial step (no clicks, right-clicks or keyboard shortcuts left).
 import { TouchGestures, touchCopy, wantsMobileLayout, type GestureSink } from '../src/ui/touch';
 import { chromeIntentUrl, inAppBrowser } from '../src/ui/inapp';
+import { gpuHelp } from '../src/ui/gpuhelp';
 import { beginnerPrimerHtml, TUTORIALS_BY_SCENARIO, TUTORIAL_STEPS } from '../src/ui/tutorial';
 
 function assert(c: unknown, m: string): asserts c { if (!c) throw new Error(m); }
@@ -131,5 +132,14 @@ const kinds = (ev: Ev[]) => ev.map((e) => e[0]);
   assert(inAppBrowser('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0 Mobile Safari/537.36') === null, 'Chrome itself is no in-app browser');
   assert(inAppBrowser('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15') === null, 'Safari is no in-app browser');
   assert(chromeIntentUrl('https://example.org/deadboard/app.html?lang=ru#s=abc') === 'intent://example.org/deadboard/app.html?lang=ru#s=abc#Intent;scheme=https;package=com.android.chrome;end', 'Chrome intent keeps path, query and hash');
-  console.log(`touch: ${steps.length} phone tasks ≤ 70 chars, tool tips, toast split, in-app browsers — ok`);
+  // when the bench can't start (neither WebGPU nor WebGL2): advice by cause and browser, on real reports' user agents
+  const linuxChrome = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36';
+  const noGl = gpuHelp(linuxChrome, null);
+  assert(/graphics acceleration/.test(noGl) && /chrome:\/\/gpu/.test(noGl) && !/Vulkan|Unsafe WebGPU/.test(noGl), `Chrome on Linux without WebGL: turn acceleration on, not WebGPU flags (${noGl})`);
+  assert(/WebGL2/.test(gpuHelp(linuxChrome, { renderer: 'Mesa Intel(R) HD Graphics 4000', software: false })), 'WebGL but no WebGL2: update browser and driver');
+  assert(/Settings → Performance/.test(gpuHelp('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0', null)), 'Firefox: its own setting');
+  assert(/Update iOS/.test(gpuHelp('Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1', null)), 'iPhone');
+  assert(/Android System WebView/.test(gpuHelp('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0 Mobile Safari/537.36', null)), 'Chrome on Android');
+  assert(/Update macOS/.test(gpuHelp('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15', null)), 'Safari on a Mac');
+  console.log(`touch: ${steps.length} phone tasks ≤ 70 chars, tool tips, toast split, in-app browsers, no-3D help — ok`);
 }

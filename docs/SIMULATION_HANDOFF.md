@@ -152,8 +152,8 @@ No reference hardware is available, so realism is validated against *design inte
      boards (learning what each IC does): not started, ask the user. Replay noise to clean up in
      scripts/repro.ts: "copper short" on KiCad `unconnected-(…)` nets, "power does not balance"
      on boards whose loads are the power tree's estimates.
-  5. **Open:** the WebGPU error screen's help text is still WebGPU-specific (now shown only when
-     WebGL2 fails too; the iOS "update to 26" advice is wrong there); iOS app and desktop
+  5. **Open:** ~~the WebGPU error screen's help text is still WebGPU-specific~~ (**done 2026-11-21**:
+     "3D graphics aren't available", advice by cause in src/ui/gpuhelp.ts, tested on real reports' user agents); iOS app and desktop
      builds need a rebuild to get the fallback; improve the report form once new reports show
      what is still missing (e.g. say why a snapshot failed instead of dropping it,
      src/ui/feedback.ts `.catch(() => undefined)`); duplicate sends (same report 3–5× within

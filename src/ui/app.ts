@@ -52,7 +52,8 @@ import { fmtHz, sampleSignal, signalOn, type ScopeSignal } from '../scope';
 import type { PowerStateName } from '../spice/sequencer';
 import { HOTAIR_H, IRON_G, PREHEAT_H, ReworkMonitor, type ReworkEvent } from '../rework';
 import { Renderer, type RendererKind, type VizMode } from '../render/renderer';
-import { NoAdapterError, gpuDiagnosis, webGlInfo, type WebGlInfo } from '../render/gpuprobe';
+import { NoAdapterError, gpuDiagnosis, webGlInfo } from '../render/gpuprobe';
+import { gpuHelp } from './gpuhelp';
 import { setSoundEnabled, sfxBeep, sfxBlow, sfxClick, sfxCut, sfxSolder, sfxWin, soundEnabled } from './audio';
 import { icon } from './icons';
 import { chromeIntentUrl, inAppBrowser } from './inapp';
@@ -61,7 +62,7 @@ import { trackBoardView, trackEvent } from '../analytics';
 import { APP_BUILD, mountFeedbackForm, type FeedbackContext } from './feedback';
 import { boardDiff, encodeSnapshot, type BenchSnapshot } from '../snapshot';
 import { BRAND, markSvg } from './logo';
-import { beginnerPrimerHtml, TUTORIAL_SCENARIO_IDS, TUTORIAL_TOPICS, getTutorialSteps, isTutorialScenario, nextTutorialScenarioId, type TutorialStep } from './tutorial';
+import { beginnerPrimerHtml, CHALLENGE_TRACK_IDS, TUTORIAL_SCENARIO_IDS, TUTORIAL_TOPICS, getTutorialSteps, isTutorialScenario, nextTutorialScenarioId, type TutorialStep } from './tutorial';
 import { TOOL_SHORT, TOOL_TIP_PHONE, TouchGestures, splitLead, touchCopy, wantsMobileLayout } from './touch';
 
 type ToolId = 'inspect' | 'dmm' | 'iron' | 'wick' | 'flip180' | 'jumper' | 'knife' | 'replace' | 'freeze' | 'ipa' | 'press' | 'hotair' | 'scope' | 'rosin';
@@ -451,45 +452,6 @@ export class PcbApp {
     }
   }
 
-  /** What the visitor can do about it, tuned to their browser (most reports come from Firefox). */
-  private webGpuHelp(gl: WebGlInfo | null): string {
-    const ua = navigator.userAgent;
-    const ff = /Firefox\/(\d+)/.exec(ua);
-    const general = t('DEADBOARD renders the bench with WebGPU: use Chrome or Edge 113+, Safari 26+, or Firefox 141+ (Windows) / 145+ (Mac with Apple silicon).');
-    // desktop build: the browser is built in, so only the GPU driver can be the problem
-    if (/Electron\//.test(ua)) {
-      if (/Linux/.test(ua)) return t('The desktop app renders with WebGPU on Vulkan. Install or update the Vulkan driver for your graphics card (vulkaninfo should list it), then restart DEADBOARD.');
-      return t('The desktop app renders with WebGPU, which needs a graphics card and driver that support DirectX 12 (Windows) or Metal (macOS). Update the graphics driver and restart DEADBOARD.');
-    }
-    // phones and tablets
-    if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) {
-      return t('On iPhone and iPad, WebGPU needs iOS / iPadOS 26 or later (Safari, and every other browser there). Update in Settings → General → Software Update. On iOS 18 it can be switched on in Settings → Apps → Safari → Advanced → Feature Flags → WebGPU.');
-    }
-    if (/Android/.test(ua)) {
-      return ff
-        ? t('Firefox for Android has no WebGPU yet: open DEADBOARD in Chrome instead.')
-        : t('On Android, WebGPU needs Chrome 121 or later on Android 12+ with a supported GPU (most Qualcomm Adreno and ARM Mali phones). Update Chrome from the Play Store and try again.');
-    }
-    // Chromium on Linux still enables WebGPU only for some GPU / driver combinations
-    if (!ff && /Linux/.test(ua) && !/Android|CrOS/.test(ua)) {
-      return t('On Linux, Chrome and Edge turn WebGPU on only for some graphics drivers. Open chrome://flags, enable "Unsafe WebGPU Support" and "Vulkan", and restart the browser; or use Firefox with dom.webgpu.enabled set to true in about:config. Make sure your Vulkan driver is installed (vulkaninfo should list your GPU).');
-    }
-    // Chrome / Edge with WebGPU, but it offered no adapter: the GPU is blocklisted, its driver is
-    // too old, or the browser is not using the graphics card at all
-    if (!ff && 'gpu' in navigator) {
-      if (gl?.software) return t('Your browser is drawing without the graphics card ({renderer}), so WebGPU has nothing to run on. Turn on hardware acceleration (Chrome / Edge: Settings → System → "Use graphics acceleration when available"), restart the browser, and update the graphics driver if it still fails.', { renderer: gl.renderer });
-      return t('Your browser has WebGPU but did not offer it for this graphics card{gpu}. Update the graphics driver (from Intel, AMD or NVIDIA, not only Windows Update), make sure hardware acceleration is on (Settings → System), and restart the browser. chrome://gpu shows the reason under WebGPU.', { gpu: gl ? ` (${gl.renderer})` : '' });
-    }
-    if (!ff) return general;
-    const ver = Number(ff[1]);
-    if (!('gpu' in navigator)) {
-      if (/Windows/.test(ua) && ver < 141) return t('Firefox {ver} has no WebGPU yet: update Firefox (141+ enables it on Windows), or use Chrome / Edge.', { ver });
-      if (/Mac OS X/.test(ua) && ver < 145) return t('Firefox {ver} has no WebGPU yet on macOS: update Firefox (145+ enables it on Apple-silicon Macs), or use Chrome / Safari.', { ver });
-      return t('Firefox {ver} ships WebGPU switched off on this system (Linux and Intel Macs, for now). Use Chrome, or turn it on: open about:config, set dom.webgpu.enabled to true, and reload.', { ver });
-    }
-    return t('Firefox has WebGPU, but did not offer it for this graphics card or driver. Update the graphics driver and make sure hardware acceleration is on (Settings → Performance), or use Chrome. about:support → WebGPU shows the reason.');
-  }
-
   private showWebGpuError(msg: string, tried: string[] = []) {
     const gl = webGlInfo();
     const app = inAppBrowser(navigator.userAgent);
@@ -498,7 +460,7 @@ export class PcbApp {
     const inApp = app === null ? '' : `
         <div class="card">
           <div class="card-title lg">${t('Open DEADBOARD in your browser')}</div>
-          <p class="text-2" style="margin:0">${app ? t('You opened this page inside the {app} app. Its built-in browser has no WebGPU, so the 3D bench cannot start here.', { app }) : t('You opened this page inside an app. Its built-in browser has no WebGPU, so the 3D bench cannot start here.')}</p>
+          <p class="text-2" style="margin:0">${app ? t('You opened this page inside the {app} app. Its built-in browser can\'t start the 3D bench.', { app }) : t('You opened this page inside an app. Its built-in browser can\'t start the 3D bench.')}</p>
           <p class="muted" style="margin:0">${android ? t('Tap «Open in Chrome», or use the app\'s menu (⋮) → «Open in browser».') : t('Use the app\'s menu (⋯ or the share button) → «Open in browser» / «Open in Safari», or copy the link into your browser.')}</p>
           <div class="row wrap">
             ${android ? `<a class="btn primary" id="open-chrome" href="${this.esc(chromeIntentUrl(location.href))}">${icon('link', 14)}<span>${t('Open in Chrome')}</span></a>` : ''}
@@ -508,9 +470,9 @@ export class PcbApp {
     this.mount.innerHTML = `
       <div class="webgpu-err">${inApp}
         <div class="card">
-          <div class="card-title lg">${t('WebGPU is not available')}</div>
-          <p class="text-2" style="margin:0">${this.esc(t(msg))}</p>
-          ${app === null ? `<p class="muted" style="margin:0">${this.esc(this.webGpuHelp(gl))}</p>` : ''}
+          <div class="card-title lg">${t('3D graphics aren\'t available')}</div>
+          ${app === null ? `<p class="text-2" style="margin:0">${this.esc(gpuHelp(navigator.userAgent, gl, navigator.maxTouchPoints))}</p>` : ''}
+          <p class="muted" style="margin:0">${t('Technical detail: {error}', { error: this.esc(t(msg)) })}</p>
         </div>
         <div class="card">
           <div class="card-title">${t('Still stuck? Tell us')}</div>
@@ -3697,11 +3659,54 @@ export class PcbApp {
     }
   }
 
+  /** Numbered rows of a track (tutorials, challenges): the open board marked, solved ones ticked. */
+  private trackRowsHtml(ids: readonly string[], current: string): string {
+    return ids.map((id, idx) => {
+      const scIdx = this.scenarios.findIndex((x) => x.id === id);
+      const sc = scIdx >= 0 ? this.scenarios[scIdx] : null;
+      if (!sc) return '';
+      const isCur = id === current;
+      const level = `L${sc.meta.difficulty ?? 1}`;
+      return `
+        <button class="list-btn" data-open-sc="${scIdx}" style="${isCur ? 'background:var(--accent-weak);border:1px solid var(--accent-line)' : ''}">
+          <span><b>${idx + 1}.</b> ${this.esc(t(sc.meta.title))}</span>
+          ${this.solvedIds.has(id) ? `<span class="badge pass">${t('Done')}</span>` : isCur ? `<span class="badge info">${t('Active')}</span>` : `<span class="sub">${level}</span>`}
+        </button>`;
+    }).join('');
+  }
+
+  /** The step after the tutorials: repair challenges, then the real (open-hardware) boards. */
+  private challengeTrackHtml(current: string, fromTutorials: boolean): string {
+    const ids = CHALLENGE_TRACK_IDS as readonly string[];
+    const done = ids.filter((id) => this.solvedIds.has(id)).length;
+    const onReal = current.startsWith('demo-');
+    const notesOn = this.modResult.mods.some((m) => m.manifest.id === 'board-notes');
+    const tip = onReal
+      ? (notesOn ? '' : `
+        <div class="row wrap">
+          <span class="muted">${this.mobile ? t('Rail-by-rail notes for real boards:') : t('For real boards, «Board notes» explains each rail: where it comes from, what to measure, what a low reading means.')}</span>
+          <button class="btn sm" id="btn-get-notes">${icon('users', 12)}<span>${t('Get board notes')}</span></button>
+        </div>`)
+      : `<div class="muted">${this.mobile ? t('Stuck? Run the tests, then «Where to look?».') : t('Small boards with more than one fault, then real open-hardware boards with hundreds of parts. Stuck? Run the tests: «Where to look?» suggests what to measure.')}</div>`;
+    return `
+      <div class="card">
+        <div class="card-title">
+          <span>${fromTutorials ? t('Next: repair challenges') : t('Repair challenges')}</span>
+          <span class="badge info">${done}/${ids.length}</span>
+        </div>
+        ${tip}
+        <div class="stack">${this.trackRowsHtml(ids, current)}</div>
+      </div>`;
+  }
+
   private renderMissionTab() {
     const s = this.activeScenario;
     const hints = s.meta.hints;
     const v = this.lastVerify;
     const inTutTrack = isTutorialScenario(s.id);
+    // after the tutorials (all solved, or on the last one), and on the challenge boards themselves
+    const showChallenges = (CHALLENGE_TRACK_IDS as readonly string[]).includes(s.id)
+      || (inTutTrack && (TUTORIAL_SCENARIO_IDS.every((id) => this.solvedIds.has(id)) || s.id === TUTORIAL_SCENARIO_IDS[TUTORIAL_SCENARIO_IDS.length - 1]));
 
     this.sideBodyEl.innerHTML = `
       <div class="card">
@@ -3749,23 +3754,10 @@ export class PcbApp {
               <button class="btn sm" id="btn-open-catalog">${t('All boards')}</button>
             </div>
           </div>
-          <div class="stack">
-            ${TUTORIAL_SCENARIO_IDS.map((id, idx) => {
-              const scIdx = this.scenarios.findIndex((x) => x.id === id);
-              const scItem = scIdx >= 0 ? this.scenarios[scIdx] : null;
-              if (!scItem) return '';
-              const isCur = id === s.id;
-              const isDone = this.solvedIds.has(id);
-              return `
-                <button class="list-btn" data-open-sc="${scIdx}" style="${isCur ? 'background:var(--accent-weak);border:1px solid var(--accent-line)' : ''}">
-                  <span><b>${idx + 1}.</b> ${this.esc(t(scItem.meta.title))}</span>
-                  ${isDone ? `<span class="badge pass">${t('Done')}</span>` : isCur ? `<span class="badge info">${t('Active')}</span>` : `<span class="sub">L1</span>`}
-                </button>
-              `;
-            }).join('')}
-          </div>
+          <div class="stack">${this.trackRowsHtml(TUTORIAL_SCENARIO_IDS, s.id)}</div>
         </div>
       ` : ''}
+      ${showChallenges ? this.challengeTrackHtml(s.id, inTutTrack) : ''}
 
       ${this.revealedFlag ? `
         <div class="flag-box">
@@ -3847,6 +3839,11 @@ export class PcbApp {
     });
     this.sideBodyEl.querySelector('#btn-start-tut')?.addEventListener('click', () => this.startTutorial());
     this.sideBodyEl.querySelector('#btn-open-catalog')?.addEventListener('click', () => this.openBoardCatalog());
+    this.sideBodyEl.querySelector('#btn-get-notes')?.addEventListener('click', () => {
+      this.showMods = true;
+      this.modsView = 'community';
+      this.renderModal();
+    });
     this.sideBodyEl.querySelectorAll<HTMLButtonElement>('[data-open-sc]').forEach((b) => {
       b.addEventListener('click', () => {
         const idx = Number(b.dataset.openSc);
