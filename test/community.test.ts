@@ -85,6 +85,13 @@ assert(index.mods.find((m) => m.id === 'night-light-extras')?.requires['starter-
   await rejects(submissionZip({ ...back, modzip: back.modzip.slice(0, -8) + 'AAAAAAAA' }), /damaged/, 'a damaged file is caught');
   assert((await submissionZip({ type: 'Bug report', message: 'x' })) === null, 'feedback reports carry no mod');
 
+  // the largest mod sent inline, with the longest note, stays under FormSubmit's limit (64 KB stored;
+  // measured 2026-11-21: 40 KB mods go through, 52 KB ones are refused)
+  const atCap = new Uint8Array(MAX_SUBMIT_BYTES).map((_, i) => (i * 2654435761) >>> 24);
+  const full = await submissionFields({ manifest, bytes: atCap, link: '', note: 'x'.repeat(2000), contact: 'someone@example.org', bench: '13 passed · 0 warning(s) · 0 failed' });
+  const total = JSON.stringify({ _template: 'box', _captcha: 'false', ...full }).length;
+  assert(full.modzip && total < 60_000, `a mod at the cap encodes to ${total} characters: keep it under FormSubmit's 64 KB`);
+
   // too big to send: a link is needed, and then no file travels
   const big = new Uint8Array(MAX_SUBMIT_BYTES + 1);
   await rejects(submissionFields({ manifest, bytes: big, link: '', note: '', contact: '', bench: '' }), /limit/, 'too big without a link');

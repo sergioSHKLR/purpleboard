@@ -630,7 +630,7 @@ installs them with one click. To send yours:
 3. The maintainer reviews it (opens it, reads its `mod.json`, and its code if it has any) and adds
    it to the catalogue. It appears under **Community** with the next update of the site.
 
-A mod up to 256 kB travels inside the message; most data mods are a few kB. A bigger one (board
+A mod up to 40 kB travels inside the message; most data mods are a few kB. A bigger one (board
 files, PDFs) needs a link to where you host the `.zip` (a GitHub release, a cloud drive). A mod
 whose bench check fails can't be sent. To release a fix, raise `version` and submit again: players
 who installed it see **Update**. You can also open an issue on

@@ -15,8 +15,12 @@ import type { ModManifest } from './mods';
 export const COMMUNITY_FORMAT = 'deadboard-community/1';
 /** The catalogue, relative to the app page (app.html sits at the site root). */
 export const COMMUNITY_INDEX = 'community/index.json';
-/** Largest mod a submission carries inside the message; bigger ones are sent as a link. */
-export const MAX_SUBMIT_BYTES = 256 * 1024;
+/**
+ * Largest mod a submission carries inside the message; bigger ones are sent as a link. Measured on
+ * the live site 2026-11-21: FormSubmit accepted a 40 KB mod (≈54 KB once base64-encoded) and
+ * refused 52 KB and 256 KB ones with HTTP 500, consistent with a 64 KB limit on what it stores.
+ */
+export const MAX_SUBMIT_BYTES = 40 * 1024;
 /** Largest catalogue download the app accepts. */
 export const MAX_COMMUNITY_BYTES = 100 * 1024 * 1024;
 
