@@ -78,7 +78,7 @@ interface ProbePin {
 
 const TOOLS: { id: ToolId; key: string; ico: string; lbl: string; tip: string }[] = [
   { id: 'inspect', key: '1', ico: 'pointer', lbl: tk('Select'), tip: tk('Select parts and nets, press switches') },
-  { id: 'dmm', key: '2', ico: 'meter', lbl: tk('Multimeter'), tip: tk('Left-click places red probe, right-click or Shift+click places black probe') },
+  { id: 'dmm', key: '2', ico: 'meter', lbl: tk('Multimeter'), tip: tk('Left-click places red probe, right-click or Shift+click places black probe, Esc clears them') },
   { id: 'iron', key: '3', ico: 'iron', lbl: tk('Soldering iron'), tip: tk('Reflow joints, bridge gaps, solder parts') },
   { id: 'wick', key: '4', ico: 'eraser', lbl: tk('Desolder wick'), tip: tk('Remove solder bridges, jumpers or parts') },
   { id: 'flip180', key: '5', ico: 'rotate', lbl: tk('Rotate 180°'), tip: tk('Reverse part orientation') },
@@ -3059,6 +3059,10 @@ export class PcbApp {
       }
       return;
     }
+    if (e.key === 'Escape' && this.activeTool === 'dmm' && (this.probeRed || this.probeBlack)) {
+      this.clearProbes();
+      return;
+    }
     const k = e.key.toLowerCase();
     if (k === 'f') {
       this.flipSide();
@@ -3650,7 +3654,7 @@ export class PcbApp {
               <button class="${this.dmmMode === 'CAP' ? 'on' : ''}" id="dmm-cap" title="${t('Capacitance (power off)')}">F</button>
               <button class="${this.dmmMode === 'AMP' ? 'on' : ''}" id="dmm-amp" title="${t('Current, 10 A input (meter in series)')}">A</button>
             </div>
-            <button class="btn ghost icon" id="dmm-clr" title="${t('Clear probes')}">${icon('x', 14)}</button>
+            <button class="btn ghost icon" id="dmm-clr" title="${t('Clear probes (Esc)')}">${icon('x', 14)}</button>
           </div>
         </div>
         <div class="dmm-lcd">
@@ -3696,14 +3700,16 @@ export class PcbApp {
         this.renderDmm();
       });
     }
-    this.dmmBoxEl.querySelector('#dmm-clr')!.addEventListener('click', () => {
-      this.probeRed = null;
-      this.probeBlack = null;
-      this.activeProbe = 'red';
-      this.activeProbeAuto = false;
-      this.renderDmm();
-      this.renderTutorial();
-    });
+    this.dmmBoxEl.querySelector('#dmm-clr')!.addEventListener('click', () => this.clearProbes());
+  }
+
+  private clearProbes() {
+    this.probeRed = null;
+    this.probeBlack = null;
+    this.activeProbe = 'red';
+    this.activeProbeAuto = false;
+    this.renderDmm();
+    this.renderTutorial();
   }
 
   private renderUI() {

@@ -492,7 +492,7 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); }
 
 /* ---------- Multimeter ---------- */
 .dmm-card {
-  width: 280px;
+  width: 336px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -513,6 +513,8 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); }
   cursor: grab;
   user-select: none;
 }
+.dmm-head > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px; }
+.dmm-head > .row { flex-shrink: 0; }
 .dmm-lcd { padding: 12px 12px 10px; }
 .dmm-val {
   font-family: var(--mono);
