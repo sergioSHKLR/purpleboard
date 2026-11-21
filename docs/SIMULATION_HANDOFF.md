@@ -31,6 +31,11 @@ No reference hardware is available, so realism is validated against *design inte
         deeper or shallower faults, more or fewer of them, and how soon help is offered. Puzzles
         show their own level number; the player's rating is never shown. (So workstream A's
         "Your path" shows skills learned, not "Level 2 → 3".)
+      - **The board view / "marketplace" always lists every puzzle with its rating**, and the
+        player can open any of them directly, outside the adaptive system. The adaptive system
+        only drives the recommended flow (Continue, generated follow-ups). A puzzle picked from
+        the list is exactly as listed (same faults, same level number for everyone); it only
+        feeds the hidden rating in the background.
       - **Teach by playing, not by watching.** Reading a note or watching a video is the last
         resort. Ideas to try: tools unlock one by one and a new one appears exactly when the
         puzzle needs it (fewer tools early); the first puzzle with a new tool is built so that
