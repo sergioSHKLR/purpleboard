@@ -111,6 +111,16 @@ const EXPECT: Record<string, Expect> = {
     meter: { '+1V1': [0.569, null], '3vDiode': [0.412, 485], AUX_USB_VBUS: [0.464, 628] }, // 20 NC contacts: 10 kΩ / 20 to ground
     flag: 'DEAD{t4dp0le_c0re_sh0rt_n0t_th3_ch1p}',
   },
+  'demo-rana-tadpole-v1': {
+    parts: 57, conductors: 74, named: 74, splits: [],
+    converters: { U3: '+1V1' }, // U1's output pin is cracked on the faulted board, so only the RP2040 regulator is found
+    supply: { ref: 'J_BENCH', volts: 5 }, // on +5V: V1 gets USB from a breakout board over the flat cable U2
+    fails: { index: 0, min: -0.05, max: 0.1 },
+    rails: { '3vDiode': 3.06, '+1V1': 1.1 }, // 3.3 V (XC6206) minus a B5819W drop at 28 mA
+    amps: 0.0283, // RP2040 core at 125 MHz (datasheet Fig. 168, estimate); V1's buttons use the RP2040's own pull-ups
+    meter: { '+1V1': [0.569, null], '3vDiode': [0.531, null], '+5V': [0.546, 15.6e3] },
+    flag: 'DEAD{t4dp0le_v1_ld0_p1n}',
+  },
 };
 
 const time = <T>(f: () => T): [T, number] => { const t0 = performance.now(); const r = f(); return [r, performance.now() - t0]; };

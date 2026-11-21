@@ -26,6 +26,10 @@ export const DEMO_REPAIRS: Record<string, DemoRepair> = {
     installPart(part('C5'), { value: 22e-6 });
     installPart(part('R11'), { value: 49.9e3 });
   },
+  'demo-rana-tadpole-v1': (_sc, part) => {
+    const u1 = part('U1');
+    toggleCold(u1, u1.pads.findIndex((p) => p.name === '2'));
+  },
   'demo-rana-tadpole-v2': (_sc, part) => {
     installPart(part('C5'), { value: 100e-9 });
     const sw2 = part('SW2');

@@ -58,5 +58,15 @@
     "credits": "Rana Tadpole V2 motherboard, by rana-sylvatica; PCB design by Quark. CERN-OHL-S-2.0. Converted and modified (planted fault) for DEADBOARD; no endorsement implied.",
     "license": "CERN-OHL-S-2.0",
     "source": "https://github.com/rana-sylvatica/rana-tadpole @ db1d5a5"
+  },
+  {
+    "id": "demo-rana-tadpole-v1",
+    "file": "demo-rana-tadpole-v1.pcbfix.json",
+    "title": "Rana Tadpole V1 · dead on USB",
+    "difficulty": 2,
+    "description": "The first version of a real, sold pocket controller (56 parts: RP2040, 20 mouse-switch buttons). USB comes in from a small breakout board over the flat cable (U2). Plugged in, the computer sees nothing, and nothing gets warm.",
+    "credits": "Rana Tadpole V1 motherboard, by rana-sylvatica; PCB design by Quark. CERN-OHL-S-2.0. Converted and modified (planted fault) for DEADBOARD; no endorsement implied.",
+    "license": "CERN-OHL-S-2.0",
+    "source": "https://github.com/rana-sylvatica/rana-tadpole @ db1d5a5"
   }
 ]

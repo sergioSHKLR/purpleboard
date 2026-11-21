@@ -231,6 +231,39 @@ const DEMOS: Demo[] = [
     },
     repair: DEMO_REPAIRS['demo-rana-tadpole-v2'],
   },
+  {
+    id: 'demo-rana-tadpole-v1',
+    repo: 'https://github.com/rana-sylvatica/rana-tadpole.git',
+    commit: 'db1d5a5a0b4e00a272889078d7c9a62c2d0f7549',
+    file: 'PCBs/Motherboard/KiCAD files/Rana Tadpole PCB.kicad_pcb',
+    license: 'CERN-OHL-S-2.0',
+    licenseFile: 'README.md',
+    licenseText: {
+      file: 'public/demos/licenses/demo-mnt-reform2-mb30.LICENSE.txt',
+      note: 'Rana Tadpole (V1 motherboard) by rana-sylvatica, PCB design by Quark (github.com/Armastardo): the upstream README releases the design under CERN-OHL-S-2.0 (the repository has no separate licence file). Licence text:',
+    },
+    credits: 'Rana Tadpole V1 motherboard, by rana-sylvatica; PCB design by Quark. CERN-OHL-S-2.0. Converted and modified (planted fault) for DEADBOARD; no endorsement implied.',
+    title: 'Rana Tadpole V1 · dead on USB',
+    difficulty: 2,
+    description:
+      'The first version of a real, sold pocket controller (56 parts: RP2040, 20 mouse-switch buttons). USB comes in from a small breakout board over the flat cable (U2). ' +
+      'Plugged in, the computer sees nothing, and nothing gets warm.',
+    hints: [
+      'Follow the power in: +5V arrives on the flat-cable connector U2 (and the header J3). Measure +5V, then the regulator U1\'s output (pin 2), then the logic rail 3vDiode after D1 (C9).',
+      'Volts on U1\'s input (pin 3) and nothing on the copper of its output: look closely at that joint. A regulator that is fine inside can still be cut off by a cracked pin.',
+      'Reflow the cracked joint.',
+    ],
+    flag: 'DEAD{t4dp0le_v1_ld0_p1n}',
+    objectives: [
+      { type: 'voltage', a: 'C9', min: 2.9, max: 3.2 },
+      { type: 'voltage', a: 'C4', min: 1.05, max: 1.15 },
+    ],
+    plant: (_sc, part) => {
+      const u1 = part('U1');
+      toggleCold(u1, u1.pads.findIndex((p) => p.name === '2'));
+    },
+    repair: DEMO_REPAIRS['demo-rana-tadpole-v1'],
+  },
 ];
 
 // Geometry to 1 µm (keeps the files small); part values and fault parameters at 6 significant

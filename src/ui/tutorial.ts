@@ -55,6 +55,7 @@ export const CHALLENGE_TRACK_IDS = [
   'builtin-ghost-short',
   'builtin-sagging-rail',
   'demo-olimex-esp32-devkit-lipo',
+  'demo-rana-tadpole-v1',
   'demo-olimex-esp32-c3-devkit-lipo',
   'demo-esp32-c3-rust-board',
   'demo-rana-tadpole-v2',
