@@ -1,4 +1,4 @@
-# DEADBOARD — handoff (updated end of 2026-11-21: mod feedback round from Biga73; retention round from Umami; board notes, Community catalogue + Submit, onboarding fixes)
+# DEADBOARD — handoff (updated evening of 2026-11-21: device themes — 3 real ESP32 boards + 2 controllers, engine and importer fixes, mod.io live)
 
 Goal: make DEADBOARD (formerly PCB//FIX) a realistic board-repair trainer, as close to a real bench as possible,
 **universal** (any board, not just the MacBook), with honest provenance for every value.
@@ -7,8 +7,56 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
-- **LATEST — device themes: real ESP32 boards (2026-11-21, committed, NOT pushed: `ea3d2db`,
-  `2d56da9`, `33b59b3`, `f93f389`, `da835b7`, `72e8016`, `f633497`, `c17f6c8`).** The user wants whole device themes (ESP32, game
+- **NEXT SESSION — start here (evening of 2026-11-21; everything pushed and live, last commit
+  `02855cf` + this handoff; Pages deploys checked on deadboard.org).** Ask the user which thread.
+  **iOS and desktop apps are on hold. Graphics cards are skipped for now (user).**
+  - **Shipped today (challenge track after The Sagging Rail, in this order):**
+    | Board | Lvl | Faults | Licence |
+    | --- | --- | --- | --- |
+    | `demo-olimex-esp32-devkit-lipo` | 2 | D1 cracked (USB diode), R4 (charger PROG) missing | Apache-2.0 |
+    | `demo-rana-tadpole-v1` | 2 | U1 XC6206 output pin cracked | CERN-OHL-S |
+    | `demo-olimex-esp32-c3-devkit-lipo` | 3 | C5 shorted hides R11 22 k for 49.9 k (3V3 → 4.48 V) | CERN-OHL-S |
+    | `demo-esp32-c3-rust-board` | 4 | D4 cracked (runs backwards via Q1 body diode), residue on CHIP_PU (chip in reset, 0.3 mA) | CERN-OHL-P |
+    | `demo-rana-tadpole-v2` | 4 | C5 on +1V1 shorted (chips warm, cap cool), SW2 NO joint cracked | CERN-OHL-S |
+    then Antmicro, MNT (both **rebuilt** from pinned commits: capacitances were 0 in every shipped
+    demo; Antmicro 369 parts, bench at the connector before F3). Board notes 1.4.0 has a pack per
+    shipped board (18). Russian complete.
+  - **Simulator / importer, all universal (details in the entries below):** chargers (CC/CV),
+    chip loads from datasheets (ESP32-WROOM-32D, ESP32-C3-MINI-1, RP2040), regulators known by
+    datasheet pins (3-pin LDOs, RP2040 core) and by LCSC code (KiCad "LCSC" field → `Component.lcsc`),
+    changeover switches COM/NO/NC (`src/switchParts.ts`, Kailh CMI126603D08), engine false-convergence
+    fix (diode current test + B-source test, as ngspice), converter / chip heat warms its part,
+    thermal runaway on big pads fixed, real pad sizes (were ≥ 0.4 mm), keepouts / paste pads / NPTH
+    / logos not copper or parts, "NA"/"DNP" values not fitted, battery sockets are connectors,
+    bench supply clips at the most upstream input / connector, build-demos locks what it ships.
+  - **mod.io is live** (game 14808, public listing). Verified on deadboard.org: Browse mod.io lists
+    the Starter kit (only mod), Install opens it. Profile set: links (site, GitHub) and guide URL
+    (the admin "Support URL" = API `instructions_url` → https://deadboard.org/modding.html). The
+    modding guide links mod.io/g/deadboard, the tags and "bench check first" (`02855cf`).
+  - **Candidates for next time:**
+    1. **Umami re-read** (pending since 11-21 morning; recipe in the older entry below) — now also
+       read how players use the new ESP32 / controller boards (`board fixed`, `tests run` by board).
+    2. **Walkthrough videos for Antmicro and MNT:** readings may have moved (rebuild: capacitances,
+       Antmicro bench before F3, 1V8 rails powered, heat on regulators). Check before re-recording.
+    3. More controllers with simple buttons (external pull-ups), or model RP2040 / MCU GPIO pull-ups
+       as an explicit, labelled firmware assumption (Tadpole V1 buttons use internal pull-ups).
+    4. ESP32-POE (needs a PoE PD model, TX4138, TPS62A02A, ESP32-WROOM-32E sheet).
+    5. Open: unpowered ICs don't clamp their pins; Wi-Fi TX peaks (350 mA) not in DC (brown-out
+       challenge needs a transient load); Rust board +BATT floats with no battery; reference
+       designators render large on small boards; publishing official mods (Board notes…) on mod.io
+       would need the user's account.
+  - **Adding a real board (checklist):** pinned entry in `scripts/build-demos.ts` (`--src` dir with
+    `<demo id>` symlinks, `--only <id>`), `DEMO_REPAIRS`, `docs/calibration/<id>.csv`, `EXPECT` in
+    `test/demoboards.test.ts` (parts / conductors / meter snapshot measured, not guessed), Russian
+    for title / description (+ bench suffix) / hints, a board-notes pack (then `npm run
+    example-mod`, restore the starter kit, `npm run community`), `public/demos/NOTICE.txt`,
+    `NOTICE`, README licence line, `CHALLENGE_TRACK_IDS`. Check every partial-repair state, not only
+    faulted / repaired. Datasheets: `npm run parts -- datasheets <MPN>` works without the user.
+  - **Flaky:** `test/solve.test.ts` "100x pickAt" (25 ms) fails under machine load (load average
+    50+ here); passes on a quiet machine. `npm test` stops at the first failure: run suites singly.
+
+- **Earlier — device themes: real ESP32 boards (2026-11-21; all of it pushed with the evening
+  publish: `ea3d2db`, `2d56da9`, `33b59b3`, `f93f389`, `da835b7`, `72e8016`, `f633497`, `c17f6c8`).** The user wants whole device themes (ESP32, game
   controllers, graphics cards…) at every difficulty, still 1:1 with real devices. Agreed order:
   real products that are open hardware first (KiCad + redistributable licence); for branded
   devices a self-drawn version of a unit you own; GPU = a "GPU-style" board from datasheet
@@ -118,7 +166,7 @@ No reference hardware is available, so realism is validated against *design inte
   - **If they answer with a PR:** `patterns` = open RFC gap (field in knowledge packs feeding
     «Where to look?»); follow AGENTS.md "New item types / fields" steps; run the recall test.
 
-- **NEXT SESSION — start here (end of 2026-11-21, all pushed and live: code `be47b52`,
+- **Earlier START HERE (morning of 2026-11-21, all pushed and live: code `be47b52`,
   handoff after it).** Ask the user which thread; the default is the Umami re-read below.
   **iOS and desktop apps are on hold.**
   - **Live since 11-21 ~10:40 CET (deploy of `be47b52`):** First Light opens with "A broken
