@@ -132,6 +132,15 @@ function run() {
     assert(get(b, 'L1').value === 0.02 && get(b, 'L1').label === 'Inductor', 'an inductor is modelled by its DC resistance');
   }
 
+  // ---- a battery footprint is a cell only when the design says which; else it is the empty socket ----
+  {
+    const b = board(`${fp('BAT1', 'DW02S', '10 10 0', pad('1', '-1 0', 4) + pad('2', '1 0', 2))}
+      ${fp('BAT2', '18650', '20 10 0', pad('1', '-1 0', 4) + pad('2', '1 0', 2))}
+      ${fp('BT3', '3.7V LiPo', '30 10 0', pad('1', '-1 0', 4) + pad('2', '1 0', 2))}`);
+    assert(get(b, 'BAT1').kind === 'connector' && get(b, 'BAT2').kind === 'connector', 'a pack socket (JST "DW02S", "18650" holder) has nothing plugged in on the bench');
+    assert(get(b, 'BT3').kind === 'battery' && get(b, 'BT3').value === 3.7, 'a stated voltage makes it a cell');
+  }
+
   // ---- part bodies: SMD parts are chips, outlines come from the fabrication layer ----
   {
     const fab = '(fp_rect (start -3 -2) (end 7 2) (layer "F.Fab") (width 0.1))';

@@ -125,6 +125,31 @@ export function powerTreeElements(tree: PowerTree, node: (net: string) => string
       report.push({ ...base, modelled: true, why: src.why });
       continue;
     }
+    // Linear Li-ion charger (datasheet CC/CV): I_BAT = min(I_CHG (trickle below V_TRIKL), G·(V_FLOAT − V_BAT)),
+    // only above UVLO with the input above BAT; the input carries the same current (linear).
+    // CHRG / STAT: open drain, low while charging (above C/10).
+    if (src.kind === 'charger') {
+      const ch = src.charger!;
+      const out = node(src.output), inp = src.input ? node(src.input) : undefined;
+      const base = { ref: src.ref, kind: src.kind, output: src.output, input: src.input, vTarget: ch.vfloat, target: 'setpoint' as const };
+      if (!out || !inp) { report.push({ ...base, modelled: false, why: 'rail not in netlist' }); continue; }
+      if (ch.ichg === null) { report.push({ ...base, modelled: false, why: 'PROG open: the charger is shut down (datasheet)' }); continue; }
+      k++;
+      const id = `${src.ref}_${k}`.replace(/[^A-Za-z0-9_]/g, '_');
+      const on = `${s(`V(${inp})-${ch.uvlo}`, 10)}*${s(`V(${inp})-V(${out})-${ch.headroom}`, 50)}`;
+      const icc = `${ch.ichg.toExponential(4)}*(${ch.trickleFrac}+${(1 - ch.trickleFrac).toFixed(3)}*${s(`V(${out})-${ch.trickleV}`, 20)})`;
+      const iout = `min(${icc},max(20*(${ch.vfloat}-V(${out})),0))*${on}`;
+      elements.push(
+        { kind: 'B', name: `B${id}_OUT`, n: ['0', out], mode: 'I', expr: iout, note: `${src.ref} charger → ${src.output} ${ch.vfloat} V, ${(ch.ichg * 1e3).toFixed(0)} mA` },
+        { kind: 'B', name: `B${id}_IN`, n: [inp, '0'], mode: 'I', expr: iout, note: `${src.ref} input current` },
+      );
+      if (ch.status && node(ch.status)) {
+        const st = node(ch.status)!;
+        elements.push({ kind: 'B', name: `B${id}_ST`, n: [st, '0'], mode: 'I', expr: `V(${st})/60*${s(`(${iout})/${ch.ichg.toExponential(4)}-0.1`, 50)}`, note: `${src.ref} CHRG open drain (low while charging)` });
+      }
+      report.push({ ...base, modelled: true, why: src.why });
+      continue;
+    }
     if (!['buck', 'boost', 'ldo', 'load-switch'].includes(src.kind)) continue;
     const { v, how } = targetVoltage(src, tree, opts);
     const base = { ref: src.ref, kind: src.kind, output: src.output, input: src.input, vTarget: v, target: how, divider: dividerCheck(src) };

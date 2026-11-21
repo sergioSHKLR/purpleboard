@@ -137,6 +137,51 @@ async function run() {
     near(oe.voltage(oop.x, node.get('+1.8V')!), 1.8, 0.05, 'tied-enable LDO regulates');
   }
 
+  // ---- linear Li-ion charger (TP4054, datasheet CC/CV): R_PROG sets the current, CHRG lights ----
+  {
+    const board = (cell: number | null) => {
+      const cs: Component[] = [
+        part('J1', 'battery', ['+5V', 'GND'], 5, { '+': '1', '-': '2' }),
+        part('U1', 'ic', ['Net-(U1-CHRGb)', 'GND', 'VBAT', '+5V', 'Net-(U1-PROG)']),   // TP4054 pinout: 1 CHRG, 2 GND, 3 BAT, 4 VCC, 5 PROG
+        part('R5', 'resistor', ['Net-(U1-PROG)', 'GND'], 10e3, { '1': '1', '2': '2' }), // 1000 V / 10 kΩ = 100 mA
+        part('C4', 'capacitor', ['VBAT', 'GND'], 1e-6, { '1': '1', '2': '2' }),
+        part('R3', 'resistor', ['+5V', 'Net-(D9-A)'], 2200, { '1': '1', '2': '2' }),
+        part('D9', 'led', ['Net-(D9-A)', 'Net-(U1-CHRGb)'], 0, { A: '1', K: '2' }),
+        ...(cell !== null ? [part('BT1', 'battery', ['VBAT', 'GND'], cell, { '+': '1', '-': '2' })] : []),
+      ];
+      cs.find((c) => c.ref === 'U1')!.label = 'TP4054-42-SOT25-R';
+      cs.find((c) => c.ref === 'D9')!.color = 'yellow';
+      return { w: 200, h: 30, thickness: 1.6, components: cs, traces: [], vias: [], blobs: [], jumpers: [], zones: [], silk: [], texts: [], nextId: 1 } as Board;
+    };
+    const solve = (b: Board) => {
+      const c = buildConnectivity(b), t = discoverPowerTree(b, c);
+      const nl = boardToCircuit(b, c, { unmodeled: 'omit' });
+      const nd = new Map<string, string>();
+      for (const [net, n] of nl.netNode) nd.set(c.netNames[net], n);
+      const pm = powerTreeElements(t, (n) => nd.get(n));
+      nl.circuit.elements.push(...pm.elements);
+      const e = new Engine(nl.circuit, { gshunt: 1e-12 });
+      const op = e.op();
+      assert(op.converged, 'charger board converges');
+      return { t, pm, v: (n: string) => e.voltage(op.x, nd.get(n)!)!, cell: op.branches.get('i(VBT1)') ?? NaN, led: op.devices.get('D9')!.i };
+    };
+    const full = solve(board(null));
+    const ch = full.t.sources.find((s) => s.kind === 'charger');
+    assert(ch?.ref === 'U1' && ch.input === '+5V' && ch.output === 'VBAT' && ch.charger?.rprog === 'R5' && Math.abs(ch.charger.ichg! - 0.1) < 1e-9, `TP4054 found from the library with R_PROG: ${JSON.stringify(ch)}`);
+    near(full.v('VBAT'), 4.2, 0.01, 'no battery: BAT sits at the float voltage');
+    assert(full.led < 1e-4, 'no battery: CHRG LED off');
+    const cc = solve(board(3.7));
+    near(cc.cell, 0.1, 0.003, 'a 3.7 V cell charges at 1000 V / R_PROG');
+    assert(cc.led > 1e-3, `CHRG LED lights while charging (${(cc.led * 1e3).toFixed(2)} mA)`);
+    near(solve(board(2.5)).cell, 0.012, 0.002, 'below 2.9 V: trickle at 12 % (60 of 500 mA)');
+    const cv = solve(board(4.18)).cell; // CV stage 0.05 Ω (model choice), cell resistance in series: tapers, does not stop
+    assert(cv > 0.01 && cv < 0.095, `near the float voltage the current tapers below the set 100 mA (${(cv * 1e3).toFixed(1)} mA)`);
+    const open = board(3.7);
+    toggleCold(open.components.find((c) => c.ref === 'R5')!, 0);
+    const off = solve(open);
+    assert(Math.abs(off.cell) < 1e-4 && off.pm.report.some((r) => r.ref === 'U1' && !r.modelled && /PROG open/.test(r.why)), 'R_PROG open: the charger shuts down');
+  }
+
   // ---- power-state sequencing (design intent from state names) ----
   assert(expectedUp('PP3V3_S0', 'S5') === false && expectedUp('PP3V3_S0', 'S0') === true && expectedUp('PP3V42_G3H', 'G3H') === true, 'expected-up from state names');
   const s5 = enablesForState(tree, 'S5').map((d) => d.net), s0 = enablesForState(tree, 'S0').map((d) => d.net);

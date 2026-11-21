@@ -1,6 +1,6 @@
 // Device library: provenance rules, and the fitted SPICE models reproduce the datasheet numbers
 // they were fitted from (on-resistance, body diode, forward voltage), run through the engine.
-import { allDevices, deviceSpec, type DiodeSpec, type MosSpec } from '../src/spice/devicelib';
+import { allDevices, deviceSpec, findDevice, type DiodeSpec, type MosSpec } from '../src/spice/devicelib';
 import { parseSpice } from '../src/spice/netlist';
 import { Engine } from '../src/spice/engine';
 import { allRegulators, findRegulator } from '../src/spice/regulators';
@@ -90,7 +90,12 @@ function run() {
   // regulators: longest part-number match, datasheet source on every entry
   assert(findRegulator('LMR16006YQ3')?.fixedOut === 3.3 && findRegulator('LMR16006XDDCR')?.vref === 0.765, 'fixed LMR16006YQ3 vs adjustable LMR16006');
   assert(findRegulator('TLV62568DBV')?.vref === 0.6 && findRegulator('SIC477ED-T1-GE3')?.vref === 0.8 && !findRegulator('LM317'), 'board values match by prefix only');
-  assert(allRegulators().every((r) => /Rev|rev|20\d\d/.test(r.source) && (r.vref ?? r.fixedOut ?? r.ilim) !== undefined), 'every regulator cites its datasheet and carries data');
+  assert(allRegulators().every((r) => /Rev|rev|20\d\d/.test(r.source) && (r.vref ?? r.fixedOut ?? r.ilim ?? r.charger) !== undefined), 'every regulator cites its datasheet and carries data');
+  // Olimex-style values: part number, then a package / reel note; JEDEC 1N types with a maker's package code
+  assert(findRegulator('SY8089AAAC(SOT23-5)')?.vref === 0.6 && findRegulator('HX6211A332MR')?.fixedOut === 3.3, 'regulators by board value');
+  assert(findRegulator('TP4054-42-SOT25-R')?.charger?.kprog === 1000 && findRegulator('BL4054B-42TPRN(SOT23-5)')?.charger?.vfloat === 4.2, 'chargers by board value');
+  assert(findDevice('1N5819S4/SOD123')?.mpn === '1N5819' && findDevice('1N5819HW-7-F')?.mpn === '1N5819' && findDevice('1N4148WS')?.mpn === '1N4148WS', '1N types: package codes and notes stripped, own entries kept');
+  assert(findDevice('WPM2015-3/TR')?.mpn === 'WPM2015' && findDevice('IRLML6402TRPbF')?.mpn === 'IRLML6402', 'reel notes after a slash');
   console.log(`DEVICELIB TESTS PASSED (${devs.length} parts, ${verified} datasheet-verified with sources; ${checked} units: fitted RDS(on), body diode and VF match their datasheet points)`);
 }
 

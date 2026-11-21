@@ -401,6 +401,10 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
     if (kind === 'diode' && (new Set(pads.map((p) => p.name)).size > 2 || ESD_BIDIR.test(valText.trim()))) kind = 'ic';
     // a bare 2-pin power header on a simple board ("J1 5V") is that board's supply
     if (kind === 'connector' && pads.length === 2 && /^(J|P)\d/i.test(ref) && /^\+?\d+(\.\d+)?v$|^(5v|3v3|vcc|vin|pwr|dc)$/i.test(valText.trim())) kind = 'battery';
+    // A battery footprint is a cell only when the design says which: a coin / RTC cell, or a stated
+    // voltage ("3.7V"). Otherwise ("DW02S", "JST-PH", "18650", "LiPo") it is the socket the pack
+    // plugs into, and on the bench nothing is plugged in.
+    if (kind === 'battery' && !COIN_CELL.test(`${valText} ${fpName}`) && !/\d(\.\d+)?\s*V(\b|$)/i.test(valText)) kind = 'connector';
     const pins: Record<string, string> = {};
     if (pads.length >= 2) {
       if (kind === 'led' || kind === 'diode') {

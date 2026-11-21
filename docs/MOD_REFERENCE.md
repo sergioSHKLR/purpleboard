@@ -349,6 +349,9 @@ Patch an entry by its address. Numbers are the datasheet quantities; see [Device
 | `official-solvers/devices/bss138pw` | BSS138PW | nmos | yes |
 | `official-solvers/devices/pmv50enea` | PMV50ENEA | nmos | yes |
 | `official-solvers/devices/pmv50epea` | PMV50EPEA | pmos | yes |
+| `official-solvers/devices/irlml6402` | IRLML6402 | pmos | yes |
+| `official-solvers/devices/wpm2015` | WPM2015 | pmos | yes |
+| `official-solvers/devices/1n5819` | 1N5819 | schottky | yes |
 | `official-solvers/devices/si7850dp` | SI7850DP | nmos | yes |
 | `official-solvers/devices/si7461dp` | SI7461DP | pmos | yes |
 | `official-solvers/devices/bat46wj` | BAT46WJ | schottky | yes |

@@ -173,6 +173,18 @@ const DEVICES: DeviceDef[] = [
     source: 'Nexperia PMV50EPEA product data sheet, 30 Jun 2016 (no revision number printed)', thetaJA: 227,
     note: 'Pinout 1 G, 2 S, 3 D. θJA typical in free air on the standard footprint (261 max)',
     units: [{ kind: 'pmos', vth: 2.0, rds: [[10, 0.035], [4.5, 0.049]], body: [0.75, 4], caps: [793e-12, 84e-12, 134e-12], pins: { G: '1', S: '2', D: '3' } }] },
+  { mpn: 'IRLML6402', description: 'P-MOSFET −20 V (battery power path)', pkg: 'SOT-23 (Micro3)', verified: true,
+    source: 'International Rectifier IRLML6402PbF datasheet, April 28, 2014 (no revision number printed)', thetaJA: 75,
+    note: 'Pinout 1 G, 2 S, 3 D. VGS(th) typical 0.55 V; RDS(on) typical 50 mΩ at 4.5 V, 80 mΩ at 2.5 V; body diode only a 1.2 V maximum in the table: 0.76 V at 1 A read from Fig. 7 at 25 °C (about ±20 mV). θJA typical (100 max)',
+    units: [{ kind: 'pmos', vth: 0.55, rds: [[4.5, 0.050], [2.5, 0.080]], body: [0.76, 1], caps: [633e-12, 110e-12, 145e-12], pins: { G: '1', S: '2', D: '3' } }] },
+  { mpn: 'WPM2015', description: 'P-MOSFET −20 V (battery power path)', pkg: 'SOT-23', verified: true,
+    source: 'Will Semiconductor WPM2015 datasheet, Rev. 1.2, Mar 2018', thetaJA: 120,
+    note: 'Pinout 1 G, 2 S, 3 D (pin drawing). VGS(th) typical 0.62 V; RDS(on) typical 81 mΩ at 4.5 V, 103 mΩ at 2.5 V; body diode typical 0.74 V at 0.9 A. θJA typical, steady state, mounting a (155 max)',
+    units: [{ kind: 'pmos', vth: 0.62, rds: [[4.5, 0.081], [2.5, 0.103]], body: [0.74, 0.9], caps: [534e-12, 54e-12, 62e-12], pins: { G: '1', S: '2', D: '3' } }] },
+  { mpn: '1N5819', description: 'Schottky 40 V 1 A (JEDEC 1N5819, SOD-123 versions)', pkg: 'SOD-123', verified: true,
+    source: 'Diodes Incorporated 1N5819HW, DS30217 Rev. 21-2, April 2023', thetaJA: 225,
+    note: 'One maker\'s 1N5819: boards that name another maker\'s SOD-123 1N5819 (e.g. "1N5819S4") get these numbers too, same JEDEC type, not checked part by part. VF typical 0.32 V at 0.1 A and 0.45 V at 1 A (table); 1 mA and 10 mA read from Fig. 1 at 25 °C (about ±20 mV). CJO ≈ the 0 V end of Fig. 3 (50 pF typical at 4 V). BV is the 40 V rating',
+    units: [{ kind: 'schottky', vf: [[0.15, 0.001], [0.225, 0.01], [0.32, 0.1], [0.45, 1]], bv: [40, 1e-3], cj: 100e-12, pins: { K: '1', A: '2' } }] },
   { mpn: 'SI7850DP', description: 'N-MOSFET 60 V', pkg: 'PowerPAK SO-8 single', verified: true,
     source: 'Vishay Si7850DP, doc. 71625 Rev. E, 09-Feb-09', thetaJA: 22,
     note: 'VGS(th) has no typical (1–3 V): midpoint used. Capacitances only as a graph: omitted. Pinout 1-3 S, 4 G, 5-8 D. θJA typical, t ≤ 10 s on 1" × 1" FR4 (58 °C/W steady state)',
@@ -218,7 +230,10 @@ const lookup = (k: string) => overlay?.get(k) ?? byKey.get(k);
 export function findDevice(partNumber: string | undefined): DeviceDef | undefined {
   if (!partNumber) return undefined;
   // packing / ordering codes: Nexperia ",115", Vishay "-T1-E3" / "-T1-GE3", Apple "_SBMS001"
-  let s = partNumber.trim().toUpperCase().replace(/_SBMS\d+$/, '').replace(/-HF$/, '').replace(/,\d{3}$/, '').replace(/(-T\d)?-G?E3$/, '');
+  // a package / reel note after the number: "WPM2015-3/TR", "1N5819S4/SOD123", "BAT54C(SOT23-3)"
+  let s = partNumber.trim().toUpperCase().replace(/\s*[/(].*$/, '').replace(/_SBMS\d+$/, '').replace(/-HF$/, '').replace(/,\d{3}$/, '').replace(/(-T\d)?-G?E3$/, '');
+  // JEDEC 1N types carry the maker's package code: 1N5819HW, 1N5819S4, 1N4148WS → 1N5819, 1N4148
+  if (!lookup(s) && /^1N\d{4}[A-Z]{1,3}\d?(-\d+-?F?)?$/.test(s)) { const base = /^1N\d{4}/.exec(s)![0]; if (lookup(base)) return lookup(base); }
   for (let k = 0; k < 4; k++) {
     const d = lookup(s) ?? (s.length >= 8 ? lookup(s.replace(/[RX]$/, '')) : undefined); // Nexperia reel letter (PMV50EPEAR)
     if (d) return d;

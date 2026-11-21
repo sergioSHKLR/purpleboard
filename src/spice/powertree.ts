@@ -5,6 +5,7 @@ import type { Board, Component } from '../types';
 import type { Conn } from '../connectivity';
 import { findDevice, type MosSpec } from './devicelib';
 import { rolePadName } from '../model';
+import { findRegulator } from './regulators';
 
 // ---------------- net semantics ----------------
 
@@ -83,7 +84,7 @@ export function powerStateRank(name: string): number | undefined {
 
 // ---------------- power tree ----------------
 
-export type ConverterKind = 'buck' | 'boost' | 'ldo' | 'load-switch' | 'fet-switch' | 'diode-or' | 'pass-through' | 'external';
+export type ConverterKind = 'buck' | 'boost' | 'ldo' | 'charger' | 'load-switch' | 'fet-switch' | 'diode-or' | 'pass-through' | 'external';
 
 export interface PowerSource {
   kind: ConverterKind;
@@ -106,6 +107,8 @@ export interface PowerSource {
   why: string;
   /** fet-switch: P-channel (conducts with gate pulled below source). */
   pmos?: boolean;
+  /** charger: datasheet constants and the charge current its R_PROG sets (null: PROG open = shut down). */
+  charger?: { vfloat: number; ichg: number | null; prog: string; rprog?: string; uvlo: number; headroom: number; trickleV: number; trickleFrac: number; status?: string };
 }
 
 export interface PowerTree {
@@ -207,7 +210,7 @@ export function discoverPowerTree(board: Board, conn: Conn, opts: PowerTreeOptio
     const sw = s1 > s2 ? n1 : n2, rail = s1 > s2 ? n2 : n1;
     // both ends switched (four-switch buck-boost, e.g. a charger's SW1 / SW2): the "rail" side has
     // power switches and no bulk capacitor. Not a buck; no model for it, so leave it out.
-    if (capsToGnd(rail) === 0 && (ix.pins.get(rail) ?? []).some((p) => p.c !== L && (isFet(p.c) || prefixOf(p.c.ref) === 'D'))) continue;
+    if (netRole(rail) !== 'rail' && capsToGnd(rail) === 0 && (ix.pins.get(rail) ?? []).some((p) => p.c !== L && (isFet(p.c) || prefixOf(p.c.ref) === 'D'))) continue;
     const swPins = (ix.pins.get(sw) ?? []).filter((p) => p.c !== L);
     // controller: an IC on the switch node, or the IC driving the gates of FETs on the switch node
     const fets = [...new Set(swPins.filter((p) => isFet(p.c)).map((p) => p.c))];
@@ -265,6 +268,27 @@ export function discoverPowerTree(board: Board, conn: Conn, opts: PowerTreeOptio
       vTarget: null, vSource: 'input', confidence: findDevice(opts.partNumbers?.[q.ref]) ? 'high' : 'medium',
       why: `${q.ref} ${pm ? 'P' : 'N'}-FET between ${inp} and ${out}, gate ${r.G}`,
     });
+  }
+
+  // 3a. Linear Li-ion chargers the part library knows: pins from the datasheet, the charge current
+  //     from the board's R_PROG (PROG to ground). The battery side becomes a power net.
+  for (const u of comps.filter(isIc)) {
+    const ch = findRegulator(u.label)?.charger;
+    if (!ch) continue;
+    const nets = netsOf(u);
+    const inp = nets.get(ch.pins.in), bat = nets.get(ch.pins.bat), prog = nets.get(ch.pins.prog);
+    if (!inp || !bat || !prog || inp === bat) continue;
+    const rprog = (ix.pins.get(prog) ?? []).map((p) => p.c).find((c) => prefixOf(c.ref) === 'R' && [...netsOf(c).values()].some((n) => isGroundName(n)));
+    const ohms = rprog ? opts.ohms?.[rprog.ref] ?? (rprog.kind === 'resistor' && !rprog.valueGuessed ? rprog.value : undefined) : undefined;
+    const ichg = ohms && ohms > 0 ? ch.kprog / ohms : null;
+    const status = ch.pins.stat ? nets.get(ch.pins.stat) : undefined;
+    inferred.add(inp); inferred.add(bat);
+    sources.push({
+      kind: 'charger', ref: u.ref, parts: [], input: inp, output: bat, vTarget: ch.vfloat, vSource: 'unknown', confidence: 'high',
+      charger: { vfloat: ch.vfloat, ichg, prog, rprog: rprog?.ref, uvlo: ch.uvlo, headroom: ch.headroom, trickleV: ch.trickleV, trickleFrac: ch.trickleFrac, status: status && !isGroundName(status) ? status : undefined },
+      why: `${u.ref} ${u.label} charges ${bat} from ${inp}: ${ichg !== null ? `${(ichg * 1e3).toFixed(0)} mA set by ${rprog!.ref}` : 'PROG open (shut down)'}, ${ch.vfloat} V float`,
+    });
+    produced.add(bat);
   }
 
   // 3. ICs passing one rail to another: LDOs and integrated load switches (small pin count, enable pin).
