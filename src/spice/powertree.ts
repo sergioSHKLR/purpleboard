@@ -329,7 +329,7 @@ export function discoverPowerTree(board: Board, conn: Conn, opts: PowerTreeOptio
       if (!input || (!en && !pg && !isSwitch)) continue;
       // the output rail must be "owned": ≥1 decoupling cap on it, and this IC has few rails
       sources.push({
-        kind: isSwitch ? 'load-switch' : 'ldo', ref: u.ref, parts: [], input, output: out, enable: en, pgood: pg,
+        kind: isSwitch ? 'load-switch' : 'ldo', ref: u.ref, parts: [], input, output: out, enable: en === tied ? undefined : en, pgood: pg,
         vTarget: isSwitch ? null : vo, vSource: isSwitch ? 'input' : vo !== null ? 'rail-name' : 'unknown',
         confidence: en ? 'medium' : 'low', why: `${u.ref} (${nets.length} nets) has ${input} and ${out}${en === tied ? ', EN tied to the input' : en ? `, enable ${en}` : ''}`,
       });

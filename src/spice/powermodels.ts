@@ -166,8 +166,10 @@ export function powerTreeElements(tree: PowerTree, node: (net: string) => string
     // controller emulated, it follows the controller's decision for the state.
     const ctl = !en && src.enable ? opts.enableAsserted?.(src.enable) : undefined;
     const enExpr = en ? (activeLow ? s(`${vth}-V(${en})`, 25) : s(`V(${en})-${vth}`, 25)) : ctl === false ? '0' : '1';
-    // UVLO: input must exceed the target (+ headroom) for bucks/LDOs, 2.5 V for boosts and switches
-    const uvloV = src.kind === 'boost' || src.kind === 'load-switch' ? 2.5 : Math.max(2.5, (v ?? 0) * 1.05 + 0.2);
+    // UVLO (estimate): input must exceed the target (+ headroom) for bucks/LDOs, 2.5 V for boosts and
+    // switches. The rail's nominal voltage when its name gives one: a wrong feedback part moves the
+    // set point, not the chip's lockout (a buck asked for more than its input runs at full duty)
+    const uvloV = src.kind === 'boost' || src.kind === 'load-switch' ? 2.5 : Math.max(2.5, (src.vTarget ?? v ?? 0) * 1.05 + 0.2);
     const uvlo = s(`V(${inp})-${uvloV.toFixed(3)}`, 10);
     const ss = `SS_${id}`;
     // soft-start state: dV(ss)/dt = (EN·UVLO − V(ss))/τ via a 1 µF cap fed by a B current source
@@ -177,7 +179,8 @@ export function powerTreeElements(tree: PowerTree, node: (net: string) => string
       { kind: 'R', name: `R${id}_SS`, n: [ss, '0'], value: 1e9 },
     );
     const g = src.kind === 'load-switch' ? 1 / 0.03 : src.kind === 'ldo' ? 1 / 0.05 : 1 / 0.005;
-    const vset = src.kind === 'load-switch' ? `V(${inp})` : src.kind === 'ldo' ? `min(${v}, V(${inp})-0.15)` : `${v}`;
+    // a buck cannot rise above its input (100 % duty at most); LDO keeps its dropout
+    const vset = src.kind === 'load-switch' ? `V(${inp})` : src.kind === 'ldo' ? `min(${v}, V(${inp})-0.15)` : src.kind === 'buck' ? `min(${v}, V(${inp}))` : `${v}`;
     const err = `(${vset}-V(${out}))`;
     const lim = opts.limits?.[src.ref] ?? CURRENT_LIMIT[src.kind as keyof typeof CURRENT_LIMIT];
     // output current limit (a converter into a short holds its limit; it does not deliver amps unbounded)

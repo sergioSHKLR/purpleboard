@@ -141,6 +141,13 @@ function run() {
     assert(get(b, 'BT3').kind === 'battery' && get(b, 'BT3').value === 3.7, 'a stated voltage makes it a cell');
   }
 
+  // ---- board text keeps the designer's font height (small boards use < 1 mm) ----
+  {
+    const b = board(`(gr_text "GPIO23" (at 10 10) (layer "F.SilkS") (effects (font (size 0.762 0.762) (thickness 0.15))))
+      (gr_text "REV A" (at 20 10) (layer "F.SilkS"))`);
+    assert(b.texts.find((x) => x.text === 'GPIO23')?.size === 0.762 && b.texts.find((x) => x.text === 'REV A')?.size === 1.4, 'text height from (effects (font (size …))), 1.4 mm when the file gives none');
+  }
+
   // ---- part bodies: SMD parts are chips, outlines come from the fabrication layer ----
   {
     const fab = '(fp_rect (start -3 -2) (end 7 2) (layer "F.Fab") (width 0.1))';

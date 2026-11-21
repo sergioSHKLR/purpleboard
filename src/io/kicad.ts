@@ -294,7 +294,10 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
     if (!at) continue;
     const txt = str(g, 1);
     if (!txt) continue;
-    board.texts.push({ at: toWorld(flt(at, 1), flt(at, 2)), text: txt, size: 1.4, side: layer, rot: flt(at, 3, 0) });
+    // the designer's font height (KiCad: (effects (font (size h w)))); small boards use 0.6–1 mm
+    const fontSize = kid(kid(kid(g, 'effects'), 'font'), 'size');
+    const size = fontSize ? flt(fontSize, 1, 1.4) : 1.4;
+    board.texts.push({ at: toWorld(flt(at, 1), flt(at, 2)), text: txt, size: size > 0 ? size : 1.4, side: layer, rot: flt(at, 3, 0) });
   }
 
   // copper pours: every filled island on every layer (KiCad 7+ zones may span several layers)
@@ -416,8 +419,9 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
         const negPad = pads.find((p) => p.name === '-' || p.name === '2')?.name ?? pads[1].name;
         pins['+'] = posPad; pins['-'] = negPad;
       } else {
-        pins['1'] = pads[0].name;
-        pins['2'] = pads[1].name;
+        // by pad name when the footprint numbers them (files may list pad 2 first)
+        pins['1'] = pads.find((p) => p.name === '1')?.name ?? pads[0].name;
+        pins['2'] = pads.find((p) => p.name === '2')?.name ?? pads.find((p) => p.name !== pins['1'])!.name;
       }
     } else if (pads.length === 1) {
       pins['1'] = pads[0].name;

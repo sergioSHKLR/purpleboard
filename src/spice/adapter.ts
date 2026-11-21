@@ -269,7 +269,10 @@ export function regulatorData(board: Board, tree: ReturnType<typeof discoverPowe
     if (r.fixedOut !== undefined && !s.divider) setpoints[s.output] = r.fixedOut;
     else if (r.vref !== undefined && s.divider) {
       const v = +(r.vref / s.divider.ratio).toFixed(4);
-      if (s.vTarget === null || Math.abs(v - s.vTarget) / s.vTarget <= 0.05) setpoints[s.output] = v;
+      // resistor values the design states are what is fitted (a wrong part changes the rail, as on
+      // a real board); guessed values must agree with the rail name
+      const stated = [s.divider.top, s.divider.bottom].every((ref) => { const p = board.components.find((x) => x.ref === ref); return p && !p.valueGuessed; });
+      if (stated || s.vTarget === null || Math.abs(v - s.vTarget) / s.vTarget <= 0.05) setpoints[s.output] = v;
     }
   }
   return { setpoints, limits };

@@ -124,7 +124,7 @@ async function run() {
     const buck = src('+3.3V');
     assert(buck?.kind === 'buck' && buck.ref === 'U2' && buck.input === 'Net-(D2-K)' && buck.feedback === 'Net-(U2-FB)' && buck.divider?.rTop === 220e3, `buck with an unnamed input and auto-named FB: ${JSON.stringify(buck)}`);
     const ldo = src('+1.8V');
-    assert(ldo?.kind === 'ldo' && ldo.ref === 'U3' && ldo.input === 'Net-(C6-Pad1)' && ldo.enable === 'Net-(C6-Pad1)', `LDO with EN tied to VIN: ${JSON.stringify(ldo)}`);
+    assert(ldo?.kind === 'ldo' && ldo.ref === 'U3' && ldo.input === 'Net-(C6-Pad1)' && ldo.enable === undefined && /EN tied/.test(ldo.why), `LDO with EN tied to VIN (always on, not a control net): ${JSON.stringify(ldo)}`);
     const onl = boardToCircuit(ob, oc, { unmodeled: 'omit' });
     const node = new Map<string, string>();
     for (const [net, nd] of onl.netNode) node.set(oc.netNames[net], nd);

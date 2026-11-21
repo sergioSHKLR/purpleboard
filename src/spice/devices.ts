@@ -340,10 +340,18 @@ export class Diode extends Device {
     }
     return [id, gd];
   }
+  private idOld = 0;
+  private gdOld = 0;
   load(ctx: Ctx) {
     const { x } = ctx;
     if (this.ai !== this.a) stampG(ctx.A, this.a, this.ai, 1 / this.P.RS);
     let vd = V(x, this.ai) - V(x, this.k);
+    // current convergence (as ngspice DIOconvTest): the last linearisation must predict the current
+    // at the new voltage. Node voltages alone can look settled while a junction in forward
+    // conduction or breakdown is still far off (reltol of a 40 V node exceeds n·Vt).
+    const cdhat = this.idOld + this.gdOld * (vd - this.vdOld);
+    const [cdNow] = this.iv(vd);
+    if (Math.abs(cdhat - cdNow) > 1e-3 * Math.max(Math.abs(cdhat), Math.abs(cdNow)) + 1e-12) ctx.noncon = true;
     let lim = false;
     if (isFinite(this.P.BV) && vd < Math.min(0, -this.P.BV + 10 * this.nvt)) {
       // limit in breakdown on the mirrored junction voltage
@@ -356,6 +364,7 @@ export class Diode extends Device {
     if (lim) ctx.noncon = true;
     this.vdOld = vd;
     let [id, gd] = this.iv(vd);
+    this.idOld = id; this.gdOld = gd;
     gd += ctx.gmin; id += ctx.gmin * vd;
     stampNL(ctx, this.ai, id, [[gd, this.ai, this.k, vd]]);
     stampNL(ctx, this.k, -id, [[-gd, this.ai, this.k, vd]]);
@@ -575,6 +584,10 @@ export class BSource extends Device {
     const val = v * (this.mode === 'V' ? ctx.srcFact : 1);
     let lin = val;
     for (let k = 0; k < d.length; k++) lin -= d[k] * ctx.x[this.f.vars[k]];
+    // convergence test on the source's own value (as ngspice ASRCconvTest): node voltages can
+    // repeat while a nonlinear expression is still swinging (an oscillating iteration that
+    // lands twice in the same place), which is not a solution
+    if (Math.abs(val - this.last) > 1e-3 * Math.max(Math.abs(val), Math.abs(this.last)) + (this.mode === 'V' ? 1e-6 : 1e-9)) ctx.noncon = true;
     this.last = val;
     if (this.mode === 'V') {
       stampBranch(ctx.A, this.p, this.m, this.j);
