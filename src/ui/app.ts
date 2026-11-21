@@ -6,7 +6,7 @@ import { OFFICIAL_METER, buildMeterRegistry, type MeterRegistry } from '../mods/
 import { buildRuleSet, type RuleSet } from '../mods/rules';
 import type { Candidate } from '../mods/rules-engine';
 import { dist, transform4 } from '../geom';
-import { buildConnectivity, type Conn } from '../connectivity';
+import { buildConnectivity, netsNear, type Conn } from '../connectivity';
 import { BAND_RGB, GOLD_RGB, KIND_NAMES, LED_COLORS, e12Values, fmtOhm, fmtSI, marking, padWorld, parseValue, resistorBands } from '../model';
 import { addBlob, addJumper, cutTrace, installPart, removeBlob, removeJumper, removePart, toggleCold } from '../ops';
 import { LED_ON_I, measureDiode, measureOhms, type Sim } from '../sim';
@@ -258,7 +258,11 @@ export class PcbApp {
   private faults: FaultRegistry | null = null;
   /** Diagnostic rules (official + running mods) and the last «Where to look?» answer. */
   private rules: RuleSet = buildRuleSet([]);
-  private lookHere: { forScenario: Scenario; candidates: Candidate[] } | null = null;
+  /** «Where to look?» for the latest test run: null candidates while the comparison runs. */
+  private lookHere: { forVerify: VerifyResult; candidates: Candidate[] | null } | null = null;
+  private lookWorker: Worker | null | undefined;
+  private lookSeq = 0;
+  private lookPending = new Map<number, (r: { candidates?: Candidate[]; error?: string } | null) => void>();
   /** Meters (official, patched, from mods) and the one in use (address, remembered). */
   private meters: MeterRegistry | null = null;
   private meterChoice = (() => { try { return localStorage.getItem('deadboard_meter') ?? OFFICIAL_METER; } catch { return OFFICIAL_METER; } })();
@@ -1158,6 +1162,18 @@ export class PcbApp {
         this.gotoRef(req.ref);
         return true;
       }
+      case 'ui.highlight': {
+        // by id, or by name (an empty name would match the unnamed nets)
+        const net = typeof req.net === 'number' ? (req.net >= 0 && req.net < this.conn.netCount ? req.net : -1) : req.net ? this.conn.netNames.indexOf(req.net) : -1;
+        if (net < 0) return false;
+        this.gotoNet(net);
+        return true;
+      }
+      case 'board.netsNear': {
+        const c = this.board.components.find((x) => x.ref === req.ref);
+        if (!c) return [];
+        return netsNear(this.conn, c, req.mm).slice(0, 100).map((x) => ({ net: this.conn.netNames[x.net] || x.net, mm: Math.round(x.mm * 100) / 100, pad: x.pad }));
+      }
       case 'ui.say': {
         const now = Date.now();
         if (now - (this.lastSay.get(modId) ?? 0) < 1000) return null; // one a second
@@ -1481,34 +1497,69 @@ export class PcbApp {
   private lookHereHtml(sc: Scenario): string {
     const v = this.lastVerify;
     const ref = referenceBoard(sc);
-    if (!v || v.allPassed || !ref || this.board.components.length > 200) return ''; // big boards: too slow to compare here
-    const got = this.lookHere?.forScenario === sc ? this.lookHere.candidates : null;
+    if (!v || v.allPassed || !ref) return '';
+    const mine = this.lookHere?.forVerify === v ? this.lookHere : null;
+    const got = mine?.candidates ?? null;
+    const busy = !!mine && !got;
     return `
       <div class="card look-card">
-        <div class="card-title"><span>${t('Where to look?')}</span>${got ? '' : `<button class="btn sm" id="btn-look-here">${t('Suggest')}</button>`}</div>
+        <div class="card-title"><span>${t('Where to look?')}</span>${got ? '' : `<button class="btn sm" id="btn-look-here" ${busy ? 'disabled' : ''}>${t('Suggest')}</button>`}</div>
         ${got ? (got.length ? got.slice(0, 3).map((c, i) => `
           <div class="look-cand">
             <div><b>${i + 1}.</b> <button class="kn-ref mono" data-kn-ref="${this.esc(c.ref)}" title="${t('Show on the board')}">${this.esc(c.ref)}</button> <span class="muted">· ${this.esc(c.reasons[0].observation)}</span></div>
             <div class="text-2">${this.esc(c.reasons.slice().sort((a, b) => b.confirm.length - a.confirm.length)[0].confirm)}</div>
             ${c.reasons.length > 1 ? `<details class="mod-changes"><summary>${t('Why ({n} rules)', { n: c.reasons.length })}</summary><ul>${c.reasons.map((r) => `<li><span class="mono">${this.esc(r.rule)}</span>: ${this.esc(r.observation)}</li>`).join('')}</ul></details>` : ''}
           </div>`).join('') : `<div class="muted">${t('No suggestion: what the bench shows doesn\'t match any rule. Measure the rails and compare with the notes.')}</div>`)
-        : `<div class="muted">${t('Compares what the bench shows with the working board and ranks the parts worth measuring first. It can give the fault away.')}</div>`}
+        : busy ? `<div class="muted">${t('Comparing with the working board…')}</div>`
+        : `<div class="muted">${t('Compares what the bench shows with the working board and ranks the parts worth measuring first. It can give the fault away.')}${this.board.components.length > 200 ? ` ${t('On a board this size it takes a few seconds.')}` : ''}</div>`}
       </div>`;
   }
 
   private async suggestWhereToLook() {
-    const sc = this.activeScenario;
+    const sc = this.activeScenario, v = this.lastVerify;
     const ref = referenceBoard(sc);
-    if (!ref) return;
+    if (!ref || !v) return;
+    this.lookHere = { forVerify: v, candidates: null };
+    this.renderMissionTab();
     try {
-      const { observe, rankCandidates } = await import('../mods/rules-engine');
-      if (this.activeScenario !== sc) return;
-      const obs = observe(structuredClone(this.board), ref, sc.objectives, sc.solver ?? 'spice');
-      this.lookHere = { forScenario: sc, candidates: rankCandidates(obs, this.board, this.rules.rules) };
+      const candidates = await this.rankWhereToLook(this.board, ref, sc.objectives, sc.solver ?? 'spice');
+      if (this.lastVerify !== v || this.lookHere?.forVerify !== v) return; // tests ran again (or the rules changed) meanwhile
+      this.lookHere = { forVerify: v, candidates };
     } catch (e) {
+      if (this.lookHere?.forVerify === v) this.lookHere = null;
       this.toast(t('Could not compare with the working board: {error}', { error: e instanceof Error ? e.message : String(e) }), 'danger');
     }
     this.renderMissionTab();
+  }
+
+  /** Observe + rank in a worker (seconds on a big board); on the main thread where workers fail. */
+  private async rankWhereToLook(board: Board, reference: Board, objectives: Objective[], solver: Solver): Promise<Candidate[]> {
+    const local = async () => {
+      const { observe, rankCandidates } = await import('../mods/rules-engine');
+      return rankCandidates(observe(structuredClone(board), reference, objectives, solver), board, this.rules.rules);
+    };
+    if (this.lookWorker === undefined) {
+      try {
+        const w = new Worker(new URL('../mods/lookWorker.ts', import.meta.url), { type: 'module' });
+        w.onmessage = (e: MessageEvent<{ id: number; candidates?: Candidate[]; error?: string }>) => { this.lookPending.get(e.data.id)?.(e.data); this.lookPending.delete(e.data.id); };
+        w.onerror = () => { // the worker didn't load: what's waiting runs on the main thread
+          this.lookWorker = null;
+          for (const r of this.lookPending.values()) r(null);
+          this.lookPending.clear();
+        };
+        this.lookWorker = w;
+      } catch { this.lookWorker = null; }
+    }
+    const w = this.lookWorker;
+    if (!w) return local();
+    const id = ++this.lookSeq;
+    const got = await new Promise<{ candidates?: Candidate[]; error?: string } | null>((resolve) => {
+      this.lookPending.set(id, resolve);
+      w.postMessage({ id, board, reference, objectives, solver, rules: this.rules.rules, devices: [...deviceOverlay()], dmm: activeDmm() });
+    });
+    if (!got) return local();
+    if (got.error) throw new Error(got.error);
+    return got.candidates!;
   }
 
   /** Selects a part by ref and frames it (Inspect tab). */
@@ -1519,6 +1570,29 @@ export class PcbApp {
     this.activeTab = 'inspect';
     if (this.camera.bothSides) this.camera.focusAt(c.side === 'B' ? this.board.w * 2 + BOTH_GAP - c.at[0] : c.at[0], c.at[1], 10);
     else this.camera.focusAt(c.at[0], c.at[1], 10, c.side);
+    this.renderUI();
+  }
+
+  /** Selects a net and frames its copper (pads and traces; a pour only when that's all it has). */
+  private gotoNet(net: number) {
+    const items = this.conn.netItems[net] ?? [];
+    const solid = items.filter((i) => this.conn.items[i].kind !== 'zone');
+    const use = solid.length ? solid : items;
+    if (!use.length) return;
+    const bb = [Infinity, Infinity, -Infinity, -Infinity];
+    let front = 0;
+    for (const i of use) {
+      const it = this.conn.items[i], b = it.shape.bb;
+      bb[0] = Math.min(bb[0], b[0]); bb[1] = Math.min(bb[1], b[1]); bb[2] = Math.max(bb[2], b[2]); bb[3] = Math.max(bb[3], b[3]);
+      front += it.layers & 1 ? 1 : -1;
+    }
+    const side: Side = front >= 0 ? 'F' : 'B';
+    const x = (bb[0] + bb[2]) / 2, y = (bb[1] + bb[3]) / 2, half = Math.max(4, (bb[3] - bb[1]) / 2 + 2, (bb[2] - bb[0]) / 3 + 2);
+    this.selectedNet = net;
+    this.selectedCompId = null;
+    this.activeTab = 'inspect';
+    if (this.camera.bothSides) this.camera.focusAt(side === 'B' ? this.board.w * 2 + BOTH_GAP - x : x, y, half);
+    else this.camera.focusAt(x, y, half, side);
     this.renderUI();
   }
 

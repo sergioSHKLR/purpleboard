@@ -22,7 +22,7 @@ export interface ModSolverInfo { address: string; modId: string; id: string; nam
 export interface ModImporterInfo extends ModSolverInfo { extensions: string[] }
 export interface ModPanelInfo { modId: string; id: string; title: string; content: PanelNode[] }
 /** What a mod asks the app to do (ui, storage); the host checks the permission first. */
-export type ModRequest = { op: 'ui.zoomTo'; ref: string } | { op: 'ui.say'; text: string } | { op: 'storage.get'; key: string } | { op: 'storage.set'; key: string; value: string | null };
+export type ModRequest = { op: 'ui.zoomTo'; ref: string } | { op: 'ui.highlight'; net: string | number } | { op: 'ui.say'; text: string } | { op: 'board.netsNear'; ref: string; mm: number } | { op: 'storage.get'; key: string } | { op: 'storage.set'; key: string; value: string | null };
 export type CodeModState = 'starting' | 'running' | 'crashed' | 'stopped';
 
 interface Running {
@@ -122,9 +122,16 @@ export class CodeModHost {
     const reply = (x: { value?: unknown; error?: string }) => { if (r.state === 'running' || r.state === 'starting') r.transport?.send({ t: 'reply', id: m.id, ...x }); };
     const args = Array.isArray(m.args) ? m.args : [];
     let req: ModRequest | null = null;
-    if (m.op === 'ui.zoomTo' || m.op === 'ui.say') {
+    if (m.op === 'ui.zoomTo' || m.op === 'ui.highlight' || m.op === 'ui.say') {
       if (!perms.includes('panel')) { reply({ error: `${m.op} needs the "panel" permission` }); return; }
-      req = m.op === 'ui.zoomTo' ? { op: m.op, ref: String(args[0]).slice(0, 40) } : { op: m.op, text: String(args[0]).slice(0, 300) };
+      req = m.op === 'ui.zoomTo' ? { op: m.op, ref: String(args[0]).slice(0, 40) }
+        : m.op === 'ui.highlight' ? { op: m.op, net: typeof args[0] === 'number' && Number.isInteger(args[0]) ? args[0] : String(args[0]).slice(0, 200) }
+        : { op: m.op, text: String(args[0]).slice(0, 300) };
+    } else if (m.op === 'board.netsNear') {
+      // read-only, names and gaps only: no permission; the distance is capped so a query stays local
+      const mm = Number(args[1]);
+      if (!Number.isFinite(mm) || mm < 0) { reply({ error: 'board.netsNear(ref, mm): mm must be a number ≥ 0' }); return; }
+      req = { op: m.op, ref: String(args[0]).slice(0, 40), mm: Math.min(mm, 5) };
     } else if (m.op === 'storage.get' || m.op === 'storage.set') {
       if (!perms.includes('storage')) { reply({ error: `${m.op} needs the "storage" permission` }); return; }
       const key = String(args[0]).slice(0, 100);

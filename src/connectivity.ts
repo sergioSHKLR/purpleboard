@@ -317,3 +317,40 @@ export function padNet(conn: Conn, c: Component, padName: string): number {
   const pi = c.pads.findIndex((p) => p.name === padName);
   return idx && pi >= 0 ? conn.net[idx[pi]] : -1;
 }
+
+/** Edge-to-edge gap from a copper pour to an item (0 when the item is on it). */
+function zoneGap(z: CuItem, o: CuItem, within: number): number {
+  const poly = z.zone!.poly;
+  if (o.shape.pts.some((p) => pointInPolygon(p, poly))) return 0;
+  const bb = o.shape.bb;
+  let m = Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    if (Math.max(a[0], b[0]) < bb[0] - within || Math.min(a[0], b[0]) > bb[2] + within || Math.max(a[1], b[1]) < bb[1] - within || Math.min(a[1], b[1]) > bb[3] + within) continue;
+    m = Math.min(m, shapeGap(makeShape([a, b], 0), o.shape));
+  }
+  return m;
+}
+
+/**
+ * Nets whose copper (pads, traces, vias, pours) comes within `mm` of a part's pads on the same
+ * layer, nearest first: for each, the edge-to-edge gap and the part's pad it is nearest to. Each
+ * pad's own net is left out, the part's other pins are not (a bridge between two pins counts).
+ * What a solder bridge, a whisker or residue at this part could reach.
+ */
+export function netsNear(conn: Conn, comp: Component, mm: number): { net: number; mm: number; pad: string }[] {
+  const mine = conn.padItem.get(comp) ?? [];
+  const best = new Map<number, { mm: number; pad: string }>();
+  const found: number[] = [];
+  mine.forEach((pi, k) => {
+    const p = conn.items[pi], bb = p.shape.bb, self = conn.net[pi];
+    conn.grid.query([bb[0] - mm, bb[1] - mm, bb[2] + mm, bb[3] + mm], found);
+    for (const j of found) {
+      const o = conn.items[j], net = conn.net[j];
+      if (net === self || !(o.layers & p.layers)) continue;
+      const gap = Math.max(0, o.kind === 'zone' ? zoneGap(o, p, mm) : shapeGap(o.shape, p.shape));
+      if (gap <= mm && gap < (best.get(net)?.mm ?? Infinity)) best.set(net, { mm: gap, pad: comp.pads[k].name });
+    }
+  });
+  return [...best].map(([net, b]) => ({ net, ...b })).sort((a, b) => a.mm - b.mm || a.net - b.net);
+}

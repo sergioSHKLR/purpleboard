@@ -486,6 +486,8 @@ const ru: Catalog = {
   "No suggestion: what the bench shows doesn't match any rule. Measure the rails and compare with the notes.": "Подсказки нет: то, что видно на стенде, не подходит ни под одно правило. Измерьте шины питания и сверьтесь с заметками.",
   "Compares what the bench shows with the working board and ranks the parts worth measuring first. It can give the fault away.": "Сравнивает то, что видно на стенде, с исправной платой и показывает, какие детали стоит измерить первыми. Может выдать неисправность.",
   "Could not compare with the working board: {error}": "Не удалось сравнить с исправной платой: {error}",
+  "Comparing with the working board…": "Сравниваю с исправной платой…",
+  "On a board this size it takes a few seconds.": "На плате такого размера это займёт несколько секунд.",
   "Opening {file} with the importer «{name}» (mod «{mod}»)…": "Открываю {file} импортёром «{name}» (мод «{mod}»)…",
   "severity": "тяжесть",
   "Opens": "Открывает",

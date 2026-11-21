@@ -63,7 +63,10 @@ No reference hardware is available, so realism is validated against *design inte
     Submit, and asks for help with: per-board symptom → candidate `patterns`, packs by board
     fingerprint, the evaluation fault list; invites a GitHub Suggestion issue). Not sent by us.
     **Open RFC gaps:** `patterns` field + feeding «Where to look?»; skeleton pack generator;
-    `api.queries.knowledge()` for code mods; `copperGap` / `highlight`; fingerprints.
+    `api.queries.knowledge()` for code mods; fingerprints. (`copperGap` / `highlight`: done 11-21
+    as API 1.1 `board.netsNear` + `ui.highlight`, after Biga73's test report; same report: cold
+    joints at the supply now rank first (recall 120/120), «Where to look?» runs in a worker on any
+    board size, `.gitattributes` keeps LF on Windows checkouts.)
   - **Community catalogue on deadboard.org (user chose our own page over mod.io), `12f95b7`,
     `f928235`, `d2fdfdd`.** Mods window → **Community** tab lists `public/community/index.json`
     (all example zips + reviewed player mods; size + SHA-256 checked on download; required

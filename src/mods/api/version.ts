@@ -1,11 +1,11 @@
 /** The plug-in API version this app implements (mods ask for a range in mod.json: "api": "^1"). */
-export const API_VERSION = '1.0.0';
+export const API_VERSION = '1.1.0';
 
 /** Permissions a code mod can ask for (docs/MODDING.md → Code mods). */
 export const PERMISSIONS = {
   /** http://127.0.0.1 and http://localhost, e.g. a local model server. */
   localhost: 'network:localhost',
-  /** Panels in the Mods tab, and ui.zoomTo / ui.say. */
+  /** Panels in the Mods tab, and ui.zoomTo / ui.highlight / ui.say. */
   panel: 'panel',
   /** api.storage: a small store for the mod. */
   storage: 'storage',

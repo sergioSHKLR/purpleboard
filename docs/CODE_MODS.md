@@ -75,7 +75,9 @@ export default function activate(api) {
 | `api.panels.set(id, content)` | Replaces a panel's content, any time. |
 | `api.on(event, handler)` | Read-only [events](#events). |
 | `api.queries` | Questions about the open board ([Queries](#queries)). |
+| `api.board.netsNear(ref, mm)` | Nets whose copper comes within `mm` of a part's pads ([Copper](#copper)). API 1.1. |
 | `api.ui.zoomTo(ref)` | Selects a part and zooms to it; resolves `false` if the board has no such part. Needs `panel`. |
+| `api.ui.highlight(net)` | Highlights a net (name or id) and frames its copper; resolves `false` if there is no such net. Needs `panel`. API 1.1. |
 | `api.ui.say(text)` | A short message to the player (at most one a second). Needs `panel`. |
 | `api.storage.get(key)`, `api.storage.set(key, value)` | A small store for your mod (64 KB), kept by the game; `null` removes. Needs `storage`. |
 | `api.log(...)` | The browser console, prefixed with your mod id. |
@@ -179,12 +181,32 @@ An **instrument** is a panel that listens to `bench:solved` and `probe:placed`.
 | `netOfPin(ref, pad)` | The net's name (or id), or `null`. |
 | `railState(net)` | `{ volts, powered }` from the last power event. |
 
+In DEADBOARD a net *is* a connected-copper group, so following copper from a pin is
+`pinsOfNet(netOfPin(ref, pad))`; a cut trace or an open joint splits it into two nets.
+
+## Copper
+
+The board's geometry stays in the app; it answers questions about it with names and distances:
+
+```js
+const near = await api.board.netsNear('U9', 0.2);
+// [{ net: 'GND', mm: 0.1, pad: '7' }, { net: '+3V3', mm: 0.1, pad: '4' }, …]
+```
+
+`netsNear(ref, mm)` lists the nets whose copper (pads, traces, vias, pours) comes within `mm`
+(at most 5) of the part's pads on the same layer, nearest first, with the edge-to-edge gap and the
+part's pad it is nearest to: what a solder bridge or residue at that part could reach. Each pad's
+own net is left out; the part's other pins are not. An unknown part gives `[]`. No permission
+needed. To point at a net, `api.ui.highlight(net)`.
+
+`api.board` and `ui.highlight` arrived in API 1.1: a mod that uses them asks for `"api": "^1.1"`.
+
 ## Permissions
 
 | Permission | Allows |
 | --- | --- |
-| (none) | Registering solvers and importers, events, queries, logging. |
-| `panel` | Panels, `ui.zoomTo`, `ui.say`. |
+| (none) | Registering solvers and importers, events, queries, `board.netsNear`, logging. |
+| `panel` | Panels, `ui.zoomTo`, `ui.highlight`, `ui.say`. |
 | `storage` | `api.storage` (64 KB). |
 | `network:localhost` | `http://127.0.0.1` and `http://localhost` only: a server on the player's own computer. |
 | `network:https://host` | One named HTTPS site, e.g. `network:https://api.example.org`. |
@@ -230,10 +252,10 @@ the mod and failing later. A major version stays supported for a long time after
 <!-- generated:api-types -->
 <!-- Written by npm run docs from the code; edit the code, not this block. -->
 
-Plug-in API 1.0.0, as `@deadboard/mod-api` ships it (`index.d.ts`):
+Plug-in API 1.1.0, as `@deadboard/mod-api` ships it (`index.d.ts`):
 
 ```ts
-// @deadboard/mod-api 1.0.0: types of the DEADBOARD plug-in API (generated from
+// @deadboard/mod-api 1.1.0: types of the DEADBOARD plug-in API (generated from
 // src/mods/api/types.ts in the DEADBOARD repository; do not edit).
 
 export type PartKind =
@@ -398,6 +420,18 @@ export interface Queries {
   railState(net: string): { volts: number | null; powered: boolean };
 }
 
+/** Answered by the app from the open board's copper: names and gaps come back, never coordinates. */
+export interface BoardQueries {
+  /**
+   * Nets whose copper (pads, traces, vias, pours) comes within `mm` (at most 5) of a part's pads on
+   * the same layer, nearest first, with the edge-to-edge gap in mm and the part's pad it is nearest
+   * to. Each pad's own net is left out; the part's other pins are not, so two pins 0.2 mm apart
+   * show up. What a solder bridge or residue at this part could reach. Empty for an unknown part.
+   * (API 1.1)
+   */
+  netsNear(ref: string, mm: number): Promise<{ net: string | number; mm: number; pad: string }[]>;
+}
+
 export interface ModApi {
   apiVersion: string;
   mod: { id: string; version: string; permissions: string[] };
@@ -415,6 +449,8 @@ export interface ModApi {
   ui: {
     /** Select a part and zoom to it. Resolves to false when the board has no such part. */
     zoomTo(ref: string): Promise<boolean>;
+    /** Highlight a net's copper (by name or id) and frame it. Resolves to false when there is no such net. (API 1.1) */
+    highlight(net: string | number): Promise<boolean>;
     /** A short message to the player (at most one a second). */
     say(text: string): Promise<void>;
   };
@@ -425,6 +461,8 @@ export interface ModApi {
   };
   on<E extends EventName>(event: E, handler: (payload: Events[E]) => void): void;
   queries: Queries;
+  /** Questions about the board's copper, answered by the app (the geometry stays there). No permission needed. */
+  board: BoardQueries;
   /** Writes to the browser console, prefixed with the mod id (for authors). */
   log(...args: unknown[]): void;
 }

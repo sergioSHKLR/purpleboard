@@ -23,7 +23,9 @@ export type FromRuntime =
   | { t: 'error'; id: number; error: string }
   | { t: 'log'; text: string }
   | { t: 'panel'; id: string; title?: string; content: PanelNode[] }
-  | { t: 'req'; id: number; op: 'ui.zoomTo' | 'ui.say' | 'storage.get' | 'storage.set'; args: unknown[] };
+  | { t: 'req'; id: number; op: RequestOp; args: unknown[] };
+
+type RequestOp = 'ui.zoomTo' | 'ui.highlight' | 'ui.say' | 'storage.get' | 'storage.set' | 'board.netsNear';
 
 const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const show = (x: unknown) => {
@@ -46,7 +48,7 @@ export function createRuntime(send: (m: FromRuntime) => void, loadModule: (code:
   // requests to the app (ui, storage): answered by a 'reply'
   let reqSeq = 0;
   const waiting = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
-  const request = (op: 'ui.zoomTo' | 'ui.say' | 'storage.get' | 'storage.set', args: unknown[]) => new Promise<unknown>((resolve, reject) => {
+  const request = (op: RequestOp, args: unknown[]) => new Promise<unknown>((resolve, reject) => {
     const id = ++reqSeq;
     waiting.set(id, { resolve, reject });
     send({ t: 'req', id, op, args });
@@ -94,6 +96,7 @@ export function createRuntime(send: (m: FromRuntime) => void, loadModule: (code:
         },
         ui: {
           zoomTo: (ref: string) => request('ui.zoomTo', [String(ref)]) as Promise<boolean>,
+          highlight: (net: string | number) => request('ui.highlight', [typeof net === 'number' ? net : String(net)]) as Promise<boolean>,
           say: async (text: string) => { await request('ui.say', [String(text)]); },
         },
         storage: {
@@ -105,6 +108,9 @@ export function createRuntime(send: (m: FromRuntime) => void, loadModule: (code:
           handlers.set(event, [...(handlers.get(event) ?? []), handler as (p: unknown) => void]);
         },
         queries: makeQueries(state),
+        board: {
+          netsNear: (ref: string, mm: number) => request('board.netsNear', [String(ref), Number(mm)]) as Promise<{ net: string | number; mm: number; pad: string }[]>,
+        },
         log: (...args: unknown[]) => send({ t: 'log', text: args.map(show).join(' ').slice(0, 2000) }),
       };
       try {

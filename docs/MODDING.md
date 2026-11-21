@@ -438,6 +438,8 @@ official meter's.
 
 After a failed test run, **Where to look?** in the Overview tab compares the board with its working
 version and ranks the parts worth measuring first, with the measurement that would confirm each.
+When the supply's own net already reads wrong, what goes wrong further down follows from it and
+counts half (a short or a hot part keeps its full weight), so the supply and its joints come first.
 It runs on **rules**, which are data: the mod `official-rules` ships a baseline, and a mod can add
 rules or patch theirs (`weight`, `confirm`…):
 
@@ -463,8 +465,8 @@ rules or patch theirs (`weight`, `confirm`…):
 
 The bench check runs the **recall test**: every fault from the catalogue planted on every part of
 the small working boards; for each one that shows on the bench, is the planted part among the top 3
-suggestions? It reports the score with and without your rules. The official rules find 115 of 120;
-the example mod's one extra rule makes it 120.
+suggestions? It reports the score with and without your rules. The official rules find all 120;
+a rule that makes the score drop gets a warning.
 
 ## Code mods
 

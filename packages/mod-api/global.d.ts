@@ -1,4 +1,4 @@
-// @deadboard/mod-api 1.0.0: types of the DEADBOARD plug-in API (generated from
+// @deadboard/mod-api 1.1.0: types of the DEADBOARD plug-in API (generated from
 // src/mods/api/types.ts in the DEADBOARD repository; do not edit).
 
 declare namespace DeadboardMod {
@@ -19,6 +19,7 @@ declare namespace DeadboardMod {
   type Events = import('./index').Events;
   type EventName = import('./index').EventName;
   type Queries = import('./index').Queries;
+  type BoardQueries = import('./index').BoardQueries;
   type ModApi = import('./index').ModApi;
   type Activate = import('./index').Activate;
 }

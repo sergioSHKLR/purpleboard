@@ -1,4 +1,4 @@
-// @deadboard/mod-api 1.0.0: types of the DEADBOARD plug-in API (generated from
+// @deadboard/mod-api 1.1.0: types of the DEADBOARD plug-in API (generated from
 // src/mods/api/types.ts in the DEADBOARD repository; do not edit).
 
 export type PartKind =
@@ -163,6 +163,18 @@ export interface Queries {
   railState(net: string): { volts: number | null; powered: boolean };
 }
 
+/** Answered by the app from the open board's copper: names and gaps come back, never coordinates. */
+export interface BoardQueries {
+  /**
+   * Nets whose copper (pads, traces, vias, pours) comes within `mm` (at most 5) of a part's pads on
+   * the same layer, nearest first, with the edge-to-edge gap in mm and the part's pad it is nearest
+   * to. Each pad's own net is left out; the part's other pins are not, so two pins 0.2 mm apart
+   * show up. What a solder bridge or residue at this part could reach. Empty for an unknown part.
+   * (API 1.1)
+   */
+  netsNear(ref: string, mm: number): Promise<{ net: string | number; mm: number; pad: string }[]>;
+}
+
 export interface ModApi {
   apiVersion: string;
   mod: { id: string; version: string; permissions: string[] };
@@ -180,6 +192,8 @@ export interface ModApi {
   ui: {
     /** Select a part and zoom to it. Resolves to false when the board has no such part. */
     zoomTo(ref: string): Promise<boolean>;
+    /** Highlight a net's copper (by name or id) and frame it. Resolves to false when there is no such net. (API 1.1) */
+    highlight(net: string | number): Promise<boolean>;
     /** A short message to the player (at most one a second). */
     say(text: string): Promise<void>;
   };
@@ -190,6 +204,8 @@ export interface ModApi {
   };
   on<E extends EventName>(event: E, handler: (payload: Events[E]) => void): void;
   queries: Queries;
+  /** Questions about the board's copper, answered by the app (the geometry stays there). No permission needed. */
+  board: BoardQueries;
   /** Writes to the browser console, prefixed with the mod id (for authors). */
   log(...args: unknown[]): void;
 }

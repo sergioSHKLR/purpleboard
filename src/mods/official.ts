@@ -38,7 +38,7 @@ export const OFFICIAL_MODS: readonly OfficialMod[] = [
   {
     id: 'official-rules',
     name: tk('Official rules'),
-    version: '1.0.0',
+    version: '1.0.1',
     description: tk('Diagnostic rules for «Where to look?»: from what the bench shows (a dead rail, a short, a hot part, a dark LED) to the parts worth measuring first.'),
   },
   {

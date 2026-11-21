@@ -140,7 +140,17 @@ async function run() {
 
     const boards = scenarios.map((sc) => ({ title: sc.meta.title, reference: referenceBoard(sc)!, objectives: sc.objectives, solver: sc.solver ?? 'spice' as const }));
     const r = recallTest(boards, OFFICIAL_RULES);
-    assert(r.visible >= 100 && r.hits / r.visible >= 0.95 && r.invented === 0 && r.none === 0, `official rules: recall ${r.hits}/${r.visible}, none ${r.none}, invented ${r.invented}`);
+    assert(r.visible >= 100 && r.hits === r.visible && r.invented === 0 && r.none === 0, `official rules: recall ${r.hits}/${r.visible}, none ${r.none}, invented ${r.invented}; missed ${r.misses.map((m) => `${m.board} ${m.ref} ${m.fault} (top ${m.top.join(',')})`).join('; ')}`);
+
+    // a cold joint at the supply: its own copper already reads low, so the supply ranks first and what
+    // goes wrong downstream (low nets, dark LEDs) doesn't outvote it
+    for (const [id, refName] of [['builtin-bridge-troll', 'BT1'], ['builtin-ghost-short', 'J1']]) {
+      const s5 = byId(id), ok = referenceBoard(s5)!, cold = structuredClone(ok);
+      const part = cold.components.find((c) => c.ref === refName)!;
+      part.state.cold = [0]; part.state.coldOhms = { 0: 1e6 };
+      const top = rankCandidates(observe(cold, ok, s5.objectives, 'spice'), cold, OFFICIAL_RULES)[0];
+      assert(top?.ref === refName && /joint/.test(top.reasons.map((x) => x.confirm).join(' ')), `${id}: cold joint at the supply ${refName} ranked first with a joint check (got ${top?.ref})`);
+    }
 
     // one planted fault, end to end: observation → ranked parts with a reason and a measurement
     const sc = byId('builtin-ghost-short');
@@ -180,7 +190,7 @@ async function run() {
     assert(new TextDecoder().decode(zipped.get('repair-lab/mod.json')!) === fs.readFileSync('examples/mods/repair-lab/mod.json', 'utf8'), 'repair-lab.zip is stale: run npm run example-mod');
   }
 
-  console.log('MOD PHASE 5 TESTS PASSED (fault types: checks, fit, inject, list/clear, Author offer, official range patch + skip; meters: defaults, checks, patched official drives OL / diode test / digits; importers: pcbfix + KiCad through the app importers, junk refused; rules: checks, official recall ≥ 95 %, fuse case end to end, rules mod add + patch; repair-lab: bench check 100 % recall, salt-water puzzle cleaned with IPA unlocks)');
+  console.log('MOD PHASE 5 TESTS PASSED (fault types: checks, fit, inject, list/clear, Author offer, official range patch + skip; meters: defaults, checks, patched official drives OL / diode test / digits; importers: pcbfix + KiCad through the app importers, junk refused; rules: checks, official recall 100 %, cold joint at the supply first, fuse case end to end, rules mod add + patch; repair-lab: bench check 100 % recall, salt-water puzzle cleaned with IPA unlocks)');
 }
 
 run().catch((e) => { console.error(e); (globalThis as unknown as { process: { exitCode: number } }).process.exitCode = 1; });

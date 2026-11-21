@@ -170,6 +170,11 @@ export function rankCandidates(obs: Observation, board: Board, rules: readonly R
   const bad = obs.nets.filter((x) => x.state === 'dead' || x.state === 'low');
   const firstBad = Math.min(Infinity, ...bad.map((x) => obs.hops.get(x.net) ?? Infinity));
   const kindOk = (r: RuleDef, c: Component) => !r.suspect.kinds || r.suspect.kinds.includes(c.kind);
+  // when the supply's own copper already reads wrong, the cause sits at the supply (the source, its
+  // joints or contacts): what goes wrong further down follows from it and counts half. A short or a
+  // hot part is a cause in itself and keeps its full weight.
+  const atSupply = firstBad === 0;
+  const follows = (r: RuleDef) => atSupply && r.when !== 'short' && r.when !== 'hot' ? 0.5 : 1;
   const credit = (r: RuleDef, refs: string[], what: string, fill: { net?: string }, boost: Set<string> = new Set(), factor = 1) => {
     const n = refs.length;
     if (!n) return;
@@ -200,15 +205,15 @@ export function rankCandidates(obs: Observation, board: Board, rules: readonly R
     const boost = new Set(r.suspect.where === 'feeds-net' ? refs.filter((ref) => nets.get(ref)!.some((n) => n !== net && n !== obs.ground && !badNets.has(n) && (obs.hops.get(n) ?? Infinity) < (obs.hops.get(net) ?? Infinity))) : []);
     // the first net to go wrong (nearest the supply) points at the cause; later ones follow from it
     const first = badNets.has(net) && (obs.hops.get(net) ?? Infinity) === firstBad;
-    credit(r, refs, what, { net: name }, boost, first ? 1.5 : 1);
+    credit(r, refs, what, { net: name }, boost, first ? 1.5 : badNets.has(net) ? follows(r) : 1);
   };
   const forPart = (r: RuleDef, ref: string, what: string) => {
     const c = byRef.get(ref);
     if (!c) return;
-    if (r.suspect.where === 'the-part') { if (kindOk(r, c)) credit(r, [ref], what, {}); return; }
+    if (r.suspect.where === 'the-part') { if (kindOk(r, c)) credit(r, [ref], what, {}, undefined, follows(r)); return; }
     const mine = nets.get(ref)!.filter((n) => n !== obs.ground);
     const refs = board.components.filter((x) => x.ref !== ref && kindOk(r, x) && nets.get(x.ref)!.some((n) => mine.includes(n)) && (r.suspect.where === 'on-net' || twoTerminal(x))).map((x) => x.ref);
-    credit(r, refs, what, {});
+    credit(r, refs, what, {}, undefined, follows(r));
   };
   for (const r of rules) {
     if (r.when === 'short') for (const s of obs.shorts) forNet(r, s.net, s.name, `${s.name} reads ${s.ohms.toPrecision(2)} Ω to ground (working board ${s.expected >= 1e6 ? 'open' : `${s.expected.toPrecision(2)} Ω`})`);

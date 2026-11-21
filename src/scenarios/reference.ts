@@ -16,7 +16,7 @@ export function setReference(sc: Scenario, good: Board) { refs.set(sc, good); }
 export function referenceBoard(sc: Scenario): Board | null {
   const r = refs.get(sc);
   if (r) return r;
-  const demo = repairedDemo(sc);
-  if (demo) return demo.board;
+  const demo = repairedDemo(sc); // a clone of the whole demo: kept, the panel asks on every render
+  if (demo) { refs.set(sc, demo.board); return demo.board; }
   return sc.lock ? null : sc.board;
 }

@@ -7,7 +7,8 @@ import { loadMod, parseManifest, type LoadedMod, type ModSource } from '../src/m
 import { CodeModHost, inProcessTransport, type ModRequest } from '../src/mods/api/host';
 import { sanitizePanel } from '../src/mods/api/panels';
 import { buildNetlist } from '../src/mods/api/netlist';
-import { buildConnectivity } from '../src/connectivity';
+import { buildConnectivity, netsNear } from '../src/connectivity';
+import { parseScenario } from '../src/io/format';
 import { builtinScenarios } from '../src/scenarios/builtin';
 import type { PanelNode } from '../src/mods/api/types';
 import { readZip } from '../src/mods/zip';
@@ -61,6 +62,8 @@ async function run() {
         if (req.op === 'storage.get') return store.get(`${id}/${req.key}`) ?? null;
         if (req.op === 'storage.set') { store.set(`${id}/${req.key}`, req.value ?? ''); return null; }
         if (req.op === 'ui.zoomTo') return req.ref === 'R1';
+        if (req.op === 'ui.highlight') return req.net === 'VCC';
+        if (req.op === 'board.netsNear') return [{ net: 'GND', mm: req.mm, pad: '1' }];
         return null;
       },
     });
@@ -72,12 +75,18 @@ async function run() {
       let r1 = 'ok', r2 = 'ok';
       try { await api.ui.say('hi'); } catch (e) { r1 = e.message; }
       try { await api.storage.get('k'); } catch (e) { r2 = e.message; }
-      api.log(r1 + ' | ' + r2);
+      let r3 = 'ok';
+      try { await api.ui.highlight('VCC'); } catch (e) { r3 = e.message; }
+      const near = await api.board.netsNear('R1', 0.5);
+      let r4 = 'ok';
+      try { await api.board.netsNear('R1', 'far'); } catch (e) { r4 = e.message; }
+      api.log(r1 + ' | ' + r2 + ' | ' + r3 + ' | near ' + JSON.stringify(near) + ' | ' + r4);
     }`, []);
     const logs: string[] = [];
     const h2 = new CodeModHost(inProcessTransport(load), { onLog: (_, t) => logs.push(t), onRequest: async () => 'leak' });
     await h2.start(sneaky);
-    assert(/ui\.say needs the "panel" permission \| storage\.get needs the "storage" permission/.test(logs.join()), `requests without permission refused by the host (${logs.join()})`);
+    assert(/ui\.say needs the "panel" permission \| storage\.get needs the "storage" permission \| ui\.highlight needs the "panel" permission/.test(logs.join()), `requests without permission refused by the host (${logs.join()})`);
+    assert(/near "leak" \| board\.netsNear\(ref, mm\): mm must be a number/.test(logs.join()), `board.netsNear needs no permission, checks its distance (${logs.join()})`);
     h2.stopAll();
 
     const good = await mem('good', `export default async function activate(api) {
@@ -86,7 +95,9 @@ async function run() {
       const back = await api.storage.get('k');
       const zoom = await api.ui.zoomTo('R1');
       const none = await api.ui.zoomTo('Q9');
-      api.on('panel:action', (p) => api.panels.set('main', [{ type: 'text', text: 'got ' + p.id + '=' + p.value + ' ' + back + ' ' + zoom + ' ' + none }]));
+      const lit = await api.ui.highlight('VCC');
+      const far = await api.board.netsNear('R1', 50);
+      api.on('panel:action', (p) => api.panels.set('main', [{ type: 'text', text: 'got ' + p.id + '=' + p.value + ' ' + back + ' ' + zoom + ' ' + none + ' ' + lit + ' ' + far[0].mm }]));
       api.on('bench:solved', (p) => api.panels.set('main', [{ type: 'text', text: 'solved ' + Object.keys(p.nets).length }]));
     }`, ['panel', 'storage']);
     const other = await mem('other', `export default function activate(api) {
@@ -96,14 +107,29 @@ async function run() {
     await host.start(good);
     await host.start(other);
     assert(host.panels().map((p) => `${p.modId}/${p.id}:${p.title}`).join() === 'good/main:Main,other/o:Other', 'panels listed');
-    assert(asked.join() === 'good:storage.set,good:storage.get,good:ui.zoomTo,good:ui.zoomTo', `requests answered (${asked.join()})`);
+    assert(asked.join() === 'good:storage.set,good:storage.get,good:ui.zoomTo,good:ui.zoomTo,good:ui.highlight,good:board.netsNear', `requests answered (${asked.join()})`);
     host.emitTo('good', 'panel:action', { panel: 'main', id: 'ask', value: 'why?' });
-    assert(await until(() => (host.panels()[0].content[0] as { text?: string }).text === 'got ask=why? v1 true false'), 'panel action reached its mod, panel updated');
+    assert(await until(() => (host.panels()[0].content[0] as { text?: string }).text === 'got ask=why? v1 true false true 5'), 'panel action reached its mod, panel updated (highlight answered, netsNear distance capped at 5 mm)');
     assert((host.panels()[1].content[0] as { text?: string } | undefined)?.text !== 'WRONG MOD', 'other mods don\'t get it');
     host.emit('bench:solved', { nets: { VCC: 5, GND: 0 }, parts: {} });
     assert(await until(() => (host.panels()[0].content[0] as { text?: string }).text === 'solved 2'), 'bench events delivered');
     assert(panelsChanged.length >= 3, 'the app hears about panel changes');
     host.stopAll();
+  }
+
+  // ---- netsNear: copper near a part on a real board (what board.netsNear answers) ----
+  {
+    const mnt = parseScenario(fs.readFileSync('public/demos/demo-mnt-reform2-mb30.pcbfix.json', 'utf8') as unknown as string);
+    const conn = buildConnectivity(mnt.board);
+    const part = (ref: string) => mnt.board.components.find((c) => c.ref === ref)!;
+    const named = (ref: string, mm: number) => netsNear(conn, part(ref), mm).map((x) => ({ ...x, name: conn.netNames[x.net] }));
+    const c97 = named('C97', 0.5);
+    assert(c97.some((x) => x.name === 'GND' && x.pad === '1') && c97.some((x) => x.name === '+5V' && x.pad === '2'), `a capacitor's two pads see each other's net (${JSON.stringify(c97)})`);
+    const u9 = named('U9', 0.15);
+    assert(u9.length >= 4 && u9.every((x, i) => x.mm <= 0.15 && (i === 0 || u9[i - 1].mm <= x.mm)), 'neighbouring pins of a regulator, nearest first, within the distance');
+    const own = new Set((conn.padItem.get(part('U9')) ?? []).map((i) => conn.net[i]));
+    assert(u9.some((x) => own.has(x.net)), 'a pin\'s neighbour on the same part counts (a bridge between two pins)');
+    assert(named('C97', 0).every((x) => x.mm === 0) && netsNear(conn, part('C97'), 0.5).length >= named('C97', 0.2).length, 'a larger distance finds at least as much');
   }
 
   // ---- the local coach, end to end, against a fake OpenAI-compatible server ----
@@ -163,7 +189,7 @@ async function run() {
     assert(new TextDecoder().decode(zipped.get('local-coach/main.js')!) === fs.readFileSync('examples/mods/local-coach/main.js', 'utf8'), 'local-coach.zip is stale: run npm run example-mod');
   }
 
-  console.log('MOD PHASE 6 TESTS PASSED (panel + storage permissions, panel sanitising, requests refused without permission, storage + zoomTo answered, panel events to their own mod only, bench events; local coach end to end: settings from storage, board + tests + readings + question sent, answer shown, invented part removed, server down explained)');
+  console.log('MOD PHASE 6 TESTS PASSED (panel + storage permissions, panel sanitising, requests refused without permission, storage + zoomTo + highlight + netsNear answered (no permission for netsNear, distance checked and capped), netsNear on a real board, panel events to their own mod only, bench events; local coach end to end: settings from storage, board + tests + readings + question sent, answer shown, invented part removed, server down explained)');
 }
 
 run().catch((e) => { console.error(e); (globalThis as unknown as { process: { exitCode: number } }).process.exitCode = 1; });

@@ -290,7 +290,7 @@ how often the planted part is in the top 3, with and without your rules.
 | `official-solvers` | 1.0.0 | The circuit solvers (Fast DC, SPICE, SPICE + PWR) and the device library of datasheet-fitted semiconductor models. |
 | `official-faults` | 1.0.0 | The fault catalogue: shorts, leaks, drift, cold joints, broken copper and intermittents, with severity ranges from repair practice. |
 | `official-importers` | 1.0.0 | Board files the app reads: KiCad layouts (.kicad_pcb), boardviews (.brd, .tvw) and DEADBOARD challenges (.pcbfix.json). |
-| `official-rules` | 1.0.0 | Diagnostic rules for «Where to look?»: from what the bench shows (a dead rail, a short, a hot part, a dark LED) to the parts worth measuring first. |
+| `official-rules` | 1.0.1 | Diagnostic rules for «Where to look?»: from what the bench shows (a dead rail, a short, a hot part, a dark LED) to the parts worth measuring first. |
 | `official-instruments` | 1.0.0 | The bench instruments and their profiles: the multimeter (ranges, test currents, input impedance), scope, thermal camera and bench supply. |
 
 ### Boards (`official-boards`)
