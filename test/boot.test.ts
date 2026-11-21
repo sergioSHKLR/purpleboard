@@ -130,7 +130,37 @@ function run() {
     assert(s5 > 0.05 && s5 < 8, `supply current limited by the converter, not unbounded: ${s5.toFixed(3)} A`);
   }
 
-  console.log('BOOT TESTS PASSED (rail loads from decoupling, state stepping, rising supply current, boot loop on a shorted S0 rail)');
+  // ---- a chip with a datasheet supply current replaces the estimate on its rail ----
+  {
+    x0 = 0;
+    const cs: Component[] = [
+      part('J1', 'battery', ['+5V', 'GND'], 5, { '+': '1', '-': '2' }),
+      part('U3', 'ic', ['+5V', 'GND', '+5V', 'NC1', '+3.3V']),                          // LDO, EN tied to VIN
+      part('C7', 'capacitor', ['+3.3V', 'GND'], 4.7e-6, two),
+      part('C8', 'capacitor', ['+3.3V', 'GND'], 1e-7, two),
+      part('C9', 'capacitor', ['+5V', 'GND'], 1e-6, two),
+      part('R12', 'resistor', ['+3.3V', 'EN_MOD'], 10e3, two),
+      // ESP32-C3-MINI-1: pin 3 = 3V3, pin 8 = EN (datasheet), the rest is not connected here
+      part('U4', 'ic', ['GND', 'GND', '+3.3V', 'NC2', 'NC3', 'NC4', 'NC5', 'EN_MOD']),
+    ];
+    cs.find((c) => c.ref === 'U3')!.label = 'HX6211A332MR';
+    cs.find((c) => c.ref === 'U4')!.label = 'ESP32-C3-MINI-1-N4';
+    const b: Board = { w: 200, h: 30, thickness: 1.6, components: cs, traces: [], vias: [], blobs: [], jumpers: [], zones: [], silk: [], texts: [], nextId: 1 };
+    const amps = (bd: Board) => simulateSpice(bd, buildConnectivity(bd), { powerTree: true, powerState: 'S0SW' }).comps.get('J1')!.i;
+    const conn = buildConnectivity(b);
+    assert(!estimateRailLoads(b, conn, discoverPowerTree(b, conn)).some((l) => l.rail === '+3.3V'), 'no decoupling estimate on a rail whose chip has datasheet data');
+    const on = amps(b);
+    assert(Math.abs(on - 0.082) < 0.004, `ESP32-C3-MINI-1 running: the LDO passes its 82 mA (RX, datasheet) → ${(on * 1e3).toFixed(1)} mA`);
+    const reset = structuredClone(b);
+    reset.components.push(part('C10', 'capacitor', ['EN_MOD', 'GND'], 1e-6, two));
+    reset.components.find((c) => c.ref === 'C10')!.state.leak = { ohms: 1, a: '1', b: '2' }; // EN shorted to ground
+    assert(amps(reset) < 0.005, `EN held low: the module stays in reset (${(amps(reset) * 1e3).toFixed(2)} mA)`);
+    const dead = structuredClone(b);
+    dead.components.find((c) => c.ref === 'U4')!.state.burnt = true;
+    assert(amps(dead) < 0.005, 'a dead module draws nothing');
+  }
+
+  console.log('BOOT TESTS PASSED (rail loads from decoupling, state stepping, rising supply current, boot loop on a shorted S0 rail, datasheet chip loads)');
 }
 
 run();

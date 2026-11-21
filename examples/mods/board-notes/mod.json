@@ -2,7 +2,7 @@
   "format": "deadboard-mod/2",
   "id": "board-notes",
   "name": "Board notes (knowledge packs for the shipped boards)",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Biga73 (idea) · DEADBOARD",
   "description": "An example data mod: a knowledge pack for every board that ships with DEADBOARD. Rails, where each one comes from, what to expect at which pin, and what a low reading usually means, each marked documented, derived or estimated. The packs describe the working board and point at likely causes, the way the board's hints do; they don't name the planted faults. Based on the device knowledge pack RFC by Biga73.",
   "license": "CC0-1.0",
@@ -390,23 +390,23 @@
         },
         {
           "net": "+5V",
-          "nominal": 4.79,
+          "nominal": 4.69,
           "domain": "from USB",
           "source": { "ref": "D1", "kind": "Schottky diode, 1N5819" },
           "checks": [
-            { "at": "C1", "expect": "4.6–4.9 V", "readsLowIf": "nothing comes through D1 from the USB rail: the diode or one of its joints is open" },
-            { "at": "U1", "pin": "4", "expect": "4.6–4.9 V (the charger's input)" }
+            { "at": "C1", "expect": "4.5–4.9 V", "readsLowIf": "nothing comes through D1 from the USB rail: the diode or one of its joints is open" },
+            { "at": "U1", "pin": "4", "expect": "4.5–4.9 V (the charger's input)" }
           ],
-          "notes": "One Schottky drop below USB (about 0.2 V at this load). +5V feeds the charger U1 and, through D2, the regulator. The diode keeps a battery from back-feeding the USB port.",
+          "notes": "One Schottky drop below USB (about 0.3 V with the module running at 80 mA). +5V feeds the charger U1 and, through D2, the regulator. The diode keeps a battery from back-feeding the USB port.",
           "provenance": { "kind": "board + datasheet", "where": "1N5819 forward curve (Diodes DS30217); the drop depends on the load", "confidence": "derived" }
         },
         {
           "net": "Net-(C6-Pad1)",
-          "nominal": 4.58,
+          "nominal": 4.39,
           "domain": "regulator input (USB or battery)",
           "source": { "ref": "D2", "kind": "Schottky diode from +5V; FET1 from VBAT" },
           "checks": [
-            { "at": "C6", "expect": "4.4–4.7 V", "readsLowIf": "D2 is open, or +5V is low" }
+            { "at": "C6", "expect": "4.2–4.6 V", "readsLowIf": "D2 is open, or +5V is low" }
           ],
           "notes": "An unnamed net: the regulator's input. On USB it comes through D2; without USB, the P-MOSFET FET1 (gate on +5V) turns on and feeds it from the battery. FET1's body diode conducts the other way only, VBAT towards here.",
           "provenance": { "kind": "board", "where": "D2, FET1 (WPM2015, gate on +5V) and U3 pins 1 / 3 share this net", "confidence": "derived" }
@@ -418,7 +418,7 @@
           "source": { "ref": "U3", "kind": "LDO, HX6211A332 (fixed 3.3 V)" },
           "checks": [
             { "at": "C7", "expect": "3.2–3.4 V", "readsLowIf": "U3 has no input (pins 1 and 3), the rail is shorted, or U3 is dead" },
-            { "at": "U3", "pin": "1", "expect": "4.4–4.7 V (input; CE, pin 3, is tied to it)" }
+            { "at": "U3", "pin": "1", "expect": "4.2–4.6 V (input; CE, pin 3, is tied to it)" }
           ],
           "notes": "Fixed 3.3 V ±2 %, 500 mA. CE is tied to the input, so U3 is always on when it has an input.",
           "provenance": { "kind": "datasheet", "where": "HX6211 datasheet (LCSC C296224): ±2 %, dropout 120 mV at 100 mA", "confidence": "documented" }
@@ -460,23 +460,23 @@
         },
         {
           "net": "+5V",
-          "nominal": 4.76,
+          "nominal": 4.7,
           "domain": "from USB",
           "source": { "ref": "D1", "kind": "Schottky diode, 1N5819" },
           "checks": [
-            { "at": "C1", "expect": "4.6–4.9 V", "readsLowIf": "nothing comes through D1 from USB" },
-            { "at": "U1", "pin": "4", "expect": "4.6–4.9 V (the charger's input)" }
+            { "at": "C1", "expect": "4.5–4.9 V", "readsLowIf": "nothing comes through D1 from USB" },
+            { "at": "U1", "pin": "4", "expect": "4.5–4.9 V (the charger's input)" }
           ],
           "provenance": { "kind": "board + datasheet", "where": "1N5819 forward curve (Diodes DS30217); the drop depends on the load", "confidence": "derived" }
         },
         {
           "net": "Net-(D2-K)",
-          "nominal": 4.52,
+          "nominal": 4.4,
           "domain": "buck input (USB or battery)",
           "source": { "ref": "D2", "kind": "Schottky diode from +5V; FET1 from VBAT" },
           "checks": [
-            { "at": "C2", "expect": "4.4–4.7 V", "readsLowIf": "D2 is open, +5V is low, or the buck draws far too much (a short on +3.3V)" },
-            { "at": "U2", "pin": "1", "expect": "4.4–4.7 V (EN, tied to VIN on pin 4)" }
+            { "at": "C2", "expect": "4.2–4.6 V", "readsLowIf": "D2 is open, +5V is low, or the buck draws far too much (a short on +3.3V)" },
+            { "at": "U2", "pin": "1", "expect": "4.2–4.6 V (EN, tied to VIN on pin 4)" }
           ],
           "notes": "An unnamed net: U2's input. FET1 (IRLML6402, gate on +5V) feeds it from the battery when USB is absent.",
           "provenance": { "kind": "board", "where": "D2, FET1 and U2 pins 1 / 4 share this net", "confidence": "derived" }
@@ -510,6 +510,86 @@
       "notes": [
         "Power path, worked out from the board (derived): USB-C → D1 → +5V → D2 → U2 (buck) → +3.3V; +5V also → U1 → VBAT. Without USB, FET1 connects VBAT to U2's input.",
         "A warm board with a low 3.3 V rail: find the hot part before replacing anything. After a repair, measure the rail again: two faults can hide behind each other."
+      ]
+    },
+    {
+      "id": "esp32-c3-rust-board",
+      "board": "official-boards/boards/demo-esp32-c3-rust-board",
+      "title": "ESP32-C3-DevKit-RUST-1 (Rust ESP Board, rev. 1.2a)",
+      "provenance": { "kind": "design files + datasheets", "where": "set points from github.com/esp-rs/esp-rust-board @ efe1e8a and the parts' datasheets (docs/calibration)", "confidence": "documented" },
+      "rails": [
+        {
+          "net": "Net-(D6-Pad2)",
+          "nominal": 5,
+          "domain": "input (USB-C VBUS, bench supply)",
+          "source": { "ref": "J_BENCH", "kind": "bench supply, 5 V at the USB-C connector" },
+          "checks": [
+            { "at": "D6", "pin": "2", "expect": "≈5.0 V" }
+          ],
+          "notes": "VBUS straight from J1. D7 (LESD5D5.0, 5 V TVS) protects it; D6 (B5819W) is the input diode."
+        },
+        {
+          "net": "VBUS",
+          "nominal": 4.7,
+          "domain": "after the input diode",
+          "source": { "ref": "D6", "kind": "Schottky diode, B5819W" },
+          "checks": [
+            { "at": "C15", "pin": "2", "expect": "4.5–4.9 V", "readsLowIf": "D6 or one of its joints is open" },
+            { "at": "U6", "pin": "4", "expect": "4.5–4.9 V (the charger's input)" }
+          ],
+          "notes": "Feeds the charger U6, the charge LED D3, Q1's gate and, through D4, +5V.",
+          "provenance": { "kind": "board + datasheet", "where": "B5819W forward curve (MDD Rev 2025A4); the drop depends on the load", "confidence": "derived" }
+        },
+        {
+          "net": "+5V",
+          "nominal": 4.41,
+          "domain": "system input (USB or battery)",
+          "source": { "ref": "D4", "kind": "Schottky diode from VBUS; Q1 from +BATT" },
+          "checks": [
+            { "at": "C5", "expect": "4.2–4.7 V", "readsLowIf": "D4 is open: the board then runs from the charger through Q1's body diode and +5V sits near 3.6–3.8 V" },
+            { "at": "U5", "pin": "4", "expect": "4.2–4.7 V (the buck's input)" }
+          ],
+          "notes": "Two Schottky drops below the connector. Q1 (DMG3415U, gate on VBUS) connects the battery when USB is absent; its body diode conducts from +BATT to +5V even when it is off.",
+          "provenance": { "kind": "board", "where": "D4, Q1 (gate on VBUS) and U5 pin 4 share this net", "confidence": "derived" }
+        },
+        {
+          "net": "+3V3",
+          "nominal": 3.315,
+          "domain": "from +5V",
+          "source": { "ref": "U5", "kind": "buck, SY8088 (adjustable)" },
+          "checks": [
+            { "at": "C6", "pin": "1", "expect": "3.2–3.4 V", "readsLowIf": "U5 has no input (pin 4), its enable (pin 1, pulled up by R1 from +5V) is low, or the rail is shorted" },
+            { "at": "U5", "pin": "5", "expect": "≈0.6 V (FB)" }
+          ],
+          "notes": "Set point: 0.6 V × (1 + R2 100 kΩ / R3 22.1 kΩ) = 3.315 V. The ESP32-C3 module, the sensors (U1 SHTC3, U2 ICM-42670-P) and the RGB LED run from it.",
+          "provenance": { "kind": "datasheet + divider", "where": "SY8088 VREF 0.588–0.612 V (Silergy AN_SY8088 Rev. 0.1); R2 / R3 as designed", "confidence": "documented" }
+        },
+        {
+          "net": "CHIP_PU",
+          "nominal": 3.315,
+          "domain": "ESP32-C3 enable",
+          "source": { "ref": "R8", "kind": "10 kΩ pull-up from +3V3, C10 (1 µF) delay" },
+          "checks": [
+            { "at": "U3", "pin": "8", "expect": "≈3.3 V (released from reset)", "readsLowIf": "something leaks it to ground (residue around C10, a leaky C10, SW1 stuck): below 0.75 × 3.3 V the ESP32-C3 stays in reset and draws almost nothing" }
+          ],
+          "notes": "A running ESP32-C3 draws tens of mA (82 mA listening on Wi-Fi, datasheet); held in reset, the supply current drops to a few hundred µA while every rail looks fine.",
+          "provenance": { "kind": "datasheet + board", "where": "ESP32-C3-MINI-1 datasheet v1.7 (EN pin 8, VIH 0.75 × VDD, RX 82 mA); R8 / C10 / SW1 on this net", "confidence": "documented" }
+        },
+        {
+          "net": "+BATT",
+          "domain": "battery (charger output)",
+          "source": { "ref": "U6", "kind": "linear Li-ion charger, MCP73831-2AC" },
+          "checks": [
+            { "at": "U6", "pin": "5", "expect": "≈0 V with no battery fitted (PROG follows the charge current)" }
+          ],
+          "notes": "Charge current = 1000 V / R9 (10 kΩ) = 100 mA. With no battery fitted nothing defines +BATT (the charger is in constant-voltage mode, Q1 is off): a meter reads it somewhere between the 4.2 V float and +5V. Measure it with a battery or a load on it.",
+          "provenance": { "kind": "datasheet", "where": "Microchip MCP73831/2 DS20001984G: VREG 4.168–4.232 V (-2), I_REG = 1000 V / R_PROG", "confidence": "documented" }
+        }
+      ],
+      "powerUp": [ "Net-(D6-Pad2)", "VBUS", "+5V", "+3V3", "CHIP_PU" ],
+      "notes": [
+        "Power path, worked out from the board (derived): USB-C → D6 → VBUS → D4 → +5V → U5 (buck) → +3V3 → R8 → CHIP_PU; VBUS also → U6 → +BATT. Without USB, Q1 connects +BATT to +5V.",
+        "Rails present but no current: the chip is in reset. A low +5V with a healthy VBUS: the power is coming from the battery side."
       ]
     }
   ]

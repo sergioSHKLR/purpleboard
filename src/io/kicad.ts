@@ -357,6 +357,9 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
     const attrNode = kid(f, 'attr');
     const attrTokens = Array.isArray(attrNode) ? attrNode.slice(1).map(String) : [];
     if (kids(f, 'property').some((p) => /^dnp$/i.test(str(p, 1)) && !/^(no|false|0)?$/i.test(str(p, 2)))) attrTokens.push('dnp');
+    // a value that says "not fitted" (Olimex "NA/R0402", "NA(SN74…)"; "DNP", "DNF", "NF", "NM"): the
+    // footprint is on the board, the part is not. Switches and connectors keep "NC" (normally closed)
+    if (kind !== 'switch' && kind !== 'connector' && /^(DNP|DNF|DNI|NC|N\/A|NA|NF|NM|NOPOP|NOT ?FITTED|NO ?POP)(\s|\/|\(|$)/i.test(valText.trim())) attrTokens.push('dnp');
     const pads: Pad[] = [];
     for (const pd of kids(f, 'pad')) {
       const pName = str(pd, 1, '1');
@@ -398,6 +401,10 @@ export function parseKicadPcb(src: string): { board: Board; title: string } {
         net: netName,
       });
     }
+
+    // no copper, no part: logos, silkscreen labels (kibuzzard), mounting holes. Counted as parts they
+    // inflate "N parts" and draw stray reference labels; their artwork isn't imported either
+    if (!pads.length) continue;
 
     // Diodes that are not one two-terminal junction: multi-pin packages (ESD arrays, dual diodes)
     // and bidirectional ESD / TVS protectors, which do not conduct in normal operation.

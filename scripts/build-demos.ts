@@ -111,7 +111,7 @@ const DEMOS: Demo[] = [
     title: 'Olimex ESP32-DevKit-LiPo · dead on USB, won\'t charge',
     difficulty: 2,
     description:
-      'A real, sold ESP32 board (57 parts) with a Li-ion charger. The owner says it stopped doing anything on USB after the cable got yanked, and before that ' +
+      'A real, sold ESP32 board (50 parts) with a Li-ion charger. The owner says it stopped doing anything on USB after the cable got yanked, and before that ' +
       'the battery "never seemed to charge". No battery is plugged in on your bench.',
     hints: [
       'Follow the USB 5 V in: measure the USB rail, then +5V after D1. A diode with volts on one side and nothing on the other is open, or not soldered.',
@@ -145,7 +145,7 @@ const DEMOS: Demo[] = [
     title: 'Olimex ESP32-C3-DevKit-Lipo · hot board, wrong 3.3 V',
     difficulty: 3,
     description:
-      'A real, sold ESP32-C3 board (62 parts) back from a small production run: on USB it gets warm and the chip never starts. ' +
+      'A real, sold ESP32-C3 board (49 parts) back from a small production run: on USB it gets warm and the chip never starts. ' +
       'The assembler says two reels were swapped somewhere on that batch. No battery is plugged in on your bench.',
     hints: [
       'Measure +3.3V with Solver: SPICE + PWR. Far below 3.3 V with the buck enabled means something pulls it down: the thermal camera shows what is hot.',
@@ -162,6 +162,36 @@ const DEMOS: Demo[] = [
       part('R11').value = 22e3; // a 22 k reel where the 49.9 k one belongs: 0.6 V × (1 + 220/22) asks for 6.6 V
     },
     repair: DEMO_REPAIRS['demo-olimex-esp32-c3-devkit-lipo'],
+  },
+  {
+    id: 'demo-esp32-c3-rust-board',
+    repo: 'https://github.com/esp-rs/esp-rust-board.git',
+    commit: 'efe1e8ad5c6dbc23b4365fef35af27545bc1381d',
+    file: 'hardware/esp-rust-board/esp-rust-board.kicad_pcb',
+    license: 'CERN-OHL-P-2.0',
+    licenseFile: 'LICENSE-CERN-OHL',
+    credits: 'ESP32-C3-DevKit-RUST-1 (Rust ESP Board) rev. 1.2a, Espressif Systems and the esp-rs project, CERN-OHL-P-2.0. Converted and modified (planted faults) for DEADBOARD. ESP32 is a trademark of Espressif Systems; no endorsement implied.',
+    title: 'ESP32-C3 Rust board · rails fine, chip asleep',
+    difficulty: 4,
+    description:
+      'A real, sold ESP32-C3 training board (55 parts: sensors, RGB LED, Li-ion charger, USB-C). It came back from a workshop where someone spilled a drink on the bench, ' +
+      'and another participant says it "only really worked on the battery" before that. On USB it now stays silent. No battery is plugged in on your bench.',
+    hints: [
+      'Every rail can look present while the chip does nothing: compare the supply current with what a running ESP32-C3 draws (tens of mA). Almost nothing means it is held in reset: measure CHIP_PU (U3 pin 8), pulled up to +3V3 by R8.',
+      '+5V should sit one Schottky drop below VBUS. Lower than that, and the board is running backwards from the charger through Q1\'s body diode: follow +5V back to the part that should feed it from VBUS.',
+      'Clean what is crusty (isopropyl takes a few scrubs) and reflow what is cracked.',
+    ],
+    flag: 'DEAD{ru5t_b04rd_en_4nd_d4}',
+    objectives: [
+      { type: 'voltage', a: 'C5', min: 4.2, max: 4.7 },
+      { type: 'voltage', a: 'C10', min: 3.0, max: 3.4 },
+    ],
+    plant: (sc, part) => {
+      const d4 = part('D4');
+      toggleCold(d4, d4.pads.findIndex((p) => p.name === d4.pins.K));
+      injectFault(part('C10'), 'liquid-leakage', rng(seedOf(sc.id + 'C10')), { severity: 1000 });
+    },
+    repair: DEMO_REPAIRS['demo-esp32-c3-rust-board'],
   },
 ];
 

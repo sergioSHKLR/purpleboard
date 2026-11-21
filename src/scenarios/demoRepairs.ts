@@ -26,6 +26,12 @@ export const DEMO_REPAIRS: Record<string, DemoRepair> = {
     installPart(part('C5'), { value: 22e-6 });
     installPart(part('R11'), { value: 49.9e3 });
   },
+  'demo-esp32-c3-rust-board': (sc, part) => {
+    const d4 = part('D4');
+    toggleCold(d4, d4.pads.findIndex((p) => p.name === d4.pins.K));
+    const c10 = part('C10');
+    for (let k = 0; k < 6 && c10.state.residue; k++) cleanWithIpa(sc.board, c10.at[0], c10.at[1], 2);
+  },
 };
 
 /** A repaired copy of a shipped demo, or null when the scenario is not one. */

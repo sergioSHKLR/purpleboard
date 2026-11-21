@@ -1,0 +1,8 @@
+# Calibration data for the ESP32-C3-DevKit-RUST-1 rev. 1.2a demo (public/demos/demo-esp32-c3-rust-board.pcbfix.json):
+#   npm run calibrate -- public/demos/demo-esp32-c3-rust-board.pcbfix.json docs/calibration/demo-esp32-c3-rust-board.csv --repair
+# Tier: "matches published board values" (design intent), NOT bench measurements. No meter was used.
+# Source design: github.com/esp-rs/esp-rust-board @ efe1e8a (CERN-OHL-P-2.0), 5 V bench supply at the USB-C connector, no battery.
+# +BATT is left out: with no battery and the charger in constant-voltage mode nothing defines it (it floats).
+kind,net,value,state,tol
+# U5 SY8088, VREF 0.588–0.612 V (Silergy AN_SY8088 Rev. 0.1); R2 100k / R3 22.1k (1 %) → 0.6 × (1 + 100/22.1)
+volt,+3V3,3.315,S0,0.03

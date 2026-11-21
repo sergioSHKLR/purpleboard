@@ -70,26 +70,35 @@ const EXPECT: Record<string, Expect> = {
     flag: 'DEAD{b4s3b0ard_3v3_b4ck}',
   },
   'demo-olimex-esp32-devkit-lipo': {
-    parts: 57, conductors: 65, named: 65, splits: [],
+    parts: 51, conductors: 65, named: 65, splits: [],
     converters: { U1: 'VBAT' }, // U3 (HX6211, EN tied to VIN) is found at medium confidence
     supply: { ref: 'J_BENCH', volts: 5 },
     fails: { index: 0, min: -0.05, max: 0.1 }, // D1 open: nothing past the USB input
     rails: { '+3.3V': 3.3, VBAT: 4.2 },
-    // estimated loads only (one decoupling cap on +3.3V); a real ESP32 module idles at tens of mA: no module load model yet
-    amps: 0.00655,
+    amps: 0.0805, // U5 ESP32-WROOM-32D at its datasheet average 80 mA (v2.4), through the linear U3
     meter: { '+3.3V': [0.545, null], VBAT: [0.569, 4.57e6], '+5V': [0.564, 9857] },
     flag: 'DEAD{3sp32_l1p0_usb_4nd_pr0g}',
   },
   'demo-olimex-esp32-c3-devkit-lipo': {
-    parts: 62, conductors: 56, named: 56, splits: [],
+    parts: 50, conductors: 56, named: 56, splits: [],
     converters: { U2: '+3.3V', U1: 'VBAT' },
     supply: { ref: 'J_BENCH', volts: 5 },
     fails: { index: 0, min: 0.2, max: 0.5 }, // C5 shorted: SY8089 at its 3.5 A limit into 0.1 Ω
     hottest: 'C5',
     rails: { '+3.3V': 3.245, VBAT: 4.2 }, // 0.6 V × (1 + 220k / 49.9k)
-    amps: 0.0148, // estimated loads; no ESP32 module load model yet (see the DevKit-LiPo note)
+    amps: 0.0676, // U3 ESP32-C3-MINI-1 at 82 mA RX (datasheet v1.7) through the buck (efficiency 0.9, estimate)
     meter: { '+3.3V': [0.545, 270e3], VBAT: [0.569, 4.94e6], '+5V': [0.566, 9857] },
     flag: 'DEAD{c3_buck_fb_r33l_sw4p}',
+  },
+  'demo-esp32-c3-rust-board': {
+    parts: 56, conductors: 63, named: 63, splits: [],
+    converters: { U5: '+3V3', U6: '+BATT' },
+    supply: { ref: 'J_BENCH', volts: 5 }, // clipped at the USB-C connector, before D6
+    fails: { index: 0, min: 3.5, max: 4.0 }, // D4 open: +5V fed backwards from the charger through Q1's body diode
+    rails: { '+3V3': 3.315, CHIP_PU: 3.315 }, // 0.6 V × (1 + R2 100k / R3 22.1k)
+    amps: 0.0686, // U3 ESP32-C3-MINI-1 at 82 mA RX through the buck, from the connector
+    meter: { '+3V3': [0.515, 122.1e3], '+5V': [0.554, 100.1e3], VBUS: [0.542, 100e3] },
+    flag: 'DEAD{ru5t_b04rd_en_4nd_d4}',
   },
 };
 

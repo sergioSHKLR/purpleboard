@@ -34,9 +34,32 @@ export function chooseInputRail(board: Board): SupplyChoice | null {
   }
   const base = netBase(best!.net);
   const named = railVoltage(base);
-  if (named !== null) return { net: best!.net, volts: named, assumed: false, why: `rail name ${base}` };
-  if (/VBUS|USB/i.test(base)) return { net: best!.net, volts: 5, assumed: true, why: 'USB VBUS (5 V)' };
-  return { net: best!.net, volts: ASSUMED_INPUT_VOLTS, assumed: true, why: `no voltage in the name ${base}: ${ASSUMED_INPUT_VOLTS} V assumed` };
+  const choice: SupplyChoice = named !== null ? { net: best!.net, volts: named, assumed: false, why: `rail name ${base}` }
+    : /VBUS|USB/i.test(base) ? { net: best!.net, volts: 5, assumed: true, why: 'USB VBUS (5 V)' }
+    : { net: best!.net, volts: ASSUMED_INPUT_VOLTS, assumed: true, why: `no voltage in the name ${base}: ${ASSUMED_INPUT_VOLTS} V assumed` };
+  // the cable plugs into the connector: when the rail is fed through a series part from a connector
+  // pin (input diode, fuse, ferrite), clip there, so faults on the connector side show on the bench
+  if (!onConnector.has(choice.net)) {
+    const up = upstreamConnectorNet(board, choice.net, onConnector);
+    if (up) return { ...choice, net: up.net, why: `${choice.why}; at the connector, before ${up.via}` };
+  }
+  return choice;
+}
+
+/** The connector-side net of a series part (diode A → K, fuse, ferrite / ≤ 1 Ω) feeding `net`, if any. */
+function upstreamConnectorNet(board: Board, net: string, onConnector: Set<string>): { net: string; via: string } | null {
+  for (const c of board.components) {
+    if (!c.state.populated) continue;
+    const nets = [...new Set(c.pads.map((p) => p.net).filter((n): n is string => !!n))];
+    if (nets.length !== 2 || !nets.includes(net)) continue;
+    const other = nets.find((n) => n !== net)!;
+    if (!onConnector.has(other) || isGroundName(netBase(other))) continue;
+    const padNet = (pad: string | undefined) => c.pads.find((p) => p.name === pad)?.net;
+    const series = c.kind === 'diode' ? padNet(c.pins.A) === other && padNet(c.pins.K) === net
+      : c.kind === 'fuse' || (c.kind === 'resistor' && c.value <= 1);
+    if (series) return { net: other, via: c.ref };
+  }
+  return null;
 }
 
 /** Adds a bench supply ("J_BENCH") on the chosen input rail, next to one of its pads. */

@@ -304,6 +304,12 @@ export function discoverPowerTree(board: Board, conn: Conn, opts: PowerTreeOptio
       const named = nets.filter((n) => netRole(n) === 'rail' && railVoltage(n) !== null && !produced.has(n));
       const cand = unnamedInput(u, new Set(named));
       if (cand && pinsOn.get(cand)! >= 2 && named.length === 1) { tied = cand; inferred.add(cand); }
+      // the same with a named input: a voltage-named rail on two pins (VIN + EN) above another rail of the chip
+      else {
+        const vOf = (n: string) => (netRole(n) === 'rail' ? railVoltage(n) : null);
+        tied = nets.find((n) => (pinsOn.get(n) ?? 0) >= 2 && !isGroundName(n) && vOf(n) !== null && capsToGnd(n) > 0
+          && nets.some((o) => o !== n && vOf(o) !== null && vOf(o)! < vOf(n)!));
+      }
     }
     const rails = nets.filter((n) => isRail(n));
     // A chip with no enable-named pin whose only control net is a power-good is being *enabled*
@@ -408,7 +414,10 @@ export function discoverPowerTree(board: Board, conn: Conn, opts: PowerTreeOptio
   for (const src of sources) {
     if (!['buck', 'boost', 'ldo'].includes(src.kind)) continue;
     const ctrl = compByRef.get(src.ref);
-    const fbNets = new Set<string>([...(src.feedback ? [src.feedback] : []), ...(ctrl ? [...netsOf(ctrl).values()].filter((n) => netRole(n) === 'feedback') : [])]);
+    // FB by name, or by the datasheet pin when the part library knows the controller
+    const fbPin = ctrl ? findRegulator(ctrl.label)?.pins?.fb : undefined;
+    const fbByPin = ctrl && fbPin !== undefined ? netsOf(ctrl).get(fbPin) : undefined;
+    const fbNets = new Set<string>([...(src.feedback ? [src.feedback] : []), ...(fbByPin ? [fbByPin] : []), ...(ctrl ? [...netsOf(ctrl).values()].filter((n) => netRole(n) === 'feedback') : [])]);
     for (const fb of fbNets) {
       const rs = (ix.pins.get(fb) ?? []).filter((p) => prefixOf(p.c.ref) === 'R').map((p) => p.c);
       let bot: Component | undefined, top: Component | undefined;

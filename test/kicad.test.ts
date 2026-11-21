@@ -102,7 +102,7 @@ function run() {
     const nets = new Set(['R4', 'R5'].flatMap((r) => ['1', '2'].map((p) => pinNet(conn, get(b, r), p))));
     assert(nets.size === 4 && !b.zones.length, 'a keepout area is a design rule, not copper: the four pads under it stay four nets');
     assert(get(b, 'U1').pads.length === 2 && pinNet(conn, get(b, 'U1'), 'EP') !== pinNet(conn, get(b, 'U1'), '1'), 'paste-only windows are not copper and do not join the thermal pad to its neighbour');
-    assert(!get(b, 'H1').pads.length && pinNet(conn, get(b, 'R6'), '1') !== pinNet(conn, get(b, 'R7'), '1'), 'a non-plated hole has no copper');
+    assert(!get(b, 'H1') && pinNet(conn, get(b, 'R6'), '1') !== pinNet(conn, get(b, 'R7'), '1'), 'a non-plated hole has no copper: the mounting hole is not a part');
   }
 
   // ---- fitted / not fitted, protection diodes, ferrites ----
@@ -113,6 +113,13 @@ function run() {
       ${fp('D3', 'BAT54C', '30 38 0', pad('1', '-1 0', 1) + pad('2', '1 0', 7) + pad('3', '0 1', 4))}
       ${fp('FB1', '600R', '40 34 0', pad('1', '-1 0', 1) + pad('2', '1 0', 4))}`);
     assert(!get(b, 'R9').state.populated, 'a dnp footprint is on the board but not fitted');
+    const nf = board(`${fp('R7', 'NA/R0402', '10 10 0', pad('1', '-1 0', 3) + pad('2', '1 0', 4))}
+      ${fp('R12', 'DNP', '10 14 0', pad('1', '-1 0', 3) + pad('2', '1 0', 4))}
+      ${fp('U7', 'NA(SN74LVC1G04DBVR(SOT23-5))', '10 18 0', pad('1', '-1 0', 3) + pad('2', '1 0', 2))}
+      ${fp('R8', 'NAND_PULLUP_10k', '10 22 0', pad('1', '-1 0', 3) + pad('2', '1 0', 4))}
+      ${fp('SW2', 'NC', '10 26 0', pad('1', '-1 0', 3) + pad('2', '1 0', 4))}`);
+    assert(!get(nf, 'R7').state.populated && !get(nf, 'R12').state.populated && !get(nf, 'U7').state.populated, 'a value that says "not fitted" (NA/…, DNP, NA(…)) leaves the footprint empty');
+    assert(get(nf, 'R8').state.populated && get(nf, 'SW2').state.populated, 'other values starting with those letters, and a normally-closed switch, stay fitted');
     assert(get(b, 'D1').kind === 'ic', 'a bidirectional ESD protector does not conduct in normal operation');
     assert(get(b, 'D2').kind === 'diode', 'a unidirectional TVS stays a diode (diode-mode readings)');
     assert(get(b, 'D3').kind === 'ic', 'a three-pin dual diode is not one junction');

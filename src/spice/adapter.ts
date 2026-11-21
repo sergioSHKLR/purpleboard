@@ -10,7 +10,7 @@ import { Engine, type EngineOptions, type OpResult } from './engine';
 import { discoverPowerTree } from './powertree';
 import { powerTreeElements } from './powermodels';
 import { POWER_STATES, enablesForState, type PowerStateName } from './sequencer';
-import { estimateRailLoads, loadWatts } from './loads';
+import { chipLoads, estimateRailLoads, loadWatts, STATE_ACTIVITY } from './loads';
 import { findRegulator } from './regulators';
 import { activeDmm } from './dmm';
 
@@ -134,6 +134,17 @@ export function simulateSpice(board: Board, conn: Conn, opt: SpiceSimOpts = {}):
         const w = loadWatts(l, opt.powerState!) * (opt.loadScale ?? 1);
         if (!n || n === '0' || !(w > 0)) return;
         ckt.elements.push({ kind: 'R', name: `R_LOAD${i}`, n: [n, '0'], value: (l.v * l.v) / w, note: `${l.rail}: estimated load ${w.toFixed(3)} W (${l.caps} decoupling caps)` });
+      });
+      // chips with a datasheet supply current: a current sink on the supply pin, running above
+      // vmin and while EN is high (VIH 0.75 × VDD); held in reset they draw ~nothing
+      chipLoads(board, conn).forEach((l, i) => {
+        const vdd = nameToNode.get(conn.netNames[l.supplyNet]);
+        if (!vdd || vdd === '0') return;
+        const en = l.enableNet !== undefined ? nameToNode.get(conn.netNames[l.enableNet]) : undefined;
+        const step = (x: string, k: number) => `(0.5+0.5*tanh((${x})*${k}))`;
+        const amps = l.def.amps * STATE_ACTIVITY[opt.powerState!];
+        const gate = `${step(`V(${vdd})-${l.def.vmin}`, 20)}${en && en !== '0' ? `*${step(`V(${en})-0.75*V(${vdd})`, 20)}` : en === '0' ? '*0' : ''}`;
+        ckt.elements.push({ kind: 'B', name: `B_CHIP${i}`, n: [vdd, '0'], mode: 'I', expr: `${amps.toExponential(4)}*${gate}`, note: `${l.ref} ${l.def.mpn}: ${(amps * 1e3).toFixed(0)} mA, ${l.def.state} (datasheet: ${l.def.source})` });
       });
     }
   }

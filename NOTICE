@@ -7,7 +7,8 @@ Third-party material distributed with it keeps its own licence:
 
 - public/demos/: demo boards converted from open-hardware designs (MNT Reform 2 motherboard,
   CERN-OHL-S-2.0; Antmicro Jetson Nano / Xavier NX baseboard, Apache-2.0; OLIMEX
-  ESP32-DevKit-LiPo, Apache-2.0; OLIMEX ESP32-C3-DevKit-Lipo, CERN-OHL-S-2.0), modified with
+  ESP32-DevKit-LiPo, Apache-2.0; OLIMEX ESP32-C3-DevKit-Lipo, CERN-OHL-S-2.0; Espressif
+  ESP32-C3-DevKit-RUST-1, CERN-OHL-P-2.0), modified with
   planted faults. See public/demos/NOTICE.txt and public/demos/licenses/.
 - src/io/tvw.ts: the Tebo-ICT (.tvw) record layout follows the reverse-engineered reader in
   eagleview (https://github.com/nitrocaster/eagleview), MIT License, Copyright (c) 2019-2020

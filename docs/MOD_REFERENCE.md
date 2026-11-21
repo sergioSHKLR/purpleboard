@@ -312,6 +312,7 @@ how often the planted part is in the top 3, with and without your rules.
 | `official-boards/boards/demo-antmicro-jetson-nano-bb` | Antmicro baseboard · no 3.3 V, flaky 5 V (demo, loads when opened) |
 | `official-boards/boards/demo-olimex-esp32-devkit-lipo` | Olimex ESP32-DevKit-LiPo · dead on USB, won't charge (demo, loads when opened) |
 | `official-boards/boards/demo-olimex-esp32-c3-devkit-lipo` | Olimex ESP32-C3-DevKit-Lipo · hot board, wrong 3.3 V (demo, loads when opened) |
+| `official-boards/boards/demo-esp32-c3-rust-board` | ESP32-C3 Rust board · rails fine, chip asleep (demo, loads when opened) |
 
 ### Solvers (`official-solvers`)
 
@@ -354,6 +355,8 @@ Patch an entry by its address. Numbers are the datasheet quantities; see [Device
 | `official-solvers/devices/irlml6402` | IRLML6402 | pmos | yes |
 | `official-solvers/devices/wpm2015` | WPM2015 | pmos | yes |
 | `official-solvers/devices/1n5819` | 1N5819 | schottky | yes |
+| `official-solvers/devices/dmg3415u` | DMG3415U | pmos | yes |
+| `official-solvers/devices/b5819w` | B5819W | schottky | yes |
 | `official-solvers/devices/si7850dp` | SI7850DP | nmos | yes |
 | `official-solvers/devices/si7461dp` | SI7461DP | pmos | yes |
 | `official-solvers/devices/bat46wj` | BAT46WJ | schottky | yes |

@@ -24,7 +24,7 @@
     "file": "demo-olimex-esp32-devkit-lipo.pcbfix.json",
     "title": "Olimex ESP32-DevKit-LiPo · dead on USB, won't charge",
     "difficulty": 2,
-    "description": "A real, sold ESP32 board (57 parts) with a Li-ion charger. The owner says it stopped doing anything on USB after the cable got yanked, and before that the battery \"never seemed to charge\". No battery is plugged in on your bench.",
+    "description": "A real, sold ESP32 board (50 parts) with a Li-ion charger. The owner says it stopped doing anything on USB after the cable got yanked, and before that the battery \"never seemed to charge\". No battery is plugged in on your bench.",
     "credits": "ESP32-DevKit-LiPo Rev. D, designed by OLIMEX Ltd, hardware Apache-2.0. Converted and modified (planted faults) for DEADBOARD. ESP32 is a trademark of Espressif Systems; no endorsement implied.",
     "license": "Apache-2.0",
     "source": "https://github.com/OLIMEX/ESP32-DevKit-LiPo @ 1ebbbb5"
@@ -34,9 +34,19 @@
     "file": "demo-olimex-esp32-c3-devkit-lipo.pcbfix.json",
     "title": "Olimex ESP32-C3-DevKit-Lipo · hot board, wrong 3.3 V",
     "difficulty": 3,
-    "description": "A real, sold ESP32-C3 board (62 parts) back from a small production run: on USB it gets warm and the chip never starts. The assembler says two reels were swapped somewhere on that batch. No battery is plugged in on your bench.",
+    "description": "A real, sold ESP32-C3 board (49 parts) back from a small production run: on USB it gets warm and the chip never starts. The assembler says two reels were swapped somewhere on that batch. No battery is plugged in on your bench.",
     "credits": "ESP32-C3-DevKit-Lipo Rev. D, designed by OLIMEX Ltd, hardware CERN-OHL-S-2.0. Converted and modified (planted faults) for DEADBOARD. ESP32 is a trademark of Espressif Systems; no endorsement implied.",
     "license": "CERN-OHL-S-2.0",
     "source": "https://github.com/OLIMEX/ESP32-C3-DevKit-Lipo @ 5d93e79"
+  },
+  {
+    "id": "demo-esp32-c3-rust-board",
+    "file": "demo-esp32-c3-rust-board.pcbfix.json",
+    "title": "ESP32-C3 Rust board · rails fine, chip asleep",
+    "difficulty": 4,
+    "description": "A real, sold ESP32-C3 training board (55 parts: sensors, RGB LED, Li-ion charger, USB-C). It came back from a workshop where someone spilled a drink on the bench, and another participant says it \"only really worked on the battery\" before that. On USB it now stays silent. No battery is plugged in on your bench.",
+    "credits": "ESP32-C3-DevKit-RUST-1 (Rust ESP Board) rev. 1.2a, Espressif Systems and the esp-rs project, CERN-OHL-P-2.0. Converted and modified (planted faults) for DEADBOARD. ESP32 is a trademark of Espressif Systems; no endorsement implied.",
+    "license": "CERN-OHL-P-2.0",
+    "source": "https://github.com/esp-rs/esp-rust-board @ efe1e8a"
   }
 ]

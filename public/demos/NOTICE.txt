@@ -45,3 +45,12 @@ demo-olimex-esp32-c3-devkit-lipo.pcbfix.json
            and resistor R11 fitted as 22 kΩ (design: 49.9 kΩ); test objectives and an encrypted
            flag added.
   "ESP32" is a trademark of Espressif Systems; no endorsement implied.
+
+demo-esp32-c3-rust-board.pcbfix.json
+  Source: ESP32-C3-DevKit-RUST-1 (Rust ESP Board) rev. 1.2a, Espressif Systems and the esp-rs project
+          https://github.com/esp-rs/esp-rust-board  (commit efe1e8ad5c6dbc23b4365fef35af27545bc1381d,
+          hardware/esp-rust-board/esp-rust-board.kicad_pcb)
+  Licence: CERN-OHL-P-2.0 (permissive)
+  Changes: converted to the DEADBOARD scenario format; bench supply added at the USB-C connector;
+           a cracked joint at diode D4 and liquid residue (leakage) at C10 on CHIP_PU added; test
+           objectives and an encrypted flag added.
