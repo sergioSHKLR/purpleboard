@@ -1,4 +1,4 @@
-# DEADBOARD — handoff (updated end of 2026-11-20: mod platform phases 1–6 + docs; problem generator, mod.io, first-board analytics)
+# DEADBOARD — handoff (updated end of 2026-11-21: board notes, Community catalogue + Submit, onboarding fixes from player reports)
 
 Goal: make DEADBOARD (formerly PCB//FIX) a realistic board-repair trainer, as close to a real bench as possible,
 **universal** (any board, not just the MacBook), with honest provenance for every value.
@@ -7,7 +7,83 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
-- **START HERE — end of 2026-11-20 (everything pushed and live; last commit: the handoff after `7549c31`).**
+- **START HERE — end of 2026-11-21 (everything pushed and live; last code commit `d15ec74`).**
+  Ask the user which thread to continue. **iOS and desktop apps are on hold** (as below).
+  - **Coach RFC by Biga73 (Andrej, GitHub Biga73) — credit him by name on anything from it.**
+    His RFC (knowledge pack, query layer, fault-candidate engine, optional LLM explainer) was
+    already built as mods on 11-20 (see `docs/MOD_PLATFORM.md` → "How the coach RFC fits").
+    11-21: **board notes** = `examples/mods/board-notes` (`72f0f47`): a knowledge pack for all 13
+    shipped boards; MNT/Antmicro set points `documented` from `docs/calibration`, enable chains and
+    power-up order `derived`; no planted fault named. `test/modcontent.test.ts` holds every
+    nominal / expected voltage and pin to the simulator. Fixed on the way: `staleEntries` read
+    net names from pads only (built-in boards name traces) → now `boardNetNames()`.
+    **Reply to Andrej:** the user has a final draft (points him to Mods → Community → Board notes,
+    Submit, and asks for help with: per-board symptom → candidate `patterns`, packs by board
+    fingerprint, the evaluation fault list; invites a GitHub Suggestion issue). Not sent by us.
+    **Open RFC gaps:** `patterns` field + feeding «Where to look?»; skeleton pack generator;
+    `api.queries.knowledge()` for code mods; `copperGap` / `highlight`; fingerprints.
+  - **Community catalogue on deadboard.org (user chose our own page over mod.io), `12f95b7`,
+    `f928235`, `d2fdfdd`.** Mods window → **Community** tab lists `public/community/index.json`
+    (all example zips + reviewed player mods; size + SHA-256 checked on download; required
+    catalogue mods installed first). **Submit** on an installed mod: bench check must pass,
+    consent box, sent through FormSubmit (feedback route, no account); ≤ **40 KB** inline, else a
+    link. Limit MEASURED on the live site: 40 KB delivered byte-identical, 52 KB / 256 KB refused
+    with HTTP 500 (≈64 KB stored). **Review workflow:** `npm run feedback` saves
+    `.feedback/<id>.mod.zip` → review → `npm run community -- --add <zip>` → commit + push.
+    Run `npm run community` after `npm run example-mod` (and after restoring the starter kit).
+    UI lazy-loaded (`src/ui/community-ui.ts`, 14 KB; main bundle 499.6 KB). Installing / removing a
+    mod now redraws the open board (was: notes only after a reload). Test mods sent on 11-21
+    (`submission-test-small`, `-40k`) sit in the user's inbox + `.feedback/`: not for the catalogue.
+    mod.io stays a second channel (game still Hidden there).
+  - **Feedback (pulled 11-21, 70 reports).** Since the WebGL2 fallback only ONE player was stuck
+    (Chrome 157/Linux, no WebGL at all; left a contact) vs ~55 before. Fixed in `d15ec74`: the
+    error screen is "3D graphics aren't available" with advice by cause/browser
+    (`src/ui/gpuhelp.ts`, tested on real user agents). A player called the step from tutorials to
+    real boards "inhumane": now a **"Next: repair challenges"** track (`CHALLENGE_TRACK_IDS` in
+    `src/ui/tutorial.ts`: 5 challenges, then Antmicro, MNT) with «Where to look?» / Get board notes.
+    **Next candidate (needs planning with the user):** 1–2 in-between boards (~15–40 parts with a
+    regulator: enable, feedback divider, a couple of rails) between the challenges and the demos.
+    Also still open from 11-19: demo-board schematics suggestion, repro.ts false flags, duplicate
+    report sends.
+  - **Retention round (later 11-21, from Umami: 268 visits since the first-board events).**
+    First Light lost 60% between tutorial step 1 and 2 (163 → 65; 40 closed it there), after
+    that 65 → 45 reach step 8. Android phones: 28 of 60 got the desktop layout (they report
+    `any-pointer: fine`); iOS 0 of 26. Changed: First Light opens with **"A broken
+    flashlight"** (press SW1, D1 stays dark) instead of "Anatomy of a PCB" (3D + flip; Cold Joint
+    101 teaches the flip), 7 steps; phones fit the board, Locate and each new step into the part
+    of the screen the lesson card and readouts leave free (`clearView` / `fitBoardInView` in
+    `app.ts`, `Camera.frameIn`; follows the overlays until the player moves the camera);
+    phone-sized touch screens get the phone layout even with a fine pointer (`touch.ts`).
+    **The 19% of `/app.html` visits without `bench ready`:** not load time (slow 4G + 4× CPU:
+    bench up in ~1.9 s, 304 KB) and not one browser/OS/country (all ~20%). Per-session activity:
+    5 real `bench failed`, ~16 with one page view and nothing else (left in 1–2 s, or a silent
+    hang). Added: 5 s timeouts on WebGPU requestAdapter/requestDevice (then WebGL2;
+    `gpuprobe.ts` `withTimeout`), a boot screen inside `app.html`, a 10 s (visible time)
+    slow-start notice with Reload / "Start with simpler graphics" that reports `bench failed`
+    {reason: 'slow start', stage: boards|mods|ui|graphics}, and a start-error screen
+    (`startFailed`, reason 'start error'). PRIVACY.md updated. Next read tells hang vs quick leave.
+    **Homepage on phones:** 423 phone sessions landing on `/`: 205 never opened the bench, 93% of
+    those under 1 active minute; iPhone and no-referrer (app links) worst. The live 3D hero froze
+    a mid-range phone for ~3.5 s (one 2.9 s long task at 1.8 s) and cost 1.3 MB: phones now get
+    a 1400 px screenshot (`public/home/bench-1400.jpg`, srcset) and load the 3D board on "Tap to
+    turn it in 3D" (`src/home/main.ts`); no long tasks left. Desktop unchanged.
+    **New events (user asked for them; PRIVACY.md updated):** `home left` {visible: <5s|5-15s|
+    15-30s|30-60s|60s+, scrolled: 0–100% in quarters, to: bench|page|link out|away, hero:
+    picture|tapped|live}, sent when the homepage is first hidden; `bench left early` {visible,
+    reached: loading|failed|bench|tool|tests|fixed, step, layout}, only when the bench page is
+    first hidden within its first visible minute (a tab switch and back counts too: cross-check
+    with `active 5 min`); `bench error` {kind, tool, board}, once per load after the bench is up,
+    never the message; `tutorial step` now has `prev`: done|skipped|none (was the step before
+    done when Next was pressed). Helpers in `src/analytics.ts` (`visibleClock`, `onFirstHide`,
+    buckets; Umami sends with keepalive). Verified with a stubbed `window.umami` in Playwright.
+    **Event budget:** Hobby plan = 100k events/month incl. page views; 11-20→21 ran at ~2,850
+    per 15 h (~130k/month at launch traffic). Biggest: `tutorial step`, `tests run`. Once the
+    questions are answered, thin those first.
+    Re-read after ~2 days: step 1 → 2 (+ prev done/skipped), `bench left early` by reached /
+    visible / layout, `slow start` stages, `home left` on phones by visible / scrolled / to.
+  - Earlier threads below are unchanged.
+
+- **Previous START HERE — end of 2026-11-20 (last commit: the handoff after `7549c31`).**
   Ask the user which thread to continue. **iOS and desktop apps are on hold**: no work on them and
   no "rebuild the apps" reminders until the user brings them back.
   - **Mod platform thread (newest; phases 1–6 built and live, `03f013a` + docs `7549c31`).**
