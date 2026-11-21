@@ -8,7 +8,7 @@ No reference hardware is available, so realism is validated against *design inte
 ## Status (start here)
 
 - **LATEST — device themes: real ESP32 boards (2026-11-21, committed, NOT pushed: `ea3d2db`,
-  `2d56da9`, `33b59b3`, `f93f389`, `da835b7`, `72e8016`, `f633497`).** The user wants whole device themes (ESP32, game
+  `2d56da9`, `33b59b3`, `f93f389`, `da835b7`, `72e8016`, `f633497`, `c17f6c8`).** The user wants whole device themes (ESP32, game
   controllers, graphics cards…) at every difficulty, still 1:1 with real devices. Agreed order:
   real products that are open hardware first (KiCad + redistributable licence); for branded
   devices a self-drawn version of a unit you own; GPU = a "GPU-style" board from datasheet
@@ -46,6 +46,16 @@ No reference hardware is available, so realism is validated against *design inte
   - **Buttons (`f633497`):** changeover switches are modelled (COM–NO pressed, COM–NC released) when
     the switch library (src/switchParts.ts) knows the part from its drawing: Kailh CMI126603D08 (LCSC
     C400256). The Tadpole is now L4 with a cracked SW2 NO joint, checked pressed and released.
+  - **GPU theme (researched, not built):** no open GPU board files exist (FuryGPU's are unpublished;
+    vendor multiphase reference designs are proprietary). Best real stand-in: **Antmicro Kintex-7
+    K410T devboard** (Apache-2.0, KiCad, github.com/antmicro/kintex-410t-devboard @ aeacd84): big
+    FPGA (BGA-900) with a high-current core rail (MP8869S buck → 1.0 V), DDR3L (VRAM-like: +1V35,
+    NCP51400 VTT), HDMI out, USB-C PD input (STUSB4500, LTC4412), two MPM54304 quad power modules
+    (+5V/+3V3/+1V8/+1V2, inductors inside: the discovery can't see them), LM3880 sequencer. Imports
+    clean since `c17f6c8` (pads were enlarged to 0.4 mm and merged 14 nets). **Needed before a fair
+    challenge:** MPM54304 multi-channel model (pins per channel), NCP51400 VTT, LM3880 sequencing,
+    a decision on the bench input (USB-C at 5 V without PD, or the 12–20 V PD contract), FPGA core
+    load (Kintex-7 power estimator, not a datasheet table: mark as estimate).
   - **Flaky:** `test/solve.test.ts` "100x pickAt budget" (25 ms) fails ~half the runs on this Mac
     under load, also on the committed code (27–35 ms). Not touched.
   - **Open:** Unpowered ICs don't clamp their pins (TXD reads 5 V through R6 on the DevKit);
