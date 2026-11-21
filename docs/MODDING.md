@@ -640,14 +640,21 @@ who installed it see **Update**. You can also open an issue on
 
 ## Share it on mod.io
 
-DEADBOARD's mod hub is on [mod.io](https://mod.io). Mods published there show up in the app under
-**Boards → Mods → Browse mod.io**, where players install them with one click (no account needed).
+DEADBOARD's mod hub is on mod.io: [mod.io/g/deadboard](https://mod.io/g/deadboard). Mods published
+there show up in the app under **Boards → Mods → Browse mod.io**, where players install them with one
+click (no account needed).
 
-1. Test the mod (above) and zip it: `mod.json` at the root of the `.zip`.
-2. Sign in at mod.io, open DEADBOARD's page and choose **Add mod**.
-3. Give it a name, a short summary and a logo (a 16:9 screenshot of the board works well), then
+1. Test the mod (above): install it in the app and press **Bench check** on its card until it has no
+   failures. mod.io doesn't review DEADBOARD mods; a mod goes live as soon as mod.io's virus scan
+   passes, so the bench check is the only test it gets before players see it.
+2. Zip it: `mod.json` at the root of the `.zip`.
+3. Sign in at mod.io, open [DEADBOARD's page](https://mod.io/g/deadboard) and choose **Add mod**.
+4. Give it a name, a short summary and a logo (a 16:9 screenshot of the board works well), then
    upload the `.zip` as the mod's file. Fill in the version so players can tell releases apart.
-4. To release a fix, upload a new file to the same mod.io page: players who installed it see an
+5. Pick its tags so players can filter: **Difficulty** (Beginner, Intermediate or Advanced),
+   **Type** (Training board, Repair challenge, Open hardware, Sandbox) and **Includes**
+   (Schematic, BOM).
+6. To release a fix, upload a new file to the same mod.io page: players who installed it see an
    **Update** button.
 
 Credit and licence rules (below) apply on mod.io too, and so do mod.io's
