@@ -1,0 +1,11 @@
+# Calibration data for the OLIMEX ESP32-DevKit-LiPo Rev. D demo (public/demos/demo-olimex-esp32-devkit-lipo.pcbfix.json):
+#   npm run calibrate -- public/demos/demo-olimex-esp32-devkit-lipo.pcbfix.json docs/calibration/demo-olimex-esp32-devkit-lipo.csv --repair
+# Tier: "matches published board values" (design intent), NOT bench measurements. No meter was used.
+# Source design: github.com/OLIMEX/ESP32-DevKit-LiPo @ 1ebbbb5 (Apache-2.0), 5 V bench supply on the USB rail, no battery.
+# This board is cheap and on sale: bench readings of a real one (diode / ohm / amps rows) would move it to "bench-measured".
+kind,net,value,state,tol
+# U3 HX6211A332 fixed 3.3 V, output ±2 % (HX6211 datasheet, LCSC C296224)
+volt,+3.3V,3.300,S0,0.03
+# U1 BL4054B-42 float voltage 4.158–4.242 V (Belling BL4054/BL4054B Rev 1.4). No battery fitted: the model holds the float
+# voltage; a real charger with nothing on BAT may cycle (charge LED flicker), so a meter can read a little lower.
+volt,VBAT,4.200,S0,0.02

@@ -6,7 +6,8 @@ This product is licensed under the Apache License, Version 2.0 (see LICENSE).
 Third-party material distributed with it keeps its own licence:
 
 - public/demos/: demo boards converted from open-hardware designs (MNT Reform 2 motherboard,
-  CERN-OHL-S-2.0; Antmicro Jetson Nano / Xavier NX baseboard, Apache-2.0), modified with
+  CERN-OHL-S-2.0; Antmicro Jetson Nano / Xavier NX baseboard, Apache-2.0; OLIMEX
+  ESP32-DevKit-LiPo, Apache-2.0; OLIMEX ESP32-C3-DevKit-Lipo, CERN-OHL-S-2.0), modified with
   planted faults. See public/demos/NOTICE.txt and public/demos/licenses/.
 - src/io/tvw.ts: the Tebo-ICT (.tvw) record layout follows the reverse-engineered reader in
   eagleview (https://github.com/nitrocaster/eagleview), MIT License, Copyright (c) 2019-2020
@@ -14,5 +15,5 @@ Third-party material distributed with it keeps its own licence:
 - Fonts (JetBrains Mono, Inter) are bundled at build time from npm under the SIL Open Font
   License 1.1.
 
-Jetson is a trademark of NVIDIA. MNT Reform is a trademark of MNT Research GmbH. No
-endorsement by any of these parties is implied.
+Jetson is a trademark of NVIDIA. MNT Reform is a trademark of MNT Research GmbH. ESP32 is a
+trademark of Espressif Systems. No endorsement by any of these parties is implied.

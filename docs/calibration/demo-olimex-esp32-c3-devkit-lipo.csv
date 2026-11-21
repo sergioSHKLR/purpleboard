@@ -1,0 +1,9 @@
+# Calibration data for the OLIMEX ESP32-C3-DevKit-Lipo Rev. D demo (public/demos/demo-olimex-esp32-c3-devkit-lipo.pcbfix.json):
+#   npm run calibrate -- public/demos/demo-olimex-esp32-c3-devkit-lipo.pcbfix.json docs/calibration/demo-olimex-esp32-c3-devkit-lipo.csv --repair
+# Tier: "matches published board values" (design intent), NOT bench measurements. No meter was used.
+# Source design: github.com/OLIMEX/ESP32-C3-DevKit-Lipo @ 5d93e79 (CERN-OHL-S-2.0), 5 V bench supply on the USB rail, no battery.
+kind,net,value,state,tol
+# U2 SY8089AAAC, VREF 0.588–0.612 V (Silergy AN_SY8089/A Rev. 0.9A); R10 220k / R11 49.9k (1 %) → 0.6 × (1 + 220/49.9)
+volt,+3.3V,3.245,S0,0.03
+# U1 TP4054-42 float voltage 4.158–4.242 V (TPOWER TP4054 V2.2); no battery fitted (see the DevKit-LiPo note)
+volt,VBAT,4.200,S0,0.02

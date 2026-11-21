@@ -93,4 +93,5 @@ Without it, the form falls back to a prefilled GitHub issue.
 DEADBOARD is licensed under the [Apache License 2.0](LICENSE). The demo boards in
 `public/demos/` keep the licences of their source designs (CERN-OHL-S-2.0 and Apache-2.0); see
 [NOTICE](NOTICE) and [public/demos/NOTICE.txt](public/demos/NOTICE.txt). MNT Reform is a
-trademark of MNT Research GmbH and Jetson a trademark of NVIDIA; no endorsement is implied.
+trademark of MNT Research GmbH, Jetson a trademark of NVIDIA and ESP32 a trademark of Espressif
+Systems; no endorsement is implied.

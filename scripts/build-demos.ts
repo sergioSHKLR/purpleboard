@@ -2,6 +2,7 @@
 //
 //   npx tsx scripts/build-demos.ts --fetch            # sparse-clone the pinned commits into a temp dir
 //   npx tsx scripts/build-demos.ts --src <dir>        # or use existing checkouts: <dir>/<demo id>/...
+//   … --only <id>[,<id>]                             # rebuild just these; the others keep their JSON and index entry
 //
 // Each demo: import → lock the flag to the healthy board → plant faults → check that the faulted
 // board fails its tests and that the intended repair passes them and unlocks the flag. The
@@ -17,6 +18,7 @@ import { lockFlag, topology } from '../src/crypto';
 import { verifyScenario } from '../src/verify';
 import { injectFault, rng, seedOf } from '../src/faults';
 import { DEMO_REPAIRS } from '../src/scenarios/demoRepairs';
+import { removePart, toggleCold } from '../src/ops';
 
 interface Demo {
   id: string;
@@ -25,6 +27,8 @@ interface Demo {
   file: string;
   license: string;
   licenseFile: string;
+  /** The hardware licence text when the repository's own LICENSE file covers something else: a file in this repo + a note on top. */
+  licenseText?: { file: string; note: string };
   credits: string;
   title: string;
   difficulty: number;
@@ -96,6 +100,69 @@ const DEMOS: Demo[] = [
     },
     repair: DEMO_REPAIRS['demo-antmicro-jetson-nano-bb'],
   },
+  {
+    id: 'demo-olimex-esp32-devkit-lipo',
+    repo: 'https://github.com/OLIMEX/ESP32-DevKit-LiPo.git',
+    commit: '1ebbbb5ceaa84b1d67631d8d542d7f6128c19fc1',
+    file: 'HARDWARE/ESP32-DevKit-LiPo-Rev.D/ESP32-DevKit-Lipo_Rev_D.kicad_pcb',
+    license: 'Apache-2.0',
+    licenseFile: 'LICENSE',
+    credits: 'ESP32-DevKit-LiPo Rev. D, designed by OLIMEX Ltd, hardware Apache-2.0. Converted and modified (planted faults) for DEADBOARD. ESP32 is a trademark of Espressif Systems; no endorsement implied.',
+    title: 'Olimex ESP32-DevKit-LiPo · dead on USB, won\'t charge',
+    difficulty: 2,
+    description:
+      'A real, sold ESP32 board (57 parts) with a Li-ion charger. The owner says it stopped doing anything on USB after the cable got yanked, and before that ' +
+      'the battery "never seemed to charge". No battery is plugged in on your bench.',
+    hints: [
+      'Follow the USB 5 V in: measure the USB rail, then +5V after D1. A diode with volts on one side and nothing on the other is open, or not soldered.',
+      'With no battery fitted, a working charger holds its BAT pin near 4.2 V. If it reads 0 V, check the part that sets its charge current: the resistor on PROG (U1 pin 5).',
+      'Reflow what is cracked; fit what is missing (its value is printed in the Inspector).',
+    ],
+    flag: 'DEAD{3sp32_l1p0_usb_4nd_pr0g}',
+    objectives: [
+      { type: 'voltage', a: 'C7', min: 3.2, max: 3.4 },
+      { type: 'voltage', a: 'BAT1', min: 3.8, max: 4.3 },
+    ],
+    plant: (_sc, part) => {
+      const d1 = part('D1');
+      toggleCold(d1, d1.pads.findIndex((p) => p.name === d1.pins.K));
+      removePart(part('R4'));
+    },
+    repair: DEMO_REPAIRS['demo-olimex-esp32-devkit-lipo'],
+  },
+  {
+    id: 'demo-olimex-esp32-c3-devkit-lipo',
+    repo: 'https://github.com/OLIMEX/ESP32-C3-DevKit-Lipo.git',
+    commit: '5d93e79d46cf3b05782d9fe0f95a8a2e1ca6abbe',
+    file: 'HARDWARE/ESP32-C3-DevKit-Lipo_Rev_D/ESP32-C3-DevKit-Lipo_Rev_D.kicad_pcb',
+    license: 'CERN-OHL-S-2.0',
+    licenseFile: 'README.md',
+    licenseText: {
+      file: 'public/demos/licenses/demo-mnt-reform2-mb30.LICENSE.txt',
+      note: 'OLIMEX ESP32-C3-DevKit-Lipo: the upstream README releases the hardware under CERN-OHL-S-2.0 (its LICENSE file is the GPL-3.0 for the software). Licence text:',
+    },
+    credits: 'ESP32-C3-DevKit-Lipo Rev. D, designed by OLIMEX Ltd, hardware CERN-OHL-S-2.0. Converted and modified (planted faults) for DEADBOARD. ESP32 is a trademark of Espressif Systems; no endorsement implied.',
+    title: 'Olimex ESP32-C3-DevKit-Lipo · hot board, wrong 3.3 V',
+    difficulty: 3,
+    description:
+      'A real, sold ESP32-C3 board (62 parts) back from a small production run: on USB it gets warm and the chip never starts. ' +
+      'The assembler says two reels were swapped somewhere on that batch. No battery is plugged in on your bench.',
+    hints: [
+      'Measure +3.3V with Solver: SPICE + PWR. Far below 3.3 V with the buck enabled means something pulls it down: the thermal camera shows what is hot.',
+      'Once the rail is free, read it again. A buck sets its output with the two resistors on FB (U2 pin 5): V = 0.6 V × (1 + top / bottom). Compare what is fitted with the values printed on the board.',
+      'Replace the shorted capacitor and the wrong resistor (the Inspector shows the intended value).',
+    ],
+    flag: 'DEAD{c3_buck_fb_r33l_sw4p}',
+    objectives: [
+      { type: 'voltage', a: 'C6', min: 3.15, max: 3.35 },
+      { type: 'voltage', a: 'BAT1', min: 3.8, max: 4.3 },
+    ],
+    plant: (sc, part) => {
+      injectFault(part('C5'), 'mlcc-dead-short', rng(seedOf(sc.id + 'C5')), { severity: 0.1 });
+      part('R11').value = 22e3; // a 22 k reel where the 49.9 k one belongs: 0.6 V × (1 + 220/22) asks for 6.6 V
+    },
+    repair: DEMO_REPAIRS['demo-olimex-esp32-c3-devkit-lipo'],
+  },
 ];
 
 const round = (_k: string, v: unknown) => (typeof v === 'number' ? Math.round(v * 1000) / 1000 : v);
@@ -136,9 +203,11 @@ async function build(d: Demo, srcDir: string) {
 async function main() {
   const args = process.argv.slice(2);
   let src = args.includes('--src') ? args[args.indexOf('--src') + 1] : '';
+  const only = args.includes('--only') ? new Set(args[args.indexOf('--only') + 1].split(',')) : null;
   if (args.includes('--fetch')) {
     src = mkdtempSync(join(tmpdir(), 'deadboard-demos-'));
     for (const d of DEMOS) {
+      if (only && !only.has(d.id)) continue;
       const dir = join(src, d.id);
       execFileSync('git', ['clone', '-q', '--filter=blob:none', '--no-checkout', d.repo, dir], { stdio: 'inherit' });
       execFileSync('git', ['-C', dir, 'sparse-checkout', 'set', '--no-cone', d.file, d.licenseFile], { stdio: 'inherit' });
@@ -147,10 +216,13 @@ async function main() {
   }
   if (!src) throw new Error('pass --fetch or --src <dir>');
   mkdirSync('public/demos/licenses', { recursive: true });
+  const previous = new Map<string, unknown>((JSON.parse(readFileSync('public/demos/index.json', 'utf8')) as { id: string }[]).map((e) => [e.id, e]));
   const index = [];
   for (const d of DEMOS) {
+    if (only && !only.has(d.id)) { if (previous.has(d.id)) index.push(previous.get(d.id)); continue; }
     index.push(await build(d, src));
-    writeFileSync(join('public/demos/licenses', `${d.id}.LICENSE.txt`), readFileSync(join(src, d.id, d.licenseFile)));
+    const text = d.licenseText ? `${d.licenseText.note}\n\n${readFileSync(d.licenseText.file, 'utf8')}` : readFileSync(join(src, d.id, d.licenseFile));
+    writeFileSync(join('public/demos/licenses', `${d.id}.LICENSE.txt`), text);
   }
   writeFileSync('public/demos/index.json', JSON.stringify(index, null, 2) + '\n');
 }

@@ -310,6 +310,8 @@ how often the planted part is in the top 3, with and without your rules.
 | `official-boards/boards/builtin-sagging-rail` | The Sagging Rail |
 | `official-boards/boards/demo-mnt-reform2-mb30` | MNT Reform 2 · dead 3.3 V rail (demo, loads when opened) |
 | `official-boards/boards/demo-antmicro-jetson-nano-bb` | Antmicro baseboard · no 3.3 V, flaky 5 V (demo, loads when opened) |
+| `official-boards/boards/demo-olimex-esp32-devkit-lipo` | Olimex ESP32-DevKit-LiPo · dead on USB, won't charge (demo, loads when opened) |
+| `official-boards/boards/demo-olimex-esp32-c3-devkit-lipo` | Olimex ESP32-C3-DevKit-Lipo · hot board, wrong 3.3 V (demo, loads when opened) |
 
 ### Solvers (`official-solvers`)
 

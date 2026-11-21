@@ -24,3 +24,24 @@ demo-antmicro-jetson-nano-bb.pcbfix.json
            marked damaged and a press-sensitive cracked joint added at FB1; test objectives
            and an encrypted flag added.
   "Jetson" is a trademark of NVIDIA Corporation.
+
+demo-olimex-esp32-devkit-lipo.pcbfix.json
+  Source: ESP32-DevKit-LiPo Rev. D, OLIMEX Ltd
+          https://github.com/OLIMEX/ESP32-DevKit-LiPo  (commit 1ebbbb5ceaa84b1d67631d8d542d7f6128c19fc1,
+          HARDWARE/ESP32-DevKit-LiPo-Rev.D/ESP32-DevKit-Lipo_Rev_D.kicad_pcb)
+  Licence: Apache-2.0 (hardware, per the upstream README)
+  Changes: converted to the DEADBOARD scenario format; bench supply added; a cracked joint at
+           diode D1 and resistor R4 removed; test objectives and an encrypted flag added.
+
+demo-olimex-esp32-c3-devkit-lipo.pcbfix.json
+  Source: ESP32-C3-DevKit-Lipo Rev. D, OLIMEX Ltd
+          https://github.com/OLIMEX/ESP32-C3-DevKit-Lipo  (commit 5d93e79d46cf3b05782d9fe0f95a8a2e1ca6abbe,
+          HARDWARE/ESP32-C3-DevKit-Lipo_Rev_D/ESP32-C3-DevKit-Lipo_Rev_D.kicad_pcb)
+  Licence: CERN-OHL-S-2.0 (strongly reciprocal; hardware, per the upstream README, whose LICENSE
+           file is the GPL-3.0 for the software). This modified version is distributed under the
+           same licence; its source is this JSON file together with scripts/build-demos.ts in the
+           DEADBOARD repository and the upstream design above.
+  Changes: converted to the DEADBOARD scenario format; bench supply added; capacitor C5 shorted
+           and resistor R11 fitted as 22 kΩ (design: 49.9 kΩ); test objectives and an encrypted
+           flag added.
+  "ESP32" is a trademark of Espressif Systems; no endorsement implied.

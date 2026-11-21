@@ -69,6 +69,28 @@ const EXPECT: Record<string, Expect> = {
     meter: { '5V0_SYS': [0.516, 62e3], '3V3_SYS': [0.52, null], VIN: [0.547, null] },
     flag: 'DEAD{b4s3b0ard_3v3_b4ck}',
   },
+  'demo-olimex-esp32-devkit-lipo': {
+    parts: 57, conductors: 65, named: 65, splits: [],
+    converters: { U1: 'VBAT' }, // U3 (HX6211, EN tied to VIN) is found at medium confidence
+    supply: { ref: 'J_BENCH', volts: 5 },
+    fails: { index: 0, min: -0.05, max: 0.1 }, // D1 open: nothing past the USB input
+    rails: { '+3.3V': 3.3, VBAT: 4.2 },
+    // estimated loads only (one decoupling cap on +3.3V); a real ESP32 module idles at tens of mA: no module load model yet
+    amps: 0.00655,
+    meter: { '+3.3V': [0.545, null], VBAT: [0.569, 4.57e6], '+5V': [0.564, 9857] },
+    flag: 'DEAD{3sp32_l1p0_usb_4nd_pr0g}',
+  },
+  'demo-olimex-esp32-c3-devkit-lipo': {
+    parts: 62, conductors: 56, named: 56, splits: [],
+    converters: { U2: '+3.3V', U1: 'VBAT' },
+    supply: { ref: 'J_BENCH', volts: 5 },
+    fails: { index: 0, min: 0.2, max: 0.5 }, // C5 shorted: SY8089 at its 3.5 A limit into 0.1 Ω
+    hottest: 'C5',
+    rails: { '+3.3V': 3.245, VBAT: 4.2 }, // 0.6 V × (1 + 220k / 49.9k)
+    amps: 0.0148, // estimated loads; no ESP32 module load model yet (see the DevKit-LiPo note)
+    meter: { '+3.3V': [0.545, 270e3], VBAT: [0.569, 4.94e6], '+5V': [0.566, 9857] },
+    flag: 'DEAD{c3_buck_fb_r33l_sw4p}',
+  },
 };
 
 const time = <T>(f: () => T): [T, number] => { const t0 = performance.now(); const r = f(); return [r, performance.now() - t0]; };

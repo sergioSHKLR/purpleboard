@@ -2,7 +2,7 @@
   "format": "deadboard-mod/2",
   "id": "board-notes",
   "name": "Board notes (knowledge packs for the shipped boards)",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Biga73 (idea) · DEADBOARD",
   "description": "An example data mod: a knowledge pack for every board that ships with DEADBOARD. Rails, where each one comes from, what to expect at which pin, and what a low reading usually means, each marked documented, derived or estimated. The packs describe the working board and point at likely causes, the way the board's hints do; they don't name the planted faults. Based on the device knowledge pack RFC by Biga73.",
   "license": "CC0-1.0",
@@ -370,6 +370,146 @@
       "notes": [
         "Power-up order, worked out from the board (derived): VIN → U6 → 5V0_SYS → FB2 → VDD_MOD (the module). U2 also runs from VIN but is enabled from #RESET, so 3V3_SYS follows the module coming out of reset.",
         "A converter with input and enable present and no output is a dead part; a converter whose input comes and goes when the board is pressed has a cracked joint on its input path."
+      ]
+    },
+    {
+      "id": "olimex-esp32-devkit-lipo",
+      "board": "official-boards/boards/demo-olimex-esp32-devkit-lipo",
+      "title": "OLIMEX ESP32-DevKit-LiPo (Rev. D)",
+      "provenance": { "kind": "design files + datasheets", "where": "set points from github.com/OLIMEX/ESP32-DevKit-LiPo @ 1ebbbb5 and the parts' datasheets (docs/calibration)", "confidence": "documented" },
+      "rails": [
+        {
+          "net": "/+5V_USB",
+          "nominal": 5,
+          "domain": "input (USB, bench supply)",
+          "source": { "ref": "J_BENCH", "kind": "bench supply, 5 V on the USB rail" },
+          "checks": [
+            { "at": "C4", "expect": "≈5.0 V" }
+          ],
+          "notes": "The micro-USB connector USB-UART1 feeds this rail; it also powers the CH340X USB-serial chip U2 (pin 7)."
+        },
+        {
+          "net": "+5V",
+          "nominal": 4.79,
+          "domain": "from USB",
+          "source": { "ref": "D1", "kind": "Schottky diode, 1N5819" },
+          "checks": [
+            { "at": "C1", "expect": "4.6–4.9 V", "readsLowIf": "nothing comes through D1 from the USB rail: the diode or one of its joints is open" },
+            { "at": "U1", "pin": "4", "expect": "4.6–4.9 V (the charger's input)" }
+          ],
+          "notes": "One Schottky drop below USB (about 0.2 V at this load). +5V feeds the charger U1 and, through D2, the regulator. The diode keeps a battery from back-feeding the USB port.",
+          "provenance": { "kind": "board + datasheet", "where": "1N5819 forward curve (Diodes DS30217); the drop depends on the load", "confidence": "derived" }
+        },
+        {
+          "net": "Net-(C6-Pad1)",
+          "nominal": 4.58,
+          "domain": "regulator input (USB or battery)",
+          "source": { "ref": "D2", "kind": "Schottky diode from +5V; FET1 from VBAT" },
+          "checks": [
+            { "at": "C6", "expect": "4.4–4.7 V", "readsLowIf": "D2 is open, or +5V is low" }
+          ],
+          "notes": "An unnamed net: the regulator's input. On USB it comes through D2; without USB, the P-MOSFET FET1 (gate on +5V) turns on and feeds it from the battery. FET1's body diode conducts the other way only, VBAT towards here.",
+          "provenance": { "kind": "board", "where": "D2, FET1 (WPM2015, gate on +5V) and U3 pins 1 / 3 share this net", "confidence": "derived" }
+        },
+        {
+          "net": "+3.3V",
+          "nominal": 3.3,
+          "domain": "from the regulator input",
+          "source": { "ref": "U3", "kind": "LDO, HX6211A332 (fixed 3.3 V)" },
+          "checks": [
+            { "at": "C7", "expect": "3.2–3.4 V", "readsLowIf": "U3 has no input (pins 1 and 3), the rail is shorted, or U3 is dead" },
+            { "at": "U3", "pin": "1", "expect": "4.4–4.7 V (input; CE, pin 3, is tied to it)" }
+          ],
+          "notes": "Fixed 3.3 V ±2 %, 500 mA. CE is tied to the input, so U3 is always on when it has an input.",
+          "provenance": { "kind": "datasheet", "where": "HX6211 datasheet (LCSC C296224): ±2 %, dropout 120 mV at 100 mA", "confidence": "documented" }
+        },
+        {
+          "net": "VBAT",
+          "nominal": 4.2,
+          "domain": "battery (charger output)",
+          "source": { "ref": "U1", "kind": "linear Li-ion charger, BL4054B-42" },
+          "checks": [
+            { "at": "BAT1", "pin": "1", "expect": "≈4.2 V with no battery fitted", "readsLowIf": "U1 has no input (pin 4), or nothing connects PROG (pin 5) to GND: with PROG open the BL4054B shuts down" },
+            { "at": "U1", "pin": "5", "expect": "≈0 V with no battery fitted (PROG follows the charge current: 1.0 V at the full current)" }
+          ],
+          "notes": "Charge current = 1000 × 1.0 V / R4 (2.2 kΩ) ≈ 455 mA. CHARGING1 (yellow) lights through R3 while U1 pulls pin 1 low. With no battery the simulator holds BAT at the float voltage; a real charger with nothing on BAT may cycle and flicker the LED.",
+          "provenance": { "kind": "datasheet", "where": "Belling BL4054/BL4054B Rev 1.4: float 4.158–4.242 V, I = 1000 · V_PROG / R_PROG, PROG open = shutdown", "confidence": "documented" }
+        }
+      ],
+      "powerUp": [ "/+5V_USB", "+5V", "Net-(C6-Pad1)", "+3.3V", "VBAT" ],
+      "notes": [
+        "Power path, worked out from the board (derived): USB → D1 → +5V → D2 → U3 → +3.3V; +5V also → U1 → VBAT. Without USB, FET1 connects VBAT to U3's input.",
+        "No battery on the bench: the BAT pin shows the charger's float voltage. A charger that reads 0 V there with its input present has lost its PROG resistor, or is dead."
+      ]
+    },
+    {
+      "id": "olimex-esp32-c3-devkit-lipo",
+      "board": "official-boards/boards/demo-olimex-esp32-c3-devkit-lipo",
+      "title": "OLIMEX ESP32-C3-DevKit-Lipo (Rev. D)",
+      "provenance": { "kind": "design files + datasheets", "where": "set points from github.com/OLIMEX/ESP32-C3-DevKit-Lipo @ 5d93e79 and the parts' datasheets (docs/calibration)", "confidence": "documented" },
+      "rails": [
+        {
+          "net": "+5V_USB",
+          "nominal": 5,
+          "domain": "input (USB-C, bench supply)",
+          "source": { "ref": "J_BENCH", "kind": "bench supply, 5 V on the USB rail" },
+          "checks": [
+            { "at": "D1", "pin": "2", "expect": "≈5.0 V" }
+          ],
+          "notes": "VBUS of the USB-C connector USB-C1. R2 / R4 (5.1 kΩ) on CC1 / CC2 ask the host for 5 V."
+        },
+        {
+          "net": "+5V",
+          "nominal": 4.76,
+          "domain": "from USB",
+          "source": { "ref": "D1", "kind": "Schottky diode, 1N5819" },
+          "checks": [
+            { "at": "C1", "expect": "4.6–4.9 V", "readsLowIf": "nothing comes through D1 from USB" },
+            { "at": "U1", "pin": "4", "expect": "4.6–4.9 V (the charger's input)" }
+          ],
+          "provenance": { "kind": "board + datasheet", "where": "1N5819 forward curve (Diodes DS30217); the drop depends on the load", "confidence": "derived" }
+        },
+        {
+          "net": "Net-(D2-K)",
+          "nominal": 4.52,
+          "domain": "buck input (USB or battery)",
+          "source": { "ref": "D2", "kind": "Schottky diode from +5V; FET1 from VBAT" },
+          "checks": [
+            { "at": "C2", "expect": "4.4–4.7 V", "readsLowIf": "D2 is open, +5V is low, or the buck draws far too much (a short on +3.3V)" },
+            { "at": "U2", "pin": "1", "expect": "4.4–4.7 V (EN, tied to VIN on pin 4)" }
+          ],
+          "notes": "An unnamed net: U2's input. FET1 (IRLML6402, gate on +5V) feeds it from the battery when USB is absent.",
+          "provenance": { "kind": "board", "where": "D2, FET1 and U2 pins 1 / 4 share this net", "confidence": "derived" }
+        },
+        {
+          "net": "+3.3V",
+          "nominal": 3.245,
+          "domain": "from the buck input",
+          "source": { "ref": "U2", "kind": "buck, SY8089AAAC (adjustable)" },
+          "checks": [
+            { "at": "C6", "expect": "3.15–3.35 V", "readsLowIf": "something on the rail pulls it down (thermal camera: the hot part), or U2 has no input" },
+            { "at": "U2", "pin": "5", "expect": "≈0.6 V (FB)" }
+          ],
+          "notes": "Set point: 0.6 V × (1 + R10 220 kΩ / R11 49.9 kΩ) = 3.245 V. A rail that sits near the buck's input (≈4.5 V) means the divider is wrong: U2 then runs at full duty and passes its input through. Into a short U2 holds its 3.5 A current limit (SY8089A: hiccup mode on a real part).",
+          "provenance": { "kind": "datasheet + divider", "where": "SY8089 VREF 0.588–0.612 V (Silergy AN_SY8089/A Rev. 0.9A); R10 / R11 as designed", "confidence": "documented" }
+        },
+        {
+          "net": "VBAT",
+          "nominal": 4.2,
+          "domain": "battery (charger output)",
+          "source": { "ref": "U1", "kind": "linear Li-ion charger, TP4054-42" },
+          "checks": [
+            { "at": "BAT1", "pin": "1", "expect": "≈4.2 V with no battery fitted", "readsLowIf": "U1 has no input (pin 4), or PROG (pin 5) has no resistor to GND" },
+            { "at": "U1", "pin": "5", "expect": "≈0 V with no battery fitted (PROG follows the charge current: 1.0 V at the full current)" }
+          ],
+          "notes": "Charge current = 1000 V / R5 (10 kΩ) = 100 mA. CHARGING1 lights through R3 while U1 pulls CHRG (pin 1) low. VBAT has no capacitor of its own on this board.",
+          "provenance": { "kind": "datasheet", "where": "ShenZhen TPOWER TP4054 V2.2: float 4.158–4.242 V, R_PROG = 1000 V / I_BAT", "confidence": "documented" }
+        }
+      ],
+      "powerUp": [ "+5V_USB", "+5V", "Net-(D2-K)", "+3.3V", "VBAT" ],
+      "notes": [
+        "Power path, worked out from the board (derived): USB-C → D1 → +5V → D2 → U2 (buck) → +3.3V; +5V also → U1 → VBAT. Without USB, FET1 connects VBAT to U2's input.",
+        "A warm board with a low 3.3 V rail: find the hot part before replacing anything. After a repair, measure the rail again: two faults can hide behind each other."
       ]
     }
   ]

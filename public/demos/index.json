@@ -18,5 +18,25 @@
     "credits": "Jetson Nano / Xavier NX baseboard, Copyright (c) 2020-2024 Antmicro, Apache-2.0. Converted and modified (planted faults) for DEADBOARD. Jetson is a trademark of NVIDIA; no endorsement implied.",
     "license": "Apache-2.0",
     "source": "https://github.com/antmicro/jetson-nano-baseboard @ d8d0b2d"
+  },
+  {
+    "id": "demo-olimex-esp32-devkit-lipo",
+    "file": "demo-olimex-esp32-devkit-lipo.pcbfix.json",
+    "title": "Olimex ESP32-DevKit-LiPo · dead on USB, won't charge",
+    "difficulty": 2,
+    "description": "A real, sold ESP32 board (57 parts) with a Li-ion charger. The owner says it stopped doing anything on USB after the cable got yanked, and before that the battery \"never seemed to charge\". No battery is plugged in on your bench.",
+    "credits": "ESP32-DevKit-LiPo Rev. D, designed by OLIMEX Ltd, hardware Apache-2.0. Converted and modified (planted faults) for DEADBOARD. ESP32 is a trademark of Espressif Systems; no endorsement implied.",
+    "license": "Apache-2.0",
+    "source": "https://github.com/OLIMEX/ESP32-DevKit-LiPo @ 1ebbbb5"
+  },
+  {
+    "id": "demo-olimex-esp32-c3-devkit-lipo",
+    "file": "demo-olimex-esp32-c3-devkit-lipo.pcbfix.json",
+    "title": "Olimex ESP32-C3-DevKit-Lipo · hot board, wrong 3.3 V",
+    "difficulty": 3,
+    "description": "A real, sold ESP32-C3 board (62 parts) back from a small production run: on USB it gets warm and the chip never starts. The assembler says two reels were swapped somewhere on that batch. No battery is plugged in on your bench.",
+    "credits": "ESP32-C3-DevKit-Lipo Rev. D, designed by OLIMEX Ltd, hardware CERN-OHL-S-2.0. Converted and modified (planted faults) for DEADBOARD. ESP32 is a trademark of Espressif Systems; no endorsement implied.",
+    "license": "CERN-OHL-S-2.0",
+    "source": "https://github.com/OLIMEX/ESP32-C3-DevKit-Lipo @ 5d93e79"
   }
 ]

@@ -17,6 +17,15 @@ export const DEMO_REPAIRS: Record<string, DemoRepair> = {
     installPart(part('U2'), {});
     toggleCold(part('FB1'), 0);
   },
+  'demo-olimex-esp32-devkit-lipo': (_sc, part) => {
+    const d1 = part('D1');
+    toggleCold(d1, d1.pads.findIndex((p) => p.name === d1.pins.K));
+    installPart(part('R4'), { value: 2200 });
+  },
+  'demo-olimex-esp32-c3-devkit-lipo': (_sc, part) => {
+    installPart(part('C5'), { value: 22e-6 });
+    installPart(part('R11'), { value: 49.9e3 });
+  },
 };
 
 /** A repaired copy of a shipped demo, or null when the scenario is not one. */
