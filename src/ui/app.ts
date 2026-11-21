@@ -58,7 +58,7 @@ import { setSoundEnabled, sfxBeep, sfxBlow, sfxClick, sfxCut, sfxSolder, sfxWin,
 import { icon } from './icons';
 import { chromeIntentUrl, inAppBrowser } from './inapp';
 import { LANGUAGES, lang, saveLanguage, t, t as translate, tk } from '../i18n';
-import { trackBoardView, trackEvent } from '../analytics';
+import { onFirstHide, secondsBucket, trackBoardView, trackEvent, visibleClock } from '../analytics';
 import { APP_BUILD, mountFeedbackForm, type FeedbackContext } from './feedback';
 import { boardDiff, encodeSnapshot, type BenchSnapshot } from '../snapshot';
 import { BRAND, markSvg } from './logo';
@@ -97,6 +97,8 @@ const LED_COLOR_NAMES: Record<LedColor, string> = {
   red: tk('red'), orange: tk('orange'), yellow: tk('yellow'), green: tk('green'), blue: tk('blue'), white: tk('white'),
 };
 
+/** Visible time without a bench after which the player is told and offered a way out. */
+const SLOW_START_MS = 10_000;
 const fmtDur = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 
 function cloneBoard(b: Board): Board {
@@ -338,9 +340,10 @@ export class PcbApp {
   /** Touch gestures on the board (any layout): tap = tool, one finger pans (orbits in 3D), pinch zooms. */
   private gestures = new TouchGestures({
     tap: (x, y) => this.touchTap(x, y),
-    pan: (dx, dy) => this.camera.panScreen(dx, dy, Math.max(1, this.canvas.clientHeight)),
-    orbit: (dx, dy) => this.orbitBy(dx, dy),
+    pan: (dx, dy) => { this.autoFramed = ''; this.camera.panScreen(dx, dy, Math.max(1, this.canvas.clientHeight)); },
+    orbit: (dx, dy) => { this.autoFramed = ''; this.orbitBy(dx, dy); },
     zoom: (f, x, y) => {
+      this.autoFramed = '';
       const r = this.canvas.getBoundingClientRect();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       this.camera.zoomAt(f, (x - r.left) * dpr, (y - r.top) * dpr, Math.max(1, r.width * dpr), Math.max(1, r.height * dpr), this.board.thickness);
@@ -357,6 +360,12 @@ export class PcbApp {
   private tutWhy = '';
   /** Canvas aspect the board was last fitted to (mobile: refit on first layout and on rotation). */
   private fitAspect = 0;
+  /**
+   * Phone: the free area (clearView) the whole board was last fitted into automatically; '' once
+   * the player moves the camera. While set, the fit follows the overlays as they appear or resize.
+   */
+  private autoFramed = '';
+  private autoFrameCheck = 0;
   private psuExpanded = false;
   private toolTipsShown = new Set<ToolId>();
 
@@ -376,28 +385,150 @@ export class PcbApp {
 
   constructor(private mount: HTMLElement) {}
 
+  /** Start-up step, for the slow-start notice and its report: boards → mods → ui → graphics. */
+  private startStage = 'boards';
+  /** The bench is up, or a screen already says why it is not. */
+  private startDone = false;
+  /** The bench is up and drawing (analytics: how far an early leaver got). */
+  private benchUp = false;
+  /** Furthest First Light tutorial step shown (1-based; 0 = none). */
+  private tutMax = 0;
+  /** Whether the step the player just left with Next had its task done (analytics). */
+  private tutPrevDone: boolean | null = null;
+
+  /** How far this page load got, for "bench left early". */
+  private reachedSoFar(): string {
+    if (!this.startDone) return 'loading';
+    if (!this.benchUp) return 'failed';
+    if (this.trackedFixes.size) return 'fixed';
+    if ([...this.trackedOnce].some((k) => k.startsWith('tests:'))) return 'tests';
+    if (this.trackedOnce.has('tool')) return 'tool';
+    return 'bench';
+  }
+
+  /**
+   * "bench left early": the page was first hidden within its first visible minute (later leavers
+   * show up in the active-minute events). Says how far the visit got: still loading, failed, the
+   * bench, a tool, tests, a fix, and the furthest tutorial step. A tab switch and back also counts.
+   */
+  private trackEarlyLeave() {
+    const visible = visibleClock();
+    onFirstHide(() => {
+      const sec = visible();
+      if (sec >= 60) return;
+      trackEvent('bench left early', { visible: secondsBucket(sec), reached: this.reachedSoFar(), step: this.tutMax, layout: this.mobile ? 'phone' : 'desktop' });
+    });
+  }
+
+  /** "bench error" (once per page load, after the bench is up): the error's kind and what was in use, never its text. */
+  private trackBenchError(err: unknown) {
+    if (!this.benchUp || !(err instanceof Error)) return;
+    this.trackOnce('error', 'bench error', { kind: err.name || 'Error', tool: this.activeTool, board: this.analyticsId(this.activeScenario) });
+  }
+
+  /**
+   * After SLOW_START_MS of visible time without a bench (a GPU or browser that never answers, a
+   * very slow device), say so and offer a way out instead of an empty page, and record the step it
+   * hangs at. A background tab's time does not count: it may simply not have been looked at yet.
+   */
+  private startWatchdog() {
+    let visibleMs = 0;
+    let last = performance.now();
+    const tick = setInterval(() => {
+      const now = performance.now();
+      if (!document.hidden) visibleMs += now - last;
+      last = now;
+      if (this.startDone) { clearInterval(tick); return; }
+      if (visibleMs < SLOW_START_MS) return;
+      clearInterval(tick);
+      trackEvent('bench failed', { reason: 'slow start', stage: this.startStage, layout: this.mobile ? 'phone' : 'desktop' });
+      this.showSlowStart();
+    }, 500);
+  }
+
+  private showSlowStart() {
+    const el = document.createElement('div');
+    el.className = 'slow-start';
+    el.setAttribute('role', 'status');
+    const gl = this.startStage === 'graphics' && webGlInfo() !== null && !/[?&]renderer=webgl2/.test(location.search);
+    el.innerHTML = `
+      <div class="slow-start-t">${t('The bench is taking a long time to start.')}</div>
+      <div class="slow-start-d">${this.startStage === 'graphics' ? t('Your browser\'s 3D graphics are not answering.') : t('This device may be busy, or the connection slow.')}</div>
+      <div class="row wrap">
+        ${gl ? `<button class="btn primary sm" id="slow-gl">${t('Start with simpler graphics')}</button>` : ''}
+        <button class="btn sm${gl ? '' : ' primary'}" id="slow-reload">${t('Reload')}</button>
+      </div>`;
+    document.body.appendChild(el);
+    el.querySelector('#slow-reload')?.addEventListener('click', () => location.reload());
+    el.querySelector('#slow-gl')?.addEventListener('click', () => {
+      const u = new URL(location.href);
+      u.searchParams.set('renderer', 'webgl2');
+      location.href = u.toString();
+    });
+    const gone = setInterval(() => { if (this.startDone) { el.remove(); clearInterval(gone); } }, 500);
+  }
+
+  /** init() threw before the bench was up: say so (a reload starts without mods, see bootBegin). */
+  startFailed(err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('DEADBOARD could not start:', err);
+    if (this.startDone) return; // the bench is up; the error is in the console and the bug report
+    this.startDone = true;
+    trackEvent('bench failed', { reason: 'start error', stage: this.startStage, layout: this.mobile ? 'phone' : 'desktop' });
+    this.mount.innerHTML = `
+      <div class="webgpu-err">
+        <div class="card">
+          <div class="card-title lg">${t('The bench could not start')}</div>
+          <p class="text-2" style="margin:0">${t('Reloading usually helps. If you installed mods, the next start skips them.')}</p>
+          <p class="muted" style="margin:0">${t('Technical detail: {error}', { error: this.esc(msg.slice(0, 300)) })}</p>
+          <div class="row wrap"><button class="btn primary" id="start-reload">${t('Reload')}</button></div>
+        </div>
+        <div class="card">
+          <div class="card-title">${t('Still stuck? Tell us')}</div>
+          <div id="fb-host"></div>
+        </div>
+      </div>`;
+    this.mount.querySelector('#start-reload')?.addEventListener('click', () => location.reload());
+    const host = this.mount.querySelector<HTMLElement>('#fb-host');
+    if (host) mountFeedbackForm(host, () => ({ error: msg, view: `start error (${this.startStage}), no bench` }), { kind: 'bug' });
+  }
+
   async init() {
+    this.startWatchdog();
+    this.trackEarlyLeave();
     const keepError = (m: string) => { this.recentErrors = [...this.recentErrors, m.slice(0, 300)].slice(-8); };
-    window.addEventListener('error', (e) => keepError(`${e.message} @ ${String(e.filename).replace(/^.*\//, '')}:${e.lineno}`));
-    window.addEventListener('unhandledrejection', (e) => keepError(`unhandled: ${e.reason instanceof Error ? e.reason.message : String(e.reason)}`));
+    window.addEventListener('error', (e) => {
+      keepError(`${e.message} @ ${String(e.filename).replace(/^.*\//, '')}:${e.lineno}`);
+      if (!e.filename || e.filename.startsWith(location.origin)) this.trackBenchError(e.error); // not a browser extension's
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      keepError(`unhandled: ${e.reason instanceof Error ? e.reason.message : String(e.reason)}`);
+      this.trackBenchError(e.reason);
+    });
     this.scenarios = await builtinScenarios();
     await this.addDemoStubs();
     this.bundledIds = new Set(this.scenarios.map((s) => s.id));
     if (bootBegin() && !this.safeMode) this.safeMode = this.autoSafe = true;
+    this.startStage = 'mods';
     await this.loadMods();
     if (this.modResult.active.length) bootModsRunning();
+    this.startStage = 'ui';
     this.buildDom();
+    this.startStage = 'graphics';
 
     try {
       // ?renderer=webgl2 / webgpu forces one GPU interface (testing the fallback)
       const force = new URLSearchParams(location.search).get('renderer');
       this.renderer = await Renderer.create(this.canvas, force === 'webgl2' || force === 'webgpu' ? force as RendererKind : undefined);
     } catch (err) {
+      this.startDone = true;
       trackEvent('bench failed', { reason: err instanceof NoAdapterError ? 'no adapter' : 'error', layout: this.mobile ? 'phone' : 'desktop' });
       this.showWebGpuError(err instanceof Error ? err.message : String(err), err instanceof NoAdapterError ? err.tried : []);
       bootDone(); // a GPU problem, not a mod's
       return;
     }
+    this.startDone = true;
+    this.benchUp = true;
     trackEvent('bench ready', { renderer: this.renderer.kind, layout: this.mobile ? 'phone' : 'desktop' });
 
     const params = new URLSearchParams(window.location.search);
@@ -1641,6 +1772,10 @@ export class PcbApp {
     this.recompute(true);
     this.refreshScenarioSelect();
     this.renderUI();
+    if (this.mobile) {
+      // the lesson card and readouts are on screen only now (refitOnShapeChange follows them)
+      this.fitBoardInView();
+    }
   }
 
   /** Opens the interactive step-by-step guide when the active board is a tutorial scenario. */
@@ -2430,7 +2565,7 @@ export class PcbApp {
       q(sel)?.click();
       this.updateTopButtons();
     }));
-    q('#m-fit')?.addEventListener('click', () => this.camera.fitBoard(this.board.w, this.board.h));
+    q('#m-fit')?.addEventListener('click', () => this.fitBoardInView());
     q('#m-mode')?.addEventListener('click', () => {
       this.camera.setMode(this.camera.mode === '2d' ? '3d' : '2d');
       this.renderUI();
@@ -2467,10 +2602,63 @@ export class PcbApp {
     const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
     if (w < 2 || h < 2) return;
     const a = w / h;
-    if (this.fitAspect && Math.abs(a / this.fitAspect - 1) < 0.08) return;
+    if (this.fitAspect && Math.abs(a / this.fitAspect - 1) < 0.08) {
+      // the overlays settle a few frames after a board opens: keep the untouched fit clear of them
+      const now = performance.now();
+      if (this.autoFramed && now - this.autoFrameCheck > 250) {
+        this.autoFrameCheck = now;
+        if (JSON.stringify(this.clearView()) !== this.autoFramed) this.fitBoardInView();
+      }
+      return;
+    }
     this.fitAspect = a;
     this.camera.matrices(w, h); // updates the aspect the fit uses
-    this.camera.fitBoard(this.board.w, this.board.h);
+    this.fitBoardInView();
+  }
+
+  /**
+   * Phone: the part of the canvas (client px, from its top-left) that the lesson card and the
+   * readouts leave uncovered, or null when nothing covers much of it. Each overlay is cut away
+   * from the side that keeps the most room (portrait: card on top, readouts below; landscape:
+   * card on the left).
+   */
+  private clearView(): { x: number; y: number; w: number; h: number } | null {
+    if (!this.mobile) return null;
+    const c = this.canvas.getBoundingClientRect();
+    if (c.width < 2 || c.height < 2) return null;
+    let x0 = c.left, y0 = c.top, x1 = c.right, y1 = c.bottom;
+    for (const el of this.mount.querySelectorAll<HTMLElement>('#tut-box .tut-card, .m-hud')) {
+      const r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1 || r.right <= x0 || r.left >= x1 || r.bottom <= y0 || r.top >= y1) continue;
+      const cuts = [
+        { a: (x1 - x0) * (y1 - Math.max(y0, r.bottom)), f: () => { y0 = Math.max(y0, r.bottom); } },
+        { a: (x1 - x0) * (Math.min(y1, r.top) - y0), f: () => { y1 = Math.min(y1, r.top); } },
+        { a: (x1 - Math.max(x0, r.right)) * (y1 - y0), f: () => { x0 = Math.max(x0, r.right); } },
+        { a: (Math.min(x1, r.left) - x0) * (y1 - y0), f: () => { x1 = Math.min(x1, r.left); } },
+      ];
+      cuts.reduce((best, k) => (k.a > best.a ? k : best)).f();
+    }
+    const w = x1 - x0, h = y1 - y0;
+    if (w < 120 || h < 90 || w * h > 0.9 * c.width * c.height) return null; // nothing to dodge, or no room left
+    return { x: x0 - c.left, y: y0 - c.top, w, h };
+  }
+
+  /** Whole board in view; on a phone, in the part of the screen the overlays leave free. */
+  private fitBoardInView() {
+    const v = this.camera.bothSides ? null : this.clearView();
+    this.autoFramed = this.mobile ? JSON.stringify(v) : '';
+    if (!v) { this.camera.fitBoard(this.board.w, this.board.h); return; }
+    this.camera.fitBoard(this.board.w, this.board.h); // remembers the board size for later fits
+    const m = 1.12; // the margin fitBoard leaves
+    this.camera.frameIn(this.board.w / 2, this.board.h / 2, (this.board.w / 2) * m, (this.board.h / 2) * m, v, this.canvas.clientWidth, this.canvas.clientHeight);
+  }
+
+  /** A tutorial step's target in view (Locate): on a phone, clear of the lesson card. */
+  private focusTarget(target: { pos: [number, number]; side: Side; zoomHalfH: number }) {
+    this.autoFramed = '';
+    const v = this.camera.bothSides ? null : this.clearView();
+    if (v) this.camera.frameIn(target.pos[0], target.pos[1], target.zoomHalfH, target.zoomHalfH, v, this.canvas.clientWidth, this.canvas.clientHeight, target.side);
+    else this.camera.focusAt(target.pos[0], target.pos[1], target.zoomHalfH, target.side);
   }
 
   /** Opens / closes the side panel (the bottom sheet on mobile). */
@@ -3501,7 +3689,11 @@ export class PcbApp {
     const total = steps.length;
     const idx = Math.max(0, Math.min(total - 1, this.tutorialStep));
     const step = steps[idx];
-    if (this.activeScenario.id === TUTORIAL_SCENARIO_IDS[0]) this.trackOnce(`tut:${idx}`, 'tutorial step', { step: idx + 1, of: total });
+    if (this.activeScenario.id === TUTORIAL_SCENARIO_IDS[0]) {
+      this.tutMax = Math.max(this.tutMax, idx + 1);
+      // prev: was the step before done when Next was pressed, or skipped?
+      this.trackOnce(`tut:${idx}`, 'tutorial step', { step: idx + 1, of: total, prev: idx === 0 ? 'none' : this.tutPrevDone === null ? 'back' : this.tutPrevDone ? 'done' : 'skipped' });
+    }
     const done = step.isDone({
       scenarioId: this.activeScenario.id,
       board: this.board,
@@ -3581,9 +3773,14 @@ export class PcbApp {
       localStorage.setItem('pcbfix_tut_dismissed', '1');
       this.renderUI();
     });
+    // phone: the card changes height with each step; keep the whole board in the part it leaves free
+    const showStep = () => {
+      this.renderTutorial();
+      if (this.mobile) this.fitBoardInView();
+    };
     this.tutBoxEl.querySelector('#tut-prev')?.addEventListener('click', () => {
       this.tutorialStep = Math.max(0, idx - 1);
-      this.renderTutorial();
+      showStep();
     });
     this.tutBoxEl.querySelector('#tut-next')?.addEventListener('click', () => {
       if (isLast) {
@@ -3591,8 +3788,10 @@ export class PcbApp {
         localStorage.setItem('pcbfix_tut_dismissed', '1');
         this.renderUI();
       } else {
+        this.tutPrevDone = done;
         this.tutorialStep = Math.min(total - 1, idx + 1);
-        this.renderTutorial();
+        showStep();
+        this.tutPrevDone = null;
       }
     });
     this.tutBoxEl.querySelector('#tut-next-board')?.addEventListener('click', () => {
@@ -3607,7 +3806,7 @@ export class PcbApp {
     });
     this.tutBoxEl.querySelector('#tut-focus')?.addEventListener('click', () => {
       if (!step.target) return;
-      this.camera.focusAt(step.target.pos[0], step.target.pos[1], step.target.zoomHalfH, step.target.side);
+      this.focusTarget(step.target);
       this.updateTopButtons();
       this.renderTopHud();
     });

@@ -78,10 +78,12 @@ const kinds = (ev: Ev[]) => ev.map((e) => e[0]);
 
 // layout choice: touch-only devices get the mobile layout, anything with a mouse / trackpad does not
 {
-  const mq = (coarse: boolean, fine: boolean) => (q: string) => (q === '(pointer: coarse)' ? coarse : q === '(any-pointer: fine)' ? fine : false);
+  const mq = (coarse: boolean, fine: boolean, small = false) => (q: string) => (q === '(pointer: coarse)' ? coarse : q === '(any-pointer: fine)' ? fine : q.includes('max-width') ? small : false);
   assert(wantsMobileLayout('', mq(true, false)), 'phone → mobile');
   assert(!wantsMobileLayout('', mq(false, true)), 'desktop → desktop');
+  assert(!wantsMobileLayout('', mq(false, true, true)), 'small desktop window → desktop');
   assert(!wantsMobileLayout('', mq(true, true)), 'tablet with trackpad → desktop');
+  assert(wantsMobileLayout('', mq(true, true, true)), 'Android phone that also reports a fine pointer → mobile');
   assert(wantsMobileLayout('?mobile=1', mq(false, true)), '?mobile=1 forces mobile');
   assert(!wantsMobileLayout('?mobile=0', mq(true, false)), '?mobile=0 forces desktop');
 }

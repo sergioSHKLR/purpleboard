@@ -4,11 +4,30 @@ import '@fontsource-variable/jetbrains-mono';
 import './home.css';
 import { markSvg } from '../ui/logo';
 import { icon } from '../ui/icons';
-import { initAnalytics } from '../analytics';
+import { initAnalytics, onFirstHide, scrollBucket, secondsBucket, trackEvent, visibleClock } from '../analytics';
 import { initI18n, lang, saveLanguage, t } from '../i18n';
 import { translatePage } from './translate';
 
 initAnalytics();
+
+// "home left": when the page is first hidden, how long it was looked at, how far it was scrolled,
+// where the visitor went (the bench, another page here, a link out, or away) and what the hero
+// board did. Answers whether visitors who never open the bench leave at once or after reading.
+const visibleFor = visibleClock();
+let deepest = 0;
+addEventListener('scroll', () => {
+  const max = document.documentElement.scrollHeight - innerHeight;
+  if (max > 0) deepest = Math.max(deepest, scrollY / max);
+}, { passive: true });
+let leftTo = 'away';
+document.addEventListener('click', (e) => {
+  const a = (e.target as Element | null)?.closest?.('a');
+  const href = a?.getAttribute('href');
+  if (!a || !href || href.startsWith('#')) return;
+  leftTo = /app\.html/.test(href) ? 'bench' : a.host && a.host !== location.host ? 'link out' : 'page';
+}, true);
+let hero = 'picture';
+onFirstHide(() => trackEvent('home left', { visible: secondsBucket(visibleFor()), scrolled: scrollBucket(deepest), to: leftTo, hero }));
 
 // Share links made before the homepage existed pointed at "/#s=…": hand them to the app.
 if (location.hash.startsWith('#s=')) location.replace(`./app.html${location.hash}`);
@@ -65,16 +84,39 @@ if (log && !reduce && 'IntersectionObserver' in window) {
 // screenshot stays when the board cannot load or the browser cannot draw it.
 const shot = document.querySelector<HTMLElement>('.hero-shot');
 const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;
-if (shot && !saveData && 'IntersectionObserver' in window) {
-  const io = new IntersectionObserver(async (entries) => {
+// Phones load it only on a tap: building the 530-part board froze a mid-range phone for ~3.5 s
+// (4× CPU throttling: one 2.9 s task) right while the visitor reads the hero, and it costs 0.7 MB.
+const phone = matchMedia('(pointer: coarse)').matches && matchMedia('(max-width: 820px), (max-height: 600px)').matches;
+async function loadBoard3d(s: HTMLElement) {
+  try {
+    const { mountBoard3d } = await import('./board3d');
+    relabelBoard = await mountBoard3d(s.querySelector('.frame')!, s.querySelector('img')!, s.querySelector('.frame-hint'), s.querySelector('figcaption'));
+    if (hero === 'picture') hero = 'live';
+  } catch (e) {
+    console.warn('3D board unavailable, keeping the screenshot:', e);
+  }
+}
+if (shot && !saveData && 'IntersectionObserver' in window && phone) {
+  const frame = shot.querySelector<HTMLElement>('.frame')!;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'tap-3d';
+  frame.appendChild(btn);
+  const hint = shot.querySelector<HTMLElement>('.frame-hint');
+  const label = () => { btn.textContent = t('Tap to turn it in 3D'); if (hint) hint.textContent = ''; };
+  label();
+  relabelBoard = label;
+  btn.addEventListener('click', () => {
+    hero = 'tapped';
+    btn.disabled = true;
+    btn.textContent = t('Loading…');
+    void loadBoard3d(shot).finally(() => btn.remove());
+  }, { once: true });
+} else if (shot && !saveData && 'IntersectionObserver' in window) {
+  const io = new IntersectionObserver((entries) => {
     if (!entries.some((e) => e.isIntersecting)) return;
     io.disconnect();
-    try {
-      const { mountBoard3d } = await import('./board3d');
-      relabelBoard = await mountBoard3d(shot.querySelector('.frame')!, shot.querySelector('img')!, shot.querySelector('.frame-hint'), shot.querySelector('figcaption'));
-    } catch (e) {
-      console.warn('3D board unavailable, keeping the screenshot:', e);
-    }
+    void loadBoard3d(shot);
   }, { rootMargin: '200px' });
   io.observe(shot);
 }

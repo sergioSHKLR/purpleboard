@@ -46,6 +46,20 @@ export class Camera {
     this.dist = Math.max(30, span * 1.35);
   }
 
+  /**
+   * Frames the board box centred on (x, y) with half extents (hw, hh) mm inside a sub-rectangle of
+   * the canvas (client px): the part that overlays (a phone's lesson card, readouts) leave visible.
+   */
+  frameIn(x: number, y: number, hw: number, hh: number, view: { x: number; y: number; w: number; h: number }, canvasW: number, canvasH: number, side?: Side) {
+    if (side) this.setSide(side);
+    const pxPerMm = Math.min(view.w / (2 * Math.max(0.5, hw)), view.h / (2 * Math.max(0.5, hh)));
+    this.tx = x;
+    this.ty = y;
+    this.orthoHalfH = Math.max(0.8, Math.min(450, canvasH / (2 * pxPerMm)));
+    this.dist = Math.max(4, Math.min(900, this.orthoHalfH / Math.tan(22 * DEG))); // same scale in 3D
+    this.panScreen(view.x + view.w / 2 - canvasW / 2, view.y + view.h / 2 - canvasH / 2, canvasH, true);
+  }
+
   focusAt(x: number, y: number, halfH = 12, side?: Side) {
     this.tx = x;
     this.ty = y;
@@ -134,10 +148,13 @@ export class Camera {
     return Math.max(1, heightPx) / mmTall;
   }
 
-  /** Unit offset from target to eye, and the camera up vector (world space). */
-  private pose(): { o: V3; up: V3 } {
-    const th = this.pitch * DEG, ph = this.yaw * DEG;
-    const fa = (this.bothSides ? 0 : this.flipT) * Math.PI;
+  /**
+   * Unit offset from target to eye, and the camera up vector (world space). `settled`: the pose
+   * the camera is animating to, not the one on screen now.
+   */
+  private pose(settled = false): { o: V3; up: V3 } {
+    const th = (settled ? this.targetPitch : this.pitch) * DEG, ph = (settled ? this.targetYaw : this.yaw) * DEG;
+    const fa = (this.bothSides ? 0 : settled ? this.targetFlipT : this.flipT) * Math.PI;
     const o: V3 = [Math.sin(th) * Math.sin(ph), -Math.sin(th) * Math.cos(ph), Math.cos(th)];
     const up: V3 = [-Math.cos(th) * Math.sin(ph), Math.cos(th) * Math.cos(ph), Math.sin(th)];
     const c = Math.cos(fa), s = Math.sin(fa);
@@ -145,9 +162,10 @@ export class Camera {
     return { o: rotY(o), up: rotY(up) };
   }
 
-  panScreen(dx: number, dy: number, heightPx: number) {
+  /** Moves the view so the board slides by (dx, dy) screen px (`settled`: in the pose being animated to). */
+  panScreen(dx: number, dy: number, heightPx: number, settled = false) {
     const mmPerPx = 1 / this.pxPerMm(heightPx);
-    const { o, up } = this.pose();
+    const { o, up } = this.pose(settled);
     // screen right = up × (eye − target); move the target in the board plane
     const right: V3 = [up[1] * o[2] - up[2] * o[1], up[2] * o[0] - up[0] * o[2], up[0] * o[1] - up[1] * o[0]];
     const rl = Math.hypot(right[0], right[1]) || 1, ul = Math.hypot(up[0], up[1]);

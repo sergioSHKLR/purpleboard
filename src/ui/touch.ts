@@ -6,15 +6,19 @@
 
 /**
  * Mobile layout for touch-only devices (phones, tablets without a trackpad). Desktops, laptops
- * with a touch screen and the desktop app keep the desktop layout. `?mobile=1` / `?mobile=0`
- * force it either way (testing on a desktop browser).
+ * with a touch screen and the desktop app keep the desktop layout. A phone-sized screen whose
+ * main pointer is touch gets the mobile layout even when it also reports a fine pointer: many
+ * Android phones do (stylus or mouse support), and Umami showed 28 of 60 Android phone visits
+ * getting the desktop layout. `?mobile=1` / `?mobile=0` force it either way (testing on a
+ * desktop browser).
  */
 export function wantsMobileLayout(search = typeof location !== 'undefined' ? location.search : '', mq?: (q: string) => boolean): boolean {
   const force = new URLSearchParams(search).get('mobile');
   if (force === '1') return true;
   if (force === '0') return false;
   const match = mq ?? ((q: string) => typeof matchMedia !== 'undefined' && matchMedia(q).matches);
-  return match('(pointer: coarse)') && !match('(any-pointer: fine)');
+  if (!match('(pointer: coarse)')) return false;
+  return !match('(any-pointer: fine)') || match('(max-width: 600px), (max-height: 600px)');
 }
 
 export interface GestureSink {

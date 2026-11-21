@@ -33,9 +33,13 @@ min". Active time only counts while the tab is visible and you have used the mou
 in the last two minutes. On the bench it also records which of the boards that come with DEADBOARD
 you open and fix, when you generate a new problem on one, and when you finish the tutorial. To see where
 new players get stuck, it also records whether the bench's graphics started (and which kind, on a
-phone or a computer), how far the first lesson's guide was followed or where it was closed, which
+phone or a computer; when the bench is slow to start or fails, at which start-up step), how far the first lesson's guide was followed or where it was closed, which
 tool was used first, and whether the first test run on each board passed (a board you imported or made yourself is only
-counted as "custom", never by name). Umami combines this into totals, so the developer can see roughly how
+counted as "custom", never by name). When you leave the homepage, it records roughly how long it was on screen (as a
+range such as "5–15 s"), how far you scrolled (in quarters), whether you went to the bench, another page or another
+site, and whether the 3D board was shown. When you leave the bench within its first minute, it records the same time
+range and how far you got (loading, the bench, a tool, a test, a fix, the tutorial step). If the bench hits a
+program error, it records the error's type and which tool and built-in board were in use, never the error's text. Umami combines this into totals, so the developer can see roughly how
 many people use DEADBOARD and for how long. You can't be identified, and you aren't followed across
 sites or from one month to the next. If your browser sends Do Not Track, nothing is counted.
 Content blockers usually block it too.

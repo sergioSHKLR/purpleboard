@@ -12,6 +12,6 @@ if (mount) {
   // the language's strings load before the UI is built (English needs nothing)
   void initI18n().then(() => {
     const app = new PcbApp(mount);
-    void app.init();
+    app.init().catch((e) => app.startFailed(e));
   });
 }

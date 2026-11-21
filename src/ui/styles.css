@@ -813,6 +813,28 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); }
   z-index: 100;
 }
 .webgpu-err .card { max-width: 460px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+/* the bench is slow to start: a notice with a way out, above whatever is (not yet) on screen */
+.slow-start {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(420px, calc(100% - 32px));
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  color: var(--text);
+  font: 13px/1.45 var(--sans, system-ui, sans-serif);
+  z-index: 200;
+}
+.slow-start-t { font-weight: 600; }
+.slow-start-d { color: var(--text-2); }
 
 /* ---------- board credits (open-hardware attribution) ---------- */
 .credits {

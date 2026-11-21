@@ -1,7 +1,7 @@
 // WebGPU backend: MSAA ×4 render pass with four pipelines (see backend.ts).
 import { tk } from '../i18n';
 import { CLEAR_RGB, GLOW_FLOATS, INSTANCE_FLOATS, ZONE_FLOATS, type Frame, type GpuBackend } from './backend';
-import { NoAdapterError, requestAnyAdapter } from './gpuprobe';
+import { GPU_REQUEST_TIMEOUT_MS, NoAdapterError, requestAnyAdapter, withTimeout } from './gpuprobe';
 import type { PackedMeshes } from './meshes';
 import { GLOW_WGSL, SOLID_WGSL, ZONE_WGSL } from './shaders';
 
@@ -39,7 +39,7 @@ export class WebGPUBackend implements GpuBackend {
     if (!navigator.gpu) throw new Error(tk('WebGPU is not supported in this browser.'));
     const { adapter, via, tried } = await requestAnyAdapter(allowFallback);
     if (!adapter) throw new NoAdapterError(tk('Could not acquire a WebGPU adapter.'), tried);
-    const device = await adapter.requestDevice();
+    const device = await withTimeout(adapter.requestDevice(), GPU_REQUEST_TIMEOUT_MS, 'requestDevice');
     const ctx = canvas.getContext('webgpu');
     if (!ctx) throw new Error(tk('Could not create a WebGPU canvas context.'));
     const b = new WebGPUBackend(device, ctx);

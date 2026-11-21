@@ -17,6 +17,23 @@ const ATTEMPTS: Attempt[] = [
 export interface AdapterResult { adapter: GPUAdapter | null; via?: string; tried: string[] }
 
 /**
+ * How long one WebGPU request may take. Some GPU setups never answer requestAdapter() /
+ * requestDevice() (Chrome on some Android and Linux drivers); without a limit the bench would wait
+ * forever on an empty screen instead of starting on WebGL2.
+ */
+export const GPU_REQUEST_TIMEOUT_MS = 5000;
+
+export class GpuTimeoutError extends Error {}
+
+/** `p`, or a GpuTimeoutError after `ms`. */
+export function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new GpuTimeoutError(`${what} timed out after ${ms / 1000} s`)), ms);
+    p.then((v) => { clearTimeout(timer); resolve(v); }, (e) => { clearTimeout(timer); reject(e); });
+  });
+}
+
+/**
  * First adapter any request gives; `tried` records each failed attempt for the bug report.
  * Without `allowFallback` the software adapter is not asked for.
  */
@@ -26,11 +43,12 @@ export async function requestAnyAdapter(allowFallback = true): Promise<AdapterRe
   for (const a of ATTEMPTS) {
     if (a.label === 'fallback' && !allowFallback) continue;
     try {
-      const adapter = await navigator.gpu.requestAdapter(a.opts);
+      const adapter = await withTimeout(navigator.gpu.requestAdapter(a.opts), GPU_REQUEST_TIMEOUT_MS, 'requestAdapter');
       if (adapter) return { adapter, via: a.label, tried };
       tried.push(`${a.label}: null`);
     } catch (e) {
       tried.push(`${a.label}: ${e instanceof Error ? e.message : String(e)}`);
+      if (e instanceof GpuTimeoutError) break; // a GPU that does not answer won't answer the next request either
     }
   }
   return { adapter: null, tried };

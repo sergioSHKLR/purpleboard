@@ -14,8 +14,13 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="DEADBOARD" />
   </head>
-  <body>
-    <div id="app"></div>
+  <body style="margin:0;background:#090c0a">
+    <!-- shown until the app replaces it: the bundle takes a few seconds on a slow phone connection -->
+    <div id="app"><div class="boot" aria-label="Loading DEADBOARD" style="height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:#aeb9b1;font:600 13px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.3em">
+      <span>DEADBOARD</span>
+      <span style="display:block;width:120px;height:2px;background:#222a25;overflow:hidden;border-radius:1px"><i style="display:block;width:40%;height:100%;background:#4be38a;animation:boot 1.1s ease-in-out infinite alternate"></i></span>
+      <style>@keyframes boot { from { transform: translateX(-100%) } to { transform: translateX(250%) } } @media (prefers-reduced-motion: reduce) { .boot i { animation: none !important } }</style>
+    </div></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

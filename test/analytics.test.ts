@@ -1,5 +1,5 @@
 // Website analytics: only the public site with a real id is tracked; active-time milestones fire once each.
-import { analyticsEnabled, milestonesCrossed, MILESTONES, SITE_HOST, trackBoardView, trackEvent } from '../src/analytics';
+import { analyticsEnabled, milestonesCrossed, MILESTONES, scrollBucket, secondsBucket, SITE_HOST, trackBoardView, trackEvent } from '../src/analytics';
 
 function assert(c: unknown, m: string): asserts c { if (!c) throw new Error(m); }
 
@@ -19,6 +19,10 @@ assert(JSON.stringify(milestonesCrossed(100, 650)) === '[2,5,10]', 'a long jump 
 const fired: number[] = [];
 for (let s = 0; s < 5 * 3600; s += 15) fired.push(...milestonesCrossed(s, s + 15));
 assert(JSON.stringify(fired) === JSON.stringify(MILESTONES), `all milestones once: ${fired}`);
+
+// leave events: time and scroll depth only as ranges
+assert(['0', 4.9, 5, 14.9, 15, 29, 30, 59.9, 60, 3600].map((x) => secondsBucket(+x)).join() === '<5s,<5s,5-15s,5-15s,15-30s,15-30s,30-60s,30-60s,60s+,60s+', 'seconds ranges');
+assert([0, 0.1, 0.25, 0.5, 0.74, 0.75, 0.99, 1, 1.4, -1].map(scrollBucket).join() === '0%,0%,25%,50%,50%,75%,75%,100%,100%,0%', 'scroll quarters');
 
 // bench events: no-ops without the Umami script (apps, dev); a board change is a page view of /board/<id>
 const g = globalThis as { window?: unknown };

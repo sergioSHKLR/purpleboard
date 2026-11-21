@@ -50,6 +50,41 @@ export function trackBoardView(boardId: string, title: string): void {
   send((p) => ({ ...p, url: `/board/${boardId}`, title }));
 }
 
+/** Visible seconds as a range for the leave events: ranges answer "left at once or after trying". */
+export function secondsBucket(sec: number): string {
+  return sec < 5 ? '<5s' : sec < 15 ? '5-15s' : sec < 30 ? '15-30s' : sec < 60 ? '30-60s' : '60s+';
+}
+
+/** Deepest scroll (0..1 of the scrollable height) in quarters: '0%', '25%', '50%', '75%', '100%'. */
+export function scrollBucket(f: number): string {
+  return `${Math.min(4, Math.floor(Math.max(0, f) * 4 + 1e-9)) * 25}%`;
+}
+
+/** Seconds this page has been visible so far (a background tab's time does not count). */
+export function visibleClock(): () => number {
+  if (typeof document === 'undefined') return () => 0;
+  let total = 0;
+  let since = document.hidden ? -1 : performance.now();
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && since >= 0) { total += performance.now() - since; since = -1; }
+    else if (!document.hidden && since < 0) since = performance.now();
+  });
+  return () => (total + (since >= 0 ? performance.now() - since : 0)) / 1000;
+}
+
+/**
+ * Runs `fn` once, the first time the page is hidden: leaving, closing the tab, switching tab or
+ * app. Mobile browsers often skip `pagehide` but always fire `visibilitychange`. Umami sends with
+ * `keepalive`, so an event tracked here still arrives while the page unloads.
+ */
+export function onFirstHide(fn: () => void): void {
+  if (typeof document === 'undefined') return;
+  let done = false;
+  const go = () => { if (done) return; done = true; fn(); };
+  document.addEventListener('visibilitychange', () => { if (document.hidden) go(); });
+  addEventListener('pagehide', go);
+}
+
 /** Should this page load be tracked? */
 export function analyticsEnabled(websiteId: string, host: string): boolean {
   return /^[0-9a-f-]{36}$/i.test(websiteId) && host === SITE_HOST;

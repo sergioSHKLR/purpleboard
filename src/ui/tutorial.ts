@@ -95,19 +95,21 @@ function probesAcross(st: TutorialCheckState, ref: string, padA: string, padB: s
 
 export const TUTORIAL_STEPS: TutorialStep[] = [
   {
-    title: 'Anatomy of a PCB',
+    // The hook comes first: the player sees the fault before any theory (the old opening step,
+    // "Anatomy of a PCB" with a switch to 3D, lost 60% of new players; Cold Joint 101 teaches the flip).
+    title: 'A broken flashlight',
     concept:
-      'A PCB (Printed Circuit Board) replaces loose wires. An insulating fiberglass board holds flat copper strips called traces that carry electricity between parts. Round gold-plated holes are pads where component legs poke through and get soldered on the bottom.',
-    task: 'Switch to 3D in the top bar (or press Tab), and flip to Bottom (F) to inspect how legs and solder joints look on the back.',
-    phone: 'Tap 3D, then flip to Bottom (buttons, top right).',
-    target: { pos: [33, 18], side: 'F', radius: 14, zoomHalfH: 24, label: 'Whole board' },
-    quickAction: { id: 'view-3d', label: 'Switch to 3D view' },
-    isDone: (st) => st.cameraMode === '3d' || st.cameraSide === 'B',
+      'This board is a tiny flashlight: coin cell BT1, push button SW1, resistor R1 (100 Ω, it limits the current) and LED D1. Flat copper strips called traces carry the current between the round pads where the parts are soldered. Pressing SW1 should light D1.',
+    task: 'With Select (1), click push button SW1 to press it. Does LED D1 light up?',
+    phone: 'Tap push button SW1. Does LED D1 light up?',
+    target: { pos: [40, 27], side: 'F', radius: 5.5, zoomHalfH: 13, label: 'Push button SW1' },
+    quickAction: { id: 'tool-inspect', label: 'Select tool (1)' },
+    isDone: (st) => !!compByRef(st.board, 'SW1')?.state.closed,
   },
   {
     title: 'The closed circuit loop',
     concept:
-      'Electricity works like water in pipes: a battery (BT1) pushes current out of its positive terminal (+3V), through the components, and back to Ground (GND, 0 V). If the loop has a single break anywhere, zero current flows and nothing turns on.',
+      'D1 stays dark, so the current is not getting through. Electricity works like water in pipes: a battery (BT1) pushes current out of its positive terminal (+3V), through the components, and back to Ground (GND, 0 V). If the loop has a single break anywhere, zero current flows and nothing turns on.',
     task: 'Switch Display mode in the top bar to Voltage map to color every connected copper trace by its voltage — or select BT1 with Select (1).',
     phone: 'More ⋯ → Display → Voltage map. Or tap BT1 with Select.',
     target: { pos: [17, 18], side: 'F', radius: 11, zoomHalfH: 18, label: 'BT1 coin battery' },
@@ -116,16 +118,6 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
       const bt = compByRef(st.board, 'BT1');
       return st.vizMode === 'heatmap' || (bt !== undefined && st.selectedCompId === bt.id);
     },
-  },
-  {
-    title: 'Switches, resistors & LEDs',
-    concept:
-      'This board has 3 parts after BT1: SW1 is a push button that closes the path when pressed. R1 (100 Ω) is a resistor that limits current so the LED does not burn out. D1 is a light-emitting diode that glows when current flows from Anode (+) to Cathode (K).',
-    task: 'Make sure you are on the Top side with Select (1), then click directly on push button SW1 to press it closed.',
-    phone: 'On the Top side, tap push button SW1 with Select.',
-    target: { pos: [40, 27], side: 'F', radius: 5.5, zoomHalfH: 13, label: 'Push button SW1' },
-    quickAction: { id: 'tool-inspect', label: 'Select tool (1)' },
-    isDone: (st) => !!compByRef(st.board, 'SW1')?.state.closed,
   },
   {
     title: 'Measuring voltage (V⎓)',
