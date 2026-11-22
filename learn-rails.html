@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Power rails, boot current &amp; oscilloscope diagnostics — DEADBOARD</title>
+    <meta name="description" content="Diagnose dead power rails on multi-rail boards: reading boot current sequences, troubleshooting LDOs, buck converters and Li-ion chargers, oscilloscope Roll vs. Auto mode, and boardview + schematic tracing." />
+    <meta name="theme-color" content="#090c0a" />
+    <link rel="canonical" href="https://deadboard.org/learn-rails.html" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="DEADBOARD" />
+    <meta property="og:url" content="https://deadboard.org/learn-rails.html" />
+    <meta property="og:title" content="Power rails, boot current &amp; oscilloscope diagnostics — DEADBOARD" />
+    <meta property="og:description" content="How to diagnose dead rails, boot loops, switching regulators, and intermittent faults with a bench supply, oscilloscope, and boardview." />
+    <meta property="og:image" content="https://deadboard.org/home/bench-1400.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Power rails, boot current &amp; oscilloscope diagnostics — DEADBOARD" />
+    <meta name="twitter:description" content="How to diagnose dead rails, boot loops, switching regulators, and intermittent faults with a bench supply, oscilloscope, and boardview." />
+    <meta name="twitter:image" content="https://deadboard.org/home/bench-1400.jpg" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "TechArticle",
+            "headline": "Power rails, boot current & oscilloscope diagnostics",
+            "description": "Diagnosing multi-rail circuit boards using bench-supply boot current, regulator checks, oscilloscope Roll and Auto modes, and boardview/schematic tracing.",
+            "url": "https://deadboard.org/learn-rails.html",
+            "isAccessibleForFree": true,
+            "author": { "@type": "Organization", "name": "DEADBOARD", "url": "https://deadboard.org/" }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://deadboard.org/" },
+              { "@type": "ListItem", "position": 2, "name": "Learn", "item": "https://deadboard.org/learn.html" },
+              { "@type": "ListItem", "position": 3, "name": "Power rails & scope", "item": "https://deadboard.org/learn-rails.html" }
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="nav">
+      <a class="logo" href="./" aria-label="DEADBOARD home"><span data-mark></span><span class="wordmark">DEADBOARD</span></a>
+      <nav aria-label="Sections">
+        <a href="./">Home</a>
+        <a href="./learn.html" aria-current="page">Learn</a>
+        <a href="./modding.html">Mods</a>
+        <a href="https://github.com/tholtman1-del/deadboard">GitHub</a>
+      </nav>
+      <a class="btn primary small" href="./app.html">Open the bench</a>
+    </header>
+
+    <main id="main" class="doc-wrap">
+      <article class="doc">
+        <!--DOC-->
+        <!--DOCPAGER-->
+      </article>
+      <aside class="doc-side">
+        <!--DOCNAV-->
+        <div class="doc-cta">
+          <p class="eyebrow">&gt; lab for this guide</p>
+          <p>Inspect live switching waveforms, boot current, and boardview + schematics on open hardware.</p>
+          <a class="btn primary small" href="./app.html?board=demo-mnt-reform2-mb30">Open MNT Reform 2</a>
+          <a class="btn ghost small" href="./app.html?board=demo-antmicro-jetson-nano-bb">Open Antmicro baseboard</a>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="foot">
+      <span class="logo small"><span data-mark></span><span class="wordmark">DEADBOARD</span></span>
+      <span class="muted">Board-level repair trainer · <span data-year></span></span>
+      <a href="./app.html">Open the bench</a>
+      <a href="./learn.html">Repair guide</a>
+      <a href="./modding.html">Make a mod</a>
+      <a href="./app.html?feedback">Feedback</a>
+      <a href="./privacy.html">Privacy</a>
+    </footer>
+
+    <script type="module" src="./src/home/main.ts"></script>
+  </body>
+</html>

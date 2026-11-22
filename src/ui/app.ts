@@ -556,8 +556,10 @@ export class PcbApp {
         sessionStorage.removeItem('deadboard_reopen');
         reopen = id ? this.scenarios.findIndex((s) => s.id === id) : -1;
       } catch { /* storage unavailable */ }
+      const qBoard = params.get('board');
+      const want = reopen >= 0 ? reopen : qBoard ? this.scenarios.findIndex((s) => s.id === qBoard) : -1;
       this.loadScenario(this.scenarios[0]);
-      if (reopen > 0) await this.openScenario(reopen);
+      if (want > 0) await this.openScenario(want);
     }
 
     this.bindEvents();

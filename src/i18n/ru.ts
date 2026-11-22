@@ -1224,6 +1224,8 @@ const ru: Catalog = {
   "Small boards with more than one fault, then real open-hardware boards with hundreds of parts. Stuck? Run the tests: «Where to look?» suggests what to measure.": "Небольшие платы с несколькими неисправностями, затем настоящие открытые платы с сотнями деталей. Застряли? Запустите тесты: «Где искать?» подскажет, что измерить.",
   "Next: repair challenges": "Дальше: задачи на ремонт",
   "Repair challenges": "Задачи на ремонт",
+  "Learn": "Обучение",
+  "Repair guide": "Учебник",
 };
 
 export default ru;

@@ -27,6 +27,14 @@ agents"; it has the exact schemas, the hard rules and a validate-and-fix loop.
 
 - [community/index.json](https://deadboard.org/community/index.json): every mod listed in the app's Community tab (file, size, SHA-256, what it adds)
 
+## Learn
+
+- [Learn board-level PCB repair](https://deadboard.org/learn.html): written curriculum and interactive labs
+- [How to test a PCB with a multimeter](https://deadboard.org/learn-multimeter.html): voltage, resistance, diode mode, capacitance, Ohm's law
+- [How to find a short circuit on a PCB](https://deadboard.org/learn-shorts.html): voltage injection, thermal imaging, freeze spray, IPA, rosin
+- [Power rails, boot current & oscilloscope](https://deadboard.org/learn-rails.html): boot current, LDO/buck regulators, oscilloscope modes, boardviews
+- [PCB soldering & rework](https://deadboard.org/learn-rework.html): cold joints, solder bridges, lifted pads, flux and preheaters
+
 ## Optional
 
 - [Source code](https://github.com/tholtman1-del/deadboard): Apache-2.0; AGENTS.md there is for agents changing the app itself

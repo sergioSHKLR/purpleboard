@@ -36,10 +36,13 @@ for (const el of document.querySelectorAll<HTMLElement>('[data-mark]')) el.inner
 for (const el of document.querySelectorAll<HTMLElement>('[data-icon]')) el.innerHTML = icon(el.dataset.icon!, 18);
 // Language: the app's choice (?lang=, saved, browser), switchable in place from the header.
 const TITLE = document.title;
+const hasTranslatable = document.querySelector('[data-t], [data-t-attr]') !== null;
 async function setLanguage(code?: string) {
   await initI18n(code);
-  translatePage();
-  document.title = lang() === 'en' ? TITLE : t('DEADBOARD — bring dead boards back');
+  if (hasTranslatable) {
+    translatePage();
+    document.title = lang() === 'en' ? TITLE : t('DEADBOARD — bring dead boards back');
+  }
   for (const b of document.querySelectorAll<HTMLButtonElement>('[data-lang]')) b.setAttribute('aria-pressed', String(b.dataset.lang === lang()));
   document.documentElement.classList.remove('i18n-wait');
   relabelBoard?.();

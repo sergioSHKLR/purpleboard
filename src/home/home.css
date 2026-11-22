@@ -289,6 +289,33 @@ figcaption { margin-top: 12px; font: 13px/1.5 var(--mono); color: var(--muted); 
 .doc th { color: var(--text); font-weight: 600; white-space: nowrap; }
 .doc td:first-child { white-space: nowrap; }
 .doc blockquote { margin: 16px 0; padding: 4px 16px; border-left: 3px solid var(--accent); }
+.doc-pager {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 56px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+.doc-pager-link {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.15s;
+}
+.doc-pager-link:hover { border-color: var(--accent); }
+.doc-pager-link span { font: 12px/1.2 var(--mono); color: var(--muted); }
+.doc-pager-link strong { font: 600 15px/1.3 var(--sans); color: var(--accent); }
+.doc-pager-link.next { text-align: right; }
+@media (max-width: 640px) {
+  .doc-pager { grid-template-columns: 1fr; }
+  .doc-pager-link.next { text-align: left; }
+}
 @media (max-width: 979px) {
   /* phones and narrow windows: the docs menu as a row of links above the page */
   .doc-side { grid-row: 1; }

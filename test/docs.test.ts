@@ -34,7 +34,34 @@ async function run() {
   }
   assert(checked > 20, `links checked (${checked})`);
   assert(fs.existsSync('public/llms.txt') && /mods-for-agents\.md/.test(read('public/llms.txt')), 'llms.txt points agents to the docs');
-  console.log(`DOCS TESTS PASSED (generated blocks current, ${checked} links between docs pages resolve, llms.txt)`);
+
+  // educational guides: internal markdown links and ?board=<id> deep links resolve to real boards
+  const LEARN = ['INDEX.md', 'MULTIMETER.md', 'SHORTS.md', 'POWER_RAILS.md', 'REWORK.md'];
+  const allBoardIds = new Set([...(await builtinScenarios()).map((s) => s.id), ...demos.map((d) => d.id)]);
+  const learnAnchors = new Map(LEARN.map((d) => [d, new Set([...read(`docs/learn/${d}`).matchAll(/^#{1,4} (.+)$/gm)].map((m) => slug(m[1])))]));
+  let learnBoards = 0;
+  for (const d of LEARN) {
+    const src = read(`docs/learn/${d}`);
+    for (const m of src.matchAll(/\]\(((?:\.\.\/)?[A-Z_]+\.md)(#[\w-]+)?\)/g)) {
+      const target = m[1], hash = m[2]?.slice(1);
+      if (target.startsWith('../')) {
+        const file = target.slice(3);
+        assert(anchors.has(file), `learn/${d}: link to ${target}, which isn't a docs page`);
+        if (hash) assert(anchors.get(file)!.has(hash), `learn/${d}: link to ${target}#${hash}, no such section`);
+      } else {
+        assert(learnAnchors.has(target), `learn/${d}: link to ${target}, which isn't a learn page`);
+        if (hash) assert(learnAnchors.get(target)!.has(hash), `learn/${d}: link to ${target}#${hash}, no such section`);
+      }
+      checked++;
+    }
+    for (const m of src.matchAll(/\.\/app\.html\?board=([a-z0-9-]+)/g)) {
+      assert(allBoardIds.has(m[1]), `learn/${d}: unknown board id ${m[1]}`);
+      learnBoards++;
+    }
+  }
+  assert(learnBoards >= 15, `learn bench links checked (${learnBoards})`);
+  assert(fs.existsSync('public/robots.txt') && fs.existsSync('public/sitemap.xml'), 'robots.txt and sitemap.xml present');
+  console.log(`DOCS TESTS PASSED (generated blocks current, ${checked} links between docs pages resolve, ${learnBoards} learn board links, llms.txt, sitemap)`);
 }
 
 run().catch((e) => { console.error(e); (globalThis as unknown as { process: { exitCode: number } }).process.exitCode = 1; });
