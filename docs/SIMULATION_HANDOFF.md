@@ -30,7 +30,18 @@ No reference hardware is available, so realism is validated against *design inte
   check right on a pass/fail edge could flip between JS engines (float solves); none seen.
   `test/daily.test.ts`: 20 days, rotation, determinism, fails the bench, speed.
   Also: the top-bar board badge and the board select show the level number, not L1–5.
-  Next: user review, then commit (A and B as two commits); then E (concept boards) or C.
+  **E, first concept board (branch `bike-light`, on top of `learning-journey`; both local only):
+  Transistor Switch** (`builtin-transistor-switch`, level 2.0, first on the challenge track): 2×AA,
+  SW1 → R1 1 kΩ → Q1 2N3904 (TO-92) switching two red LEDs (68 Ω each, ≈10.6 mA; forced gain 10).
+  Fault: Q1 fitted backwards (gain ≈1, LEDs glow at ≈1.2 mA). Runs on SPICE (`solver: 'spice'`; the
+  fast solver has no transistor). New, universal: `Builder.to92()` (kind `generic` + device-library
+  label), body shape `to92` with a footprint-fixed "D" on the silkscreen, `inlineReversal()` (a
+  reversed in-line three-lead part swaps its outer leads: netlist, roles, flag topology), devicelib
+  `2N3904` (unverified: numbers from MMBT3904LP, datasheet not read). «Where to look?»: `generic`
+  in high-open / low-load, new `high-leak` rule, physics filters (a pull-down must lead lower, a feed
+  must carry current, no `low` below 0.3 V): recall 139/139. Board notes 1.5.0 (19 packs).
+  Not done yet from E's slice: part card, "What happened" debrief, pick-by-spec, teaches/needs drills.
+  Next: user review, then merge `learning-journey` + `bike-light`; then the rest of E's slice, or C.
 - **NEXT SESSION — start here (late evening of 2026-11-21).** Everything is pushed. Last code
   commit `ca478ec` (issue #4: the multimeter's clear-probes button was clipped outside the
   280 px card; card now 336 px, title ellipsizes, **Esc clears probes**; no open issues left).

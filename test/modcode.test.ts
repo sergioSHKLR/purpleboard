@@ -158,7 +158,8 @@ async function run() {
     await h2.start(ex);
     const addr = 'ideal-dc/solvers/ideal-dc';
     assert(h2.solvers()[0]?.address === addr, 'example registers its solver');
-    for (const sc of await builtinScenarios()) {
+    // boards that name their own solver (the transistor switch: SPICE) have parts this small DC example doesn't model
+    for (const sc of (await builtinScenarios()).filter((s) => !s.solver)) {
       const board = structuredClone(referenceBoard(sc)!);
       const conn = buildConnectivity(board);
       const official = evaluateObjectives(board, conn, sc.objectives, sc.solver ?? 'fast');
@@ -171,7 +172,10 @@ async function run() {
     // the bench check of a code solver
     const r = await checkMods([ex], await shippedBoards(), undefined, h2);
     const f = r.findings.find((x) => x.item === addr);
-    assert(f?.level === 'pass' && /agrees with the official solvers on 11/.test(f.text) && !r.findings.some((x) => x.level === 'fail'), `bench check passes:\n${formatReport(r)}`);
+    // it agrees on every board except the transistor switch: the example models no transistors (its
+    // description says so), and the bench check rightly warns the author about that one board
+    assert(f?.level === 'warn' && /agrees with the official solvers on 11\b/.test(f.text) && /Differs on: Transistor Switch \(/.test(f.text) && !/; /.test(f.text.split('Differs on: ')[1] ?? '')
+      && !r.findings.some((x) => x.level === 'fail'), `bench check: agrees everywhere but the transistor switch:\n${formatReport(r)}`);
     h2.stopAll();
     const noCode = await checkMods([ex], await shippedBoards());
     assert(noCode.findings.some((x) => x.level === 'warn' && /checked in the app/.test(x.text)), 'without a way to run code, the check says where it runs');
@@ -188,7 +192,7 @@ async function run() {
     for (const f of folder.files) assert(new TextDecoder().decode(zipped.get(`ideal-dc/${f}`)!) === fs.readFileSync(`examples/mods/ideal-dc/${f}`, 'utf8'), `${f} in ideal-dc.zip is stale: run npm run example-mod`);
   }
 
-  console.log('MOD CODE TESTS PASSED (manifest code + permissions, the import rule, host ↔ runtime: registration, solve, errors, events, queries, handler errors, hang / stuck / broken mods stopped; netlist roles, untrusted results sanitised; example solver = official on every shipped board, no flag on broken boards; bench check of a code solver; mod-api package + example download current)');
+  console.log('MOD CODE TESTS PASSED (manifest code + permissions, the import rule, host ↔ runtime: registration, solve, errors, events, queries, handler errors, hang / stuck / broken mods stopped; netlist roles, untrusted results sanitised; example solver = official on every shipped board without a SPICE-only part, no flag on broken boards; bench check of a code solver; mod-api package + example download current)');
 }
 
 run().catch((e) => { console.error(e); (globalThis as unknown as { process: { exitCode: number } }).process.exitCode = 1; });

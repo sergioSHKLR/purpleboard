@@ -11,7 +11,16 @@ import type { RuleDef } from './rules';
 
 // ---------------- observing ----------------
 
-export interface NetObs { net: number; name: string; state: 'dead' | 'low' | 'high'; expected: number; measured: number }
+export interface NetObs {
+  net: number; name: string; state: 'dead' | 'low' | 'high'; expected: number; measured: number;
+  /** What every net read in the same switch setting, and what the working board reads there (to see
+   *  whether a part between two nets drops any voltage, and which way current flows through it). */
+  around?: Map<number, number>;
+  aroundExpected?: Map<number, number>;
+  /** Current through each part in the same setting, now and on the working board (A; absent when the solver doesn't report it). */
+  current?: Map<string, number>;
+  currentExpected?: Map<string, number>;
+}
 export interface Observation {
   nets: NetObs[];
   shorts: { net: number; name: string; ohms: number; expected: number }[];
@@ -36,7 +45,7 @@ function groundNet(board: Board, conn: Conn): number {
 }
 
 /** Volts at every pin (ref:pad) of a solved board. */
-function pinVolts(board: Board, conn: Conn, solver: Solver, sw?: SwitchMap): { pins: Map<string, number>; comps: Map<string, { p: number; on: boolean }> } {
+function pinVolts(board: Board, conn: Conn, solver: Solver, sw?: SwitchMap): { pins: Map<string, number>; comps: Map<string, { p: number; on: boolean; i?: number }> } {
   const sim = runSolver(solver, board, conn, { ...(sw && { switches: sw }), ...(solver === 'spice-power' && { powerState: 'S0SW' as const }) });
   const pins = new Map<string, number>();
   for (const c of board.components) {
@@ -47,8 +56,8 @@ function pinVolts(board: Board, conn: Conn, solver: Solver, sw?: SwitchMap): { p
       if (net >= 0 && k !== undefined && sim.source) pins.set(pinKey(c, p.name), sim.V[k]);
     });
   }
-  const comps = new Map<string, { p: number; on: boolean }>();
-  for (const c of board.components) { const r = sim.comps.get(c.id); if (r) comps.set(c.ref, { p: r.p, on: r.on && !r.over }); }
+  const comps = new Map<string, { p: number; on: boolean; i?: number }>();
+  for (const c of board.components) { const r = sim.comps.get(c.id); if (r) comps.set(c.ref, { p: r.p, on: r.on && !r.over, ...(Number.isFinite(r.i) && { i: r.i }) }); }
   return { pins, comps };
 }
 
@@ -91,14 +100,22 @@ export function observe(board: Board, reference: Board, objectives: Objective[],
       }
       return 0;
     };
+    const around = new Map<number, number>(), aroundExpected = new Map<number, number>();
+    const current = new Map<string, number>(), currentExpected = new Map<string, number>();
+    for (const [ref, r] of got.comps) if (r.i !== undefined) current.set(ref, r.i);
+    for (const [ref, r] of want.comps) if (r.i !== undefined) currentExpected.set(ref, r.i);
+    const median = (exp: number[]) => [...exp].sort((a, b) => a - b)[Math.floor(exp.length / 2)];
+    for (const [net, { exp }] of per) { around.set(net, someMeasured(net)); aroundExpected.set(net, median(exp)); }
     for (const [net, { name, exp }] of per) {
-      const e = exp.sort((a, b) => a - b)[Math.floor(exp.length / 2)];
+      const e = median(exp);
       const m = someMeasured(net);
       if (!expected.has(net) || Math.abs(e) > Math.abs(expected.get(net)!)) expected.set(net, e);
       const tol = Math.max(0.1, 0.1 * Math.abs(e));
-      const state = Math.abs(m) < 0.05 && Math.abs(e) > 0.3 ? 'dead' : m < e - tol ? 'low' : m > e + tol ? 'high' : null;
+      // below 0.3 V on the working board a net is floating or near ground: what it reads there is
+      // leakage and meter loading, so only reading higher counts (as for 'dead')
+      const state = Math.abs(m) < 0.05 && Math.abs(e) > 0.3 ? 'dead' : m < e - tol && Math.abs(e) > 0.3 ? 'low' : m > e + tol ? 'high' : null;
       const key = `${net}:${state}`;
-      if (state && !nets.has(key)) nets.set(key, { net, name, state, expected: e, measured: m });
+      if (state && !nets.has(key)) nets.set(key, { net, name, state, expected: e, measured: m, around, aroundExpected, current, currentExpected });
     }
     for (const [ref, r] of got.comps) {
       const w = want.comps.get(ref);
@@ -189,7 +206,7 @@ export function rankCandidates(obs: Observation, board: Board, rules: readonly R
       out.set(ref, cand);
     }
   };
-  const forNet = (r: RuleDef, net: number, name: string, what: string) => {
+  const forNet = (r: RuleDef, net: number, name: string, what: string, seen?: NetObs) => {
     const here = board.components.filter((c) => nets.get(c.ref)!.includes(net) && kindOk(r, c));
     let refs: string[] = [];
     if (r.suspect.where === 'on-net') refs = here.map((c) => c.ref);
@@ -200,6 +217,25 @@ export function rankCandidates(obs: Observation, board: Board, rules: readonly R
       // an open joint leaves a part on only one net: it can still be the one feeding this net
       if (r.suspect.where === 'feeds-net') for (const c of here) if (twoTerminal(c) && nets.get(c.ref)!.length === 1 && !refs.includes(c.ref)) refs.push(c.ref);
     }
+    // Physics filters, against the working board in the same switch setting:
+    // - a net reads high when what should pull it down is open, and low when something loads it down:
+    //   either way the part must lead somewhere lower (ground, or a net the working board holds lower).
+    //   An LED whose other side goes up to the supply can't pull the net under it down.
+    // - a low net blamed on resistance in its feed needs current through that feed on the working
+    //   board; with none there, the net reads low because current flows where none should.
+    // - a high net blamed on its feed passing too much current needs current through the feed now;
+    //   with no current and no voltage across it, the open part is further down (a dark LED's resistor
+    //   reads that way); a leak beside the part (wet switch) shows as voltage across it.
+    // Voltage drop alone is no guide to current: a fuse or closed switch carries it with no drop.
+    const expOf = (n: number) => seen?.aroundExpected?.get(n) ?? obs.expected.get(n) ?? Infinity;
+    const mine = seen?.expected ?? obs.expected.get(net) ?? Infinity;
+    const margin = (v: number) => Math.max(0.02, 0.01 * Math.abs(v));
+    const leadsLower = (ref: string) => nets.get(ref)!.some((n) => n !== net && (n === obs.ground || expOf(n) < mine - margin(mine)));
+    const dropsNow = (ref: string) => nets.get(ref)!.some((n) => n !== net && n !== obs.ground && Math.abs((seen?.around?.get(n) ?? seen!.measured) - seen!.measured) > margin(seen!.measured));
+    const flows = (m: Map<string, number> | undefined, ref: string) => { const x = m?.get(ref); return x === undefined || Math.abs(x) > 20e-6; };
+    if ((r.when === 'high' || r.when === 'low') && r.suspect.where !== 'feeds-net') refs = refs.filter(leadsLower);
+    if (r.when === 'low' && r.suspect.where === 'feeds-net' && seen) refs = refs.filter((ref) => flows(seen.currentExpected, ref));
+    if (r.when === 'high' && r.suspect.where === 'feeds-net' && seen) refs = refs.filter((ref) => flows(seen.current, ref) || dropsNow(ref));
     // the boundary: a part whose supply side reads fine while this side doesn't
     const badNets = new Set(bad.map((x) => x.net));
     const boost = new Set(r.suspect.where === 'feeds-net' ? refs.filter((ref) => nets.get(ref)!.some((n) => n !== net && n !== obs.ground && !badNets.has(n) && (obs.hops.get(n) ?? Infinity) < (obs.hops.get(net) ?? Infinity))) : []);
@@ -220,7 +256,7 @@ export function rankCandidates(obs: Observation, board: Board, rules: readonly R
     else if (r.when === 'hot') for (const h of obs.hot) forPart(r, h.ref, `${h.ref} dissipates ${(h.watts * 1000).toFixed(0)} mW (working board ${(h.expected * 1000).toFixed(0)} mW)`);
     else if (r.when === 'dark') for (const ref of obs.dark) forPart(r, ref, `${ref} stays dark`);
     else if (r.when === 'tested') for (const ref of obs.tested) forPart(r, ref, `a test fails at ${ref}`);
-    else for (const n of obs.nets.filter((x) => x.state === r.when)) forNet(r, n.net, n.name, `${n.name} reads ${n.measured.toFixed(2)} V (working board ${n.expected.toFixed(2)} V)`);
+    else for (const n of obs.nets.filter((x) => x.state === r.when)) forNet(r, n.net, n.name, `${n.name} reads ${n.measured.toFixed(2)} V (working board ${n.expected.toFixed(2)} V)`, n);
   }
   return [...out.values()].sort((a, b) => b.score - a.score || a.ref.localeCompare(b.ref));
 }

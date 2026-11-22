@@ -41,7 +41,7 @@ export const SKILLS: Record<SkillKind, Record<string, string>> = {
     press: tk('Press / flex'), freeze: tk('Freeze spray'), heatmap: tk('Voltage map'),
   },
   part: {
-    cell: tk('Coin cell'), button: tk('Push button'), resistor: tk('Resistor'), led: tk('LED'),
+    cell: tk('Coin cell'), button: tk('Push button'), bjt: tk('Transistor (NPN)'), resistor: tk('Resistor'), led: tk('LED'),
     testpoint: tk('Test point'), fuse: tk('Fuse'), diode: tk('Diode'), schottky: tk('Schottky diode'),
     charger: tk('Li-ion charger'), ldo: tk('LDO regulator'), cap: tk('Capacitor'), mosfet: tk('MOSFET'),
     mcu: tk('Microcontroller'), buck: tk('Buck converter'),
@@ -78,6 +78,7 @@ export const BOARD_INFO: Record<string, BoardInfo> = {
   'builtin-tut-polarity': { level: 1.3, symptom: tk('Good supply, LED stays dark'), teaches: ['tool:diode', 'tool:rotate', 'fault:reversed'] },
   'builtin-tut-resistor': { level: 1.5, symptom: tk('Blue LED starved to 0.02 mA'), teaches: ['tool:replace', 'fault:wrongval'] },
   'builtin-tut-divider': { level: 1.8, symptom: tk('TP1 should read 2.50 V'), teaches: ['part:testpoint', 'fault:missing'] },
+  'builtin-transistor-switch': { level: 2.0, symptom: tk('Pressed, the LEDs only glow faintly'), teaches: ['part:bjt', 'fault:reversed'] },
   'builtin-bridge-troll': { level: 2.4, symptom: tk('Two LEDs, one button: both stay dark'), teaches: ['fault:multi'] },
   'builtin-backwards-day': { level: 2.8, symptom: tk('USB status light, neither LED lights'), teaches: [] },
   'builtin-smoke-test': { level: 3.2, symptom: tk('Blown fuse, dead 5 V rail'), teaches: ['tool:thermal', 'tool:ocp', 'part:fuse', 'part:diode', 'fault:short'] },

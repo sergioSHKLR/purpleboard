@@ -460,12 +460,12 @@ rules or patch theirs (`weight`, `confirm`…):
 | `when` | What the bench shows: `dead`, `low`, `high` (a net against the working board), `short` (a rail to ground, power off), `hot` (a part), `dark` (an LED that should light), `tested` (a part a failing test names). |
 | `suspect.where` | `on-net` (parts on that net), `series` (two-terminal parts between it and another net), `feeds-net` (those on the side nearer the supply), `the-part` (for `hot`, `dark`, `tested`). |
 | `suspect.kinds` | Optional part kinds. |
-| `weight` | 1–10. A rule that points at a single part counts more than one that points at many. |
+| `weight` | 1–10. A rule that points at a single part counts more than one that points at many. A part the physics rules out never counts: a net reads high or low only through parts that lead somewhere lower, and a feed only matters if current flows through it (details in the reference). |
 | `confirm` | What to measure; `{net}` and `{ref}` are filled in. |
 
 The bench check runs the **recall test**: every fault from the catalogue planted on every part of
 the small working boards; for each one that shows on the bench, is the planted part among the top 3
-suggestions? It reports the score with and without your rules. The official rules find all 120;
+suggestions? It reports the score with and without your rules. The official rules find all 139;
 a rule that makes the score drop gets a warning.
 
 ## Code mods

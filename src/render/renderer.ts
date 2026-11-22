@@ -958,7 +958,14 @@ export class Renderer {
       const focus = isSelected || isCompHov;
       const margin = dense ? 0.06 : 0.4;
       const hw = c.body.w * 0.5 + margin, hh = c.body.h * 0.5 + margin;
-      if (!dense || focus) {
+      if (c.body.shape === 'to92') {
+        // the TO-92 "D" printed where the body belongs: flat edge for the flat face, round back.
+        // Fixed to the footprint, so a transistor fitted backwards no longer matches it.
+        const oy = c.body.off?.[1] ?? 0, rx = c.body.w * 0.5 + 0.3, ry = c.body.h * 0.5 + 0.3;
+        const pts: V2[] = [[-rx, oy], [-rx, oy - ry], [rx, oy - ry], [rx, oy]];
+        for (let i = 1; i <= 10; i++) { const a = (i / 10) * Math.PI; pts.push([rx * Math.cos(a), oy + ry * Math.sin(a)]); }
+        for (let i = 0; i + 1 < pts.length; i++) pushSilkSeg(localToWorld(...pts[i]), localToWorld(...pts[i + 1]), 0.14, dSide, [0.92, 0.94, 0.90], 0.045);
+      } else if (!dense || focus) {
         const c0 = localToWorld(-hw, -hh), c1 = localToWorld(hw, -hh), c2 = localToWorld(hw, hh), c3 = localToWorld(-hw, hh);
         const outlineCol: [number, number, number] = dense ? [0.98, 0.85, 0.30] : [0.92, 0.94, 0.90];
         const outlineW = dense ? 0.09 : 0.12;
@@ -991,7 +998,9 @@ export class Renderer {
         }
       } else {
         const refOff = c.body.shape === 'coin' ? -c.body.h * 0.5 - 1.6 : c.body.h * 0.5 + 1.3;
-        pushSilkText(localToWorld(0, refOff), c.ref, 1.25, dSide, 0);
+        // a TO-92 stands in front of its pads, with traces leaving behind them: its reference goes beside the body
+        const refAt = c.body.shape === 'to92' ? localToWorld(-(c.body.w * 0.5 + 2), c.body.off?.[1] ?? 0) : localToWorld(0, refOff);
+        pushSilkText(refAt, c.ref, 1.25, dSide, 0);
 
         // Polarity mark on silkscreen (fixed to footprint, does NOT rotate when reversed!)
         if ((c.kind === 'led' || c.kind === 'diode')) {
@@ -1303,6 +1312,26 @@ export class Renderer {
       op.cyl.pushTRS(pHolder[0], pHolder[1], pHolder[2], c.body.w + 1.4, c.body.h + 1.4, c.body.z * 0.9, effRot, hc[0], hc[1], hc[2], 1, thermEm, 0.08, 0.7, spec);
       op.cyl.pushTRS(pCell[0], pCell[1], pCell[2], c.body.w * 0.92, c.body.h * 0.92, c.body.z * 0.75, effRot, cc[0], cc[1], cc[2], 1, thermEm, 0.95, 0.18, spec);
       op.box.pushTRS(pClip[0], pClip[1], pClip[2], c.body.w * 0.25, 4.2, 0.35, effRot, 0.86, 0.88, 0.92, 1, 0, 0.95, 0.2);
+      return;
+    }
+
+    if (shape === 'to92') {
+      // TO-92 transistor: a D-shaped black body (round back, flat printed face to the front) standing
+      // in front of its pad row (body.off), short leads to the pads. It turns with the part, so one
+      // fitted backwards shows its flat face on the other side, as on a real board.
+      const w = c.body.w, d = c.body.h, z = c.body.z;
+      const bc = thermCol ?? (burnt ? [0.10, 0.09, 0.09] : [0.07, 0.07, 0.08]);
+      const pRound = toW(0, 0, z * 0.5), pFlat = toW(0, -d * 0.25, z * 0.5);
+      op.cyl.pushTRS(pRound[0], pRound[1], pRound[2], w, d, z, effRot, bc[0], bc[1], bc[2], 1, thermEm, 0.1, 0.55, spec);
+      op.box.pushTRS(pFlat[0], pFlat[1], pFlat[2], w, d * 0.5, z, effRot, bc[0], bc[1], bc[2], 1, thermEm, 0.1, 0.55, spec);
+      const reach = -(c.body.off?.[1] ?? 0) - d * 0.5; // body back edge → pad row
+      if (reach > 0.05) {
+        const lc = thermMetal ?? [0.78, 0.79, 0.81];
+        for (const x of [-2.54, 0, 2.54]) {
+          const pl = toW(x, d * 0.5 + reach * 0.5, 0.45);
+          op.box.pushTRS(pl[0], pl[1], pl[2], 0.42, reach, 0.3, effRot, lc[0], lc[1], lc[2], 1, 0, 0.9, 0.25, spec);
+        }
+      }
       return;
     }
 

@@ -113,7 +113,9 @@ async function run() {
   const fails: string[] = [];
   const stats = { v: 0, a: 0, led: 0, ohm: 0, diode: 0, cap: 0, junctionOhms: 0 };
   const near = (x: number, y: number, abs: number, rel: number) => Math.abs(x - y) <= abs + rel * Math.max(Math.abs(x), Math.abs(y));
-  const allCases = cases(await builtinScenarios(), nightLight);
+  // boards that name their solver (the transistor switch: SPICE) never run on the fast one, which has no
+  // model for their parts: nothing to agree on
+  const allCases = cases((await builtinScenarios()).filter((s) => !s.solver), nightLight);
   for (const { id, board, combos } of allCases) {
     const conn = buildConnectivity(board);
     const nets = [...Array(conn.netCount).keys()];

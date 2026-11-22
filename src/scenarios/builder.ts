@@ -84,6 +84,21 @@ export class Builder {
     });
   }
 
+  /**
+   * A small transistor in a TO-92 package: three pads in a row, the D-shaped body standing in front
+   * of them, flat face forward. `mpn` names a part in the SPICE device library (src/spice/devicelib.ts),
+   * which models it and maps its pins (2N3904: pad 1 E, 2 B, 3 C); the fast solver has no transistor,
+   * so a board with one sets `solver: 'spice'`.
+   */
+  to92(ref: string, mpn: string, at: V2, r = 0, pins: Record<string, string> = { E: '1', B: '2', C: '3' }) {
+    return this.comp({
+      ref, kind: 'generic', value: 0, label: mpn, at, rot: r,
+      pads: [tht('1', [-2.54, 0], 1.6, 'rect', 0.8), tht('2', [0, 0], 1.6, 'circle', 0.8), tht('3', [2.54, 0], 1.6, 'circle', 0.8)],
+      pins,
+      body: { shape: 'to92', w: 4.8, h: 3.6, z: 4.6, off: [0, -2.9] },
+    });
+  }
+
   testpoint(ref: string, at: V2, label?: string) {
     return this.comp({
       ref, kind: 'testpoint', value: 0, label, at, rot: 0,

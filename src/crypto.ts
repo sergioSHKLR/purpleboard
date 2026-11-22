@@ -3,7 +3,7 @@
 // player's board is electrically identical to the author's reference design.
 import type { Board, FlagLock } from './types';
 import { pinNet, padNet, type Conn } from './connectivity';
-import { MODELED, SYMMETRIC } from './model';
+import { MODELED, SYMMETRIC, inlineReversal } from './model';
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -43,10 +43,12 @@ export function topology(board: Board, conn: Conn, id: string): string {
     if (MODELED.has(c.kind) || c.kind === 'testpoint') {
       for (const role of Object.keys(c.pins)) put(pinNet(conn, c, role), SYMMETRIC.has(c.kind) ? `${c.ref}.~` : `${c.ref}.${role}`);
     } else {
+      const seat = inlineReversal(c); // a TO-92 fitted backwards: its outer leads sit on each other's pads
       for (const name of new Set(c.pads.map((p) => p.name))) {
-        const pi = c.pads.findIndex((p) => p.name === name);
+        const on = seat?.get(name) ?? name;
+        const pi = c.pads.findIndex((p) => p.name === on);
         if (c.state.cold.includes(pi)) continue;
-        put(padNet(conn, c, name), `${c.ref}.${name}`);
+        put(padNet(conn, c, on), `${c.ref}.${name}`);
       }
     }
     if (c.state.burnt) tokens.push(`${c.ref}!X`);

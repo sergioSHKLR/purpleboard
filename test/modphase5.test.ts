@@ -175,7 +175,7 @@ async function run() {
     const lab = await loadMod(folderSource('examples/mods/repair-lab'));
     assert(lab.warnings.length === 0 && lab.manifest.faultTypes.length === 1 && lab.manifest.meters.length === 1 && lab.manifest.rules.length === 1 && lab.manifest.puzzles.length === 1, 'example contents');
     const rep = await checkMods([lab], await shippedBoards());
-    assert(rep.findings.every((f) => f.level === 'pass') && rep.findings.some((f) => /120 of 120/.test(f.text)), `repair-lab passes the bench check:\n${formatReport(rep)}`);
+    assert(rep.findings.every((f) => f.level === 'pass') && rep.findings.some((f) => /139 of 139/.test(f.text)), `repair-lab passes the bench check:\n${formatReport(rep)}`);
 
     const reg = buildFaultRegistry([lab], FAULT_CLASSES);
     const base = byId('builtin-tut-divider');

@@ -255,6 +255,13 @@ Rules drive **Where to look?**: what the bench shows → which parts to measure 
 | `confirm` | What to measure; `{net}` and `{ref}` are filled in. |
 | `why` | Optional explanation. |
 
+Before a rule credits parts, the engine keeps only those the physics allows (compared with the
+working board in the same switch setting): for `high` and `low` with `on-net` or `series`, parts that
+lead somewhere lower (ground, or a net the working board holds lower), since only those can pull a
+net down; for `low` with `feeds-net`, parts that carried current on the working board; for `high` with
+`feeds-net`, parts that carry current now or have voltage across them. Below 0.3 V on the working
+board a net only counts as `high` or `dead`, never `low` (a floating net reads leakage).
+
 The bench check's **recall test** plants catalogue faults on the small working boards and counts
 how often the planted part is in the top 3, with and without your rules.
 
@@ -303,6 +310,7 @@ how often the planted part is in the top 3, with and without your rules.
 | `official-boards/boards/builtin-tut-polarity` | One-Way LED |
 | `official-boards/boards/builtin-tut-resistor` | Resistor & Ohm's Law |
 | `official-boards/boards/builtin-tut-divider` | Voltage Divider 101 |
+| `official-boards/boards/builtin-transistor-switch` | Transistor Switch |
 | `official-boards/boards/builtin-bridge-troll` | Bridge Troll |
 | `official-boards/boards/builtin-backwards-day` | Backwards Day |
 | `official-boards/boards/builtin-ghost-short` | Ghost Short |
@@ -345,6 +353,7 @@ Patch an entry by its address. Numbers are the datasheet quantities; see [Device
 | `official-solvers/devices/ntmfd4902nf` | NTMFD4902NF | nmos, nmos | yes |
 | `official-solvers/devices/bc846blp` | BC846BLP | npn | yes |
 | `official-solvers/devices/mmbt3904lp` | MMBT3904LP | npn | no |
+| `official-solvers/devices/2n3904` | 2N3904 | npn | no |
 | `official-solvers/devices/rb160m-60` | RB160M-60 | schottky | yes |
 | `official-solvers/devices/rb521es-30` | RB521ES-30 | schottky | yes |
 | `official-solvers/devices/nsr1020mw2` | NSR1020MW2 | schottky | yes |
@@ -398,8 +407,9 @@ Only `range` can be patched; see [Fault types](#fault-types).
 | `official-rules/rules/dead-any` | `dead` | `on-net` | 2 |
 | `official-rules/rules/low-source` | `low` | `on-net` (battery, connector) | 5 |
 | `official-rules/rules/low-series` | `low` | `feeds-net` (resistor, fuse, diode, switch, led, generic) | 6 |
-| `official-rules/rules/low-load` | `low` | `on-net` (capacitor, resistor, ic, led, diode) | 4 |
-| `official-rules/rules/high-open` | `high` | `on-net` (resistor, capacitor, led, diode, ic) | 5 |
+| `official-rules/rules/low-load` | `low` | `on-net` (capacitor, resistor, ic, led, diode, generic) | 4 |
+| `official-rules/rules/high-open` | `high` | `on-net` (resistor, capacitor, led, diode, ic, generic) | 5 |
+| `official-rules/rules/high-leak` | `high` | `feeds-net` (resistor, switch, capacitor, generic, ic) | 5 |
 | `official-rules/rules/high-series` | `high` | `series` (resistor, diode, led) | 3 |
 | `official-rules/rules/hot-part` | `hot` | `the-part` | 9 |
 | `official-rules/rules/hot-neighbour` | `hot` | `series` (resistor, capacitor, diode) | 3 |

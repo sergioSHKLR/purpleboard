@@ -1,3 +1,4 @@
+import { rolePadName } from '../src/model';
 import { macbookFixture } from './fixtures';
 import { builtinScenarios } from '../src/scenarios/builtin';
 import { addBlob, cutTrace, installPart, removeBlob, toggleCold } from '../src/ops';
@@ -63,7 +64,7 @@ function tutCheckState(
 
 async function run() {
   const scenarios = await builtinScenarios();
-  assertEq(scenarios.length, 11, 'Expected 11 built-in scenarios');
+  assertEq(scenarios.length, 12, 'Expected 12 built-in scenarios');
 
   for (const id of TUTORIAL_SCENARIO_IDS) {
     const steps = getTutorialSteps(id);
@@ -186,6 +187,27 @@ async function run() {
     assertEq(after.flag, 'PCB{v0lt4g3_d1v1d3r_h4lf_r41l}');
     const steps = getTutorialSteps(sc.id)!;
     assert(steps[steps.length - 1].isDone(tutCheckState(sc.id, sc.board, after.flag)), 'Tutorial 6 final step should complete');
+  }
+
+  // 1g. Transistor Switch (concept board): Q1 (2N3904, TO-92) planted backwards. It runs on SPICE:
+  // the fast solver has no transistor, so the fast-vs-SPICE cross-check of verifyScenario() above
+  // does not apply. Backwards, the gain is near 1, so the LEDs only glow.
+  {
+    const sc = structuredClone(scenarios.find((s) => s.id === 'builtin-transistor-switch')!);
+    assertEq(sc.solver, 'spice', 'Transistor Switch runs on SPICE');
+    const before = await verifyFast(sc, sc.board, 'spice');
+    assertEq(before.allPassed, false, 'Transistor Switch fails as shipped');
+    const dim = before.results.find((r) => r.label.startsWith('D1'))!;
+    assert(/OFF \((0\.[1-9]|1\.\d)/.test(dim.detail), `a backwards Q1 still lets a little current through: ${dim.detail}`);
+    const q1 = sc.board.components.find((c) => c.ref === 'Q1')!;
+    // in-line three-lead part fitted backwards: the outer leads trade pads, the base stays
+    assertEq(rolePadName(q1, 'E'), '3', 'reversed TO-92: emitter on pad 3');
+    assertEq(rolePadName(q1, 'B'), '2', 'reversed TO-92: base stays on pad 2');
+    q1.state.reversed = false;
+    assertEq(rolePadName(q1, 'E'), '1', 'TO-92: emitter on pad 1');
+    const after = await verifyFast(sc, sc.board, 'spice');
+    assertEq(after.allPassed, true, 'Transistor Switch passes once Q1 is turned');
+    assertEq(after.flag, 'PCB{tr4ns1st0r_g41n_r3st0r3d}');
   }
 
   // 2. Bridge Troll

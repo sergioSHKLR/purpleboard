@@ -29,6 +29,7 @@ const FIXES: Record<string, (b: Board) => void> = {
   'builtin-tut-polarity': (b) => { part(b, 'D1').state.reversed = false; },
   'builtin-tut-resistor': (b) => installPart(part(b, 'R1'), { value: 150 }),
   'builtin-tut-divider': (b) => installPart(part(b, 'R2'), { value: 10000 }),
+  'builtin-transistor-switch': (b) => { part(b, 'Q1').state.reversed = false; },
   'builtin-bridge-troll': (b) => { unblob(b); toggleCold(part(b, 'R1'), 0); },
   'builtin-backwards-day': (b) => { installPart(part(b, 'R1'), { value: 330 }); part(b, 'D1').state.reversed = false; addBlob(b, [34, 24], 'B', 0.75); },
   'builtin-ghost-short': (b) => {

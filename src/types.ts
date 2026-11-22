@@ -24,7 +24,7 @@ export type ComponentKind =
   | 'testpoint' | 'ic' | 'connector' | 'generic';
 
 export type BodyShape =
-  | 'box' | 'axial' | 'led' | 'radial' | 'coin' | 'tactile' | 'fuse' | 'header' | 'pin' | 'chip' | 'none';
+  | 'box' | 'axial' | 'led' | 'radial' | 'coin' | 'tactile' | 'fuse' | 'header' | 'pin' | 'chip' | 'to92' | 'none';
 
 export interface Body {
   shape: BodyShape;

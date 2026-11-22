@@ -13,7 +13,7 @@
 // connectivity visible in the netlist and can be replaced by real `.subckt` models.
 import type { Board, Component, SwitchMap } from '../types';
 import { pinNet, type Conn } from '../connectivity';
-import { LED_INFO, MODELED, batteryRint, parseValue, rolePadName, twoRoles } from '../model';
+import { LED_INFO, MODELED, batteryRint, inlineReversal, parseValue, rolePadName, twoRoles } from '../model';
 import type { Analysis, Circuit, Element, Model, ModelType, Subckt } from './types';
 import { emptyCircuit } from './types';
 import { parseSpice } from './netlist';
@@ -546,7 +546,9 @@ export function boardToCircuit(board: Board, conn: Conn, opts: BoardSpiceOptions
         }
         subckts.set(sname, body);
         const xname = elName('X', c.ref);
-        els.push({ kind: 'X', name: xname, n: ports.map((p) => padNode(c, p)), subckt: sname, note });
+        // a reversed in-line part (TO-92…) has its outer leads on each other's pads
+        const seat = inlineReversal(c);
+        els.push({ kind: 'X', name: xname, n: ports.map((p) => padNode(c, seat?.get(p) ?? p)), subckt: sname, note });
         parts.set(c.id, { comp: c, type: 'subckt', prefix: xname });
         break;
       }

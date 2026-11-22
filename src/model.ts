@@ -21,8 +21,25 @@ export function twoRoles(c: Component): [string, string] | null {
   return k.length >= 2 ? [k[0], k[1]] : null;
 }
 
+/**
+ * In-line three-lead parts (TO-92, TO-220: three single pads in a row) seated the other way round:
+ * the outer leads swap pads and the middle one stays. Maps each pad name to the pad its pin now
+ * sits on; null for any other part (two-terminal parts swap through their two roles instead).
+ */
+export function inlineReversal(c: Component): Map<string, string> | null {
+  if (!c.state.reversed || POLAR[c.kind] || c.pads.length !== 3) return null;
+  const [p, q, r] = c.pads;
+  if (new Set([p.name, q.name, r.name]).size !== 3) return null;
+  const ux = q.at[0] - p.at[0], uy = q.at[1] - p.at[1], vx = r.at[0] - p.at[0], vy = r.at[1] - p.at[1];
+  if (Math.abs(ux * vy - uy * vx) > 0.05 * Math.hypot(ux, uy) * Math.hypot(vx, vy)) return null; // not in a row
+  const along = [p, q, r].sort((a, b) => (a.at[0] * ux + a.at[1] * uy) - (b.at[0] * ux + b.at[1] * uy) || (a.at[0] * vx + a.at[1] * vy) - (b.at[0] * vx + b.at[1] * vy));
+  return new Map([[along[0].name, along[2].name], [along[1].name, along[1].name], [along[2].name, along[0].name]]);
+}
+
 /** Pad name that electrically carries `role`, taking a reversed (180°) seating into account. */
 export function rolePadName(c: Component, role: string): string | undefined {
+  const inline = inlineReversal(c);
+  if (inline) { const pad = c.pins[role]; return pad === undefined ? undefined : inline.get(pad) ?? pad; }
   const pr = twoRoles(c);
   if (c.state.reversed && pr && (role === pr[0] || role === pr[1])) return c.pins[role === pr[0] ? pr[1] : pr[0]];
   return c.pins[role];

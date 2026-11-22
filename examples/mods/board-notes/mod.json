@@ -2,7 +2,7 @@
   "format": "deadboard-mod/2",
   "id": "board-notes",
   "name": "Board notes (knowledge packs for the shipped boards)",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "author": "Biga73 (idea) · DEADBOARD",
   "description": "An example data mod: a knowledge pack for every board that ships with DEADBOARD. Rails, where each one comes from, what to expect at which pin, and what a low reading usually means, each marked documented, derived or estimated. The packs describe the working board and point at likely causes, the way the board's hints do; they don't name the planted faults. Based on the device knowledge pack RFC by Biga73.",
   "license": "CC0-1.0",
@@ -132,6 +132,31 @@
           "source": { "ref": "R1", "kind": "divider top, 10 kΩ" },
           "checks": [ { "at": "TP1", "expect": "2.50 V (2.3–2.7 V passes)", "readsLowIf": "the bottom resistor R2 is lower than R1, or R1 is open (then ≈0 V)" } ],
           "notes": "Vout = 5 V × R2 / (R1 + R2) = 2.50 V with R1 = R2 = 10 kΩ, 0.25 mA through both. Nothing pulling VOUT down (R2 missing or open) leaves it at the full 5 V."
+        }
+      ]
+    },
+    {
+      "id": "transistor-switch",
+      "board": "official-boards/boards/builtin-transistor-switch",
+      "title": "Transistor Switch",
+      "provenance": { "kind": "board design + simulator", "where": "part values from the board; readings from DEADBOARD's simulator (SPICE, 2N3904 model) on the working board", "confidence": "derived" },
+      "rails": [
+        {
+          "net": "+3V", "nominal": 3.0, "domain": "always on",
+          "source": { "ref": "J1", "kind": "3 V battery connector (2×AA)" },
+          "checks": [ { "at": "R2", "pin": "1", "expect": "≈2.8–3.0 V (2.81 V with SW1 pressed: the cells sag under the ≈23 mA load)", "readsLowIf": "the battery is flat or not connected" } ]
+        },
+        {
+          "net": "BASE", "domain": "while SW1 is pressed",
+          "source": { "ref": "R1", "kind": "1 kΩ base resistor" },
+          "checks": [ { "at": "TP1", "expect": "≈0.67 V pressed (one base–emitter diode drop, ≈2.1 mA into the base)", "readsLowIf": "≈0 V: SW1 or R1 is open. Close to +3V instead: the base–emitter junction is open (Q1 missing, or its base or emitter lead not soldered)" } ],
+          "notes": "Released, nothing drives the base: it reads a few hundred mV at most."
+        },
+        {
+          "net": "COLLECTOR", "domain": "both LED cathodes, switched to GND by Q1",
+          "source": { "ref": "Q1", "kind": "2N3904 NPN transistor (TO-92)" },
+          "checks": [ { "at": "TP2", "expect": "≈0.07 V pressed (Q1 fully on)", "readsLowIf": "it reads high instead: ≈2 V means Q1 never switches on (no base current, or Q1 open); ≈1.1 V with the LEDs only glowing means Q1 conducts with a gain near 1, i.e. it is fitted backwards" } ],
+          "notes": "Pressed, each LED takes ≈10.6 mA through its 68 Ω resistor: together ten times the base current (R1 is sized for that, the usual rule for a transistor switch). Released, the collector floats up to ≈2 V. Q1's pins: 1 emitter, 2 base, 3 collector; its flat face matches the D printed on the board."
         }
       ]
     },

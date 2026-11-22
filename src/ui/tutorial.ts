@@ -49,6 +49,7 @@ export const TUTORIAL_SCENARIO_IDS = [
  * tutorials to real boards isn't a jump (a player's report, 2026-11-21).
  */
 export const CHALLENGE_TRACK_IDS = [
+  'builtin-transistor-switch',
   'builtin-bridge-troll',
   'builtin-backwards-day',
   'builtin-smoke-test',

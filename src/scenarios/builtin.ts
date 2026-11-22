@@ -282,6 +282,58 @@ function ghostShort() {
   });
 }
 
+/**
+ * Concept board: a transistor switch (the circuit behind a bike's rear light). A small base current
+ * from SW1 through R1 (≈2 mA) lets ten times more flow through two red LEDs: R1 is sized for a forced
+ * gain of 10, the usual rule for a transistor used as a switch. Q1 is a 2N3904 in TO-92,
+ * modelled by the SPICE device library (the fast solver has no transistor, so this board runs SPICE).
+ * The fault: Q1 fitted backwards. Collector and emitter swap; the transistor still conducts, but with
+ * a gain near 1 (the library's BR = 1; the common 2N3904 SPICE model has ≈0.74), so the LEDs only glow
+ * (≈1.2 mA each, under the 2 mA the bench counts as on).
+ */
+async function transistorSwitch(): Promise<Scenario> {
+  const k = new Builder(82, 46);
+  const j1 = k.header('J1', 3, [6, 24], 0, '2×AA');
+  k.tactile('SW1', [20, 14]);
+  const r1 = k.resistor('R1', 1000, [34, 16.25]);
+  const q1 = k.to92('Q1', '2N3904', [50, 30], 180);
+  const r2 = k.resistor('R2', 68, [60, 9]);
+  const d1 = k.led('D1', 'red', [70, 9], 180);
+  const r3 = k.resistor('R3', 68, [60, 18]);
+  const d2 = k.led('D2', 'red', [70, 18], 180);
+  k.testpoint('TP1', [44, 16.25], 'B');
+  k.testpoint('TP2', [62, 38], 'C');
+  // +3V: J1 → top rail → SW1 and both LED resistors
+  k.track('F', [k.pad(j1, '1'), [6, 3], [54.92, 3], k.pad(r2, '1'), k.pad(r3, '1')], 0.8, '+3V');
+  k.track('F', [[16.75, 3], [16.75, 11.75]], 0.8, '+3V');
+  // base: SW1 → R1 → TP1 → Q1 B
+  k.track('F', [[23.25, 16.25], k.pad(r1, '1')], 0.8, 'SW_OUT');
+  k.track('F', [k.pad(r1, '2'), [50, 16.25], k.pad(q1, '2')], 0.8, 'BASE');
+  // LEDs: R → anode, cathode → collector line → Q1 C
+  k.track('F', [k.pad(r2, '2'), k.pad(d1, '2')], 0.8, 'LED1_A');
+  k.track('F', [k.pad(r3, '2'), k.pad(d2, '2')], 0.8, 'LED2_A');
+  k.track('F', [k.pad(d1, '1'), [76, 9], [76, 38], [44, 38], [44, 30], k.pad(q1, '3')], 0.8, 'COLLECTOR');
+  k.track('F', [k.pad(d2, '1'), [76, 18]], 0.8, 'COLLECTOR');
+  // ground on the bottom: J1 − → Q1 E
+  k.track('B', [k.pad(j1, '2'), [6, 43], [58, 43], [58, 30], k.pad(q1, '1')], 0.8, 'GND');
+  k.text([16, 41], 'TRANSISTOR SWITCH  rev A', 1.4);
+  const sc = await finalize('builtin-transistor-switch', {
+    title: 'Transistor Switch',
+    author: 'DEADBOARD',
+    difficulty: 2,
+    description: 'A transistor switch, the circuit behind a bike\'s rear light: a small current from SW1 into the base of Q1 lets a much bigger one flow through two red LEDs. Pressed, both LEDs should light brightly. They only glow faintly.',
+    hints: [
+      'Power on, hold SW1 and measure. The base (TP1) should sit near 0.7 V; a switched-on collector (TP2) drops to about 0.1 V. Which one is wrong?',
+      'The base gets its current, yet the collector barely pulls down: the transistor is not amplifying. Compare the flat face of Q1 with the D shape printed on the board.',
+      'Q1 sits backwards, so collector and emitter are swapped: it still conducts, but with a gain near 1. Use Rotate 180° on Q1, then run the tests.',
+    ],
+    par: 1,
+  }, k.b, [on('D1', { SW1: true }), on('D2', { SW1: true }), off('D1', { SW1: false }), off('D2', { SW1: false })], 'PCB{tr4ns1st0r_g41n_r3st0r3d}',
+  (b) => { b.components.find((c) => c.ref === 'Q1')!.state.reversed = true; });
+  sc.solver = 'spice';
+  return sc;
+}
+
 export async function builtinScenarios(): Promise<Scenario[]> {
   const [base, extra] = await Promise.all([
     Promise.all([
@@ -291,6 +343,7 @@ export async function builtinScenarios(): Promise<Scenario[]> {
       tutPolarity(),
       tutResistor(),
       tutDivider(),
+      transistorSwitch(),
       bridgeTroll(),
       backwardsDay(),
       ghostShort(),
