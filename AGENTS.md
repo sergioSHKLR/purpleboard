@@ -20,6 +20,7 @@ a desktop (Electron) and an iOS app.
 | `npm run example-mod` | Rebuild the example mods' zips in `public/examples/`. **Also re-locks the starter kit challenge with a new random salt:** afterwards run `git checkout -- examples/mods/starter-kit/boards/night-light-repair.pcbfix.json public/examples/starter-kit.zip` unless you meant to change it. |
 | `npm run mod-api` | Regenerate `packages/mod-api` from `src/mods/api/types.ts`. |
 | `npm run docs` | Regenerate the generated blocks in `docs/MOD_REFERENCE.md` and `docs/CODE_MODS.md`. |
+| `npm run thumbs` | Re-render the board pictures of the board picker into `public/thumbs/` (needs `npx vite --port 5199` running and Chrome). Run it when a shipped board looks different; `test/catalog.test.ts` fails when a board in `src/scenarios/catalog.ts` has no picture. |
 
 Tests fail when a generated artefact is stale (example zips, `packages/mod-api`, docs blocks):
 regenerate with the command above, never by hand.

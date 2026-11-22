@@ -7,6 +7,30 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
+- **NEXT SESSION — start here (2026-11-22): workstreams A and B built, NOT committed yet.** The board
+  picker is now **Today + Library** (`renderBoardsModal` in `src/ui/app.ts`, styles under
+  "Board picker" in `styles.css`). Data in `src/scenarios/catalog.ts`: level estimates 0.0–10.0
+  per shipped board (CVSS-style bands Low / Medium / High / Critical), a symptom line for the
+  hand-made boards, `teaches` tags (tools / parts / fault kinds; fault kinds of challenge boards
+  stay hidden), `todayPicks()` (path order: open board or next unsolved, the one after, a
+  skip-ahead ≥ 1.5 levels up). Board pictures: `public/thumbs/*.webp` from `npm run thumbs`.
+  `test/catalog.test.ts` keeps catalogue, pictures and shipped boards in sync. The side panel's
+  track and the Overview tab show the new level number instead of the 1–5 bars. Russian complete.
+  Mockups (private artifact): https://claude.ai/artifact/QEArppfAfBi4JEqvoCxrYY.
+  **Defaults taken for the user's open questions (ask again):** CVSS band words; Low stays green;
+  challenge boards show only new tools/parts; no daily repair slot yet (workstream B), so no
+  streak; first visit still starts First Light (the picker opens on Today when opened);
+  pictures pre-rendered.
+  **B. Daily repair** (`src/scenarios/daily.ts`, strip on Today, `playDaily()` in app.ts): the
+  UTC date picks a board from `DAILY_POOL` (the 5 hand-made challenge boards, stepping 2 so all 5
+  come up in 5 days and never twice in a row), 1–2 faults and a seed; `generateProblem` on the
+  board's known-good reference with the Fast DC solver and a 120 s budget (never reached: 4 ms on
+  a laptop), so every player gets the same puzzle without a server. Solved = `pcbfix_solved` has
+  the daily's id. No streak, no new analytics event (it counts as "generated"). Known limit: a
+  check right on a pass/fail edge could flip between JS engines (float solves); none seen.
+  `test/daily.test.ts`: 20 days, rotation, determinism, fails the bench, speed.
+  Also: the top-bar board badge and the board select show the level number, not L1–5.
+  Next: user review, then commit (A and B as two commits); then E (concept boards) or C.
 - **NEXT SESSION — start here (late evening of 2026-11-21).** Everything is pushed. Last code
   commit `ca478ec` (issue #4: the multimeter's clear-probes button was clipped outside the
   280 px card; card now 336 px, title ellipsizes, **Esc clears probes**; no open issues left).

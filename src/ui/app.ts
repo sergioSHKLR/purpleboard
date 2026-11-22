@@ -42,6 +42,8 @@ import { writeZip } from '../mods/zip';
 import { builtinScenarios } from '../scenarios/builtin';
 import { generateProblem } from '../scenarios/generate';
 import { Builder } from '../scenarios/builder';
+import { dailyKey, dailyPlan, dailyLevel, makeDaily, msToNextDaily } from '../scenarios/daily';
+import { BOARD_INFO, LEVEL_BANDS, PATH_ORDER, SKILLS, SKILL_GROUPS, boardLevel, learnedSkills, levelBand, newSkillsFor, skillLabel, splitTitle, todayPicks, type BandId, type PickReason, type SkillKey } from '../scenarios/catalog';
 import { BOTH_GAP, Camera } from '../render/camera';
 import { EMISSIVITY, ThermalModel, apparentTemp } from '../thermal';
 import { FlexField, settleIntermittents, updateIntermittents } from '../intermittent';
@@ -92,6 +94,12 @@ const TOOLS: { id: ToolId; key: string; ico: string; lbl: string; tip: string }[
   { id: 'scope', key: 'o', ico: 'scope', lbl: tk('Oscilloscope'), tip: tk('Clip the scope probe (CH1) on a net: rail ramps and boot loops (Roll), switching nodes, ripple and clocks (Auto)') },
   { id: 'press', key: 'b', ico: 'hand', lbl: tk('Press / flex'), tip: tk('Press on the board for 2.5 s: reveals cracked joints that open or close under flex') },
 ];
+
+/** Board kinds in the picker's Type filter. */
+type BoardKind = 'tutorial' | 'handmade' | 'open' | 'mod' | 'custom';
+const KIND_LABEL: Record<BoardKind, string> = {
+  tutorial: tk('Tutorial'), handmade: tk('Hand-made'), open: tk('Open hardware'), mod: tk('Mod'), custom: tk('Imported or your own'),
+};
 
 const LED_COLOR_NAMES: Record<LedColor, string> = {
   red: tk('red'), orange: tk('orange'), yellow: tk('yellow'), green: tk('green'), blue: tk('blue'), white: tk('white'),
@@ -227,7 +235,20 @@ export class PcbApp {
   private showHelp = false;
   private showFeedback = false;
   private showBoards = false;
-  private boardFilter: 'all' | 'tutorials' | 'challenges' | 'hardware' | 'mods' = 'all';
+  /** Board picker state: tab, Library filters, the board shown in details, open menus. */
+  private bpTab: 'today' | 'library' = 'today';
+  private bpBand: 'all' | BandId = 'all';
+  private bpKind: 'all' | BoardKind = 'all';
+  private bpSkill: 'all' | SkillKey = 'all';
+  private bpHideSolved = false;
+  private bpSel: Scenario | null = null;
+  private bpMenu = false;
+  private bpFilters = false;
+  private bpAllSkills = false;
+  private bpMoreOpen = false;
+  /** Today's daily repair once built (src/scenarios/daily.ts), and while it is being built. */
+  private dailyScenario: Scenario | null = null;
+  private dailyBusy = false;
   private showMods = false;
   /** Mods window tab, and the mod.io browser's state (set up at build time, see src/mods/modio.ts). */
   private modsView: 'installed' | 'community' | 'browse' = 'installed';
@@ -1773,7 +1794,7 @@ export class PcbApp {
     const sel = this.mount.querySelector<HTMLSelectElement>('#sc-select')!;
     const renderOpt = (s: Scenario, i: number) => {
       const solved = this.solvedIds.has(s.id) ? ` — ${t('solved')}` : '';
-      return `<option value="${i}">${this.esc(t(s.meta.title))} · L${s.meta.difficulty}${solved}</option>`;
+      return `<option value="${i}">${this.esc(t(s.meta.title))} · ${this.fmtLevel(boardLevel(s))}${solved}</option>`;
     };
     const tuts: string[] = [];
     const main: string[] = [];
@@ -1792,7 +1813,8 @@ export class PcbApp {
     const chk = this.mount.querySelector<HTMLElement>('#bp-check');
     if (s && badge && title && chk) {
       const tutIdx = TUTORIAL_SCENARIO_IDS.indexOf(s.id as (typeof TUTORIAL_SCENARIO_IDS)[number]);
-      badge.textContent = tutIdx >= 0 ? `T${tutIdx + 1}` : `L${s.meta.difficulty}`;
+      badge.textContent = tutIdx >= 0 ? `T${tutIdx + 1}` : this.fmtLevel(boardLevel(s));
+      badge.title = tutIdx >= 0 ? t('Tutorial {n}', { n: tutIdx + 1 }) : t('Level {n} of 10 · {band} (estimate)', { n: this.fmtLevel(boardLevel(s)), band: t(levelBand(boardLevel(s)).name) });
       badge.classList.toggle('tut', tutIdx >= 0);
       title.textContent = t(s.meta.title);
       chk.hidden = !this.solvedIds.has(s.id);
@@ -3037,8 +3059,15 @@ export class PcbApp {
   }
 
   private onKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && this.showBoards && (this.bpMenu || this.bpFilters || this.bpSel)) {
+      // the picker's menu, filters or details close first, then the picker
+      if (this.bpMenu) this.bpMenu = false; else if (this.bpFilters) this.bpFilters = false; else this.bpSel = null;
+      this.renderBoardsModal();
+      return;
+    }
     if (e.key === 'Escape' && (this.showBoards || this.showHelp || this.showFeedback || this.showMods)) {
       this.showBoards = false;
+      this.bpSel = null;
       this.showHelp = false;
       this.showFeedback = false;
       this.showMods = false;
@@ -3947,7 +3976,7 @@ export class PcbApp {
       const sc = scIdx >= 0 ? this.scenarios[scIdx] : null;
       if (!sc) return '';
       const isCur = id === current;
-      const level = `L${sc.meta.difficulty ?? 1}`;
+      const level = this.levelPill(sc);
       return `
         <button class="list-btn" data-open-sc="${scIdx}" style="${isCur ? 'background:var(--accent-weak);border:1px solid var(--accent-line)' : ''}">
           <span><b>${idx + 1}.</b> ${this.esc(t(sc.meta.title))}</span>
@@ -3997,7 +4026,7 @@ export class PcbApp {
         </div>
         <div class="row" style="justify-content:space-between">
           <span class="muted">${t('By {author}', { author: this.esc(t(s.meta.author)) })}</span>
-          <span class="lvl" title="${t('Difficulty {n}/5', { n: s.meta.difficulty })}">${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= s.meta.difficulty ? 'on' : ''}"></i>`).join('')}</span>
+          ${this.levelPill(s)}
         </div>
         <div class="text-2">${this.esc(this.txt(t(s.meta.description)))}</div>
         ${s.meta.credits ? `
@@ -4766,196 +4795,446 @@ export class PcbApp {
     this.renderModal();
   }
 
-  private classifyScenario(s: Scenario): 'tutorials' | 'challenges' | 'hardware' | 'mods' {
-    if (this.modBoards.has(s)) return 'mods';
-    if (isTutorialScenario(s.id)) return 'tutorials';
-    if (s.solver === 'spice-power' || this.demoUrls.has(s) || s.board.components.length > 50) {
-      return 'hardware';
-    }
-    return 'challenges';
+  // ---------------- Board picker: Today (what to do next) + Library (every board, by level) ----------------
+
+  /** What kind of board this is, for the Library's Type filter and the details. */
+  private boardKind(s: Scenario): BoardKind {
+    if (this.modBoards.has(s)) return 'mod';
+    const root = s.generated && this.scenarios.find((x) => x.id === s.generated!.from);
+    if (root && root !== s) return this.boardKind(root);
+    if (isTutorialScenario(s.id)) return 'tutorial';
+    if (this.demoUrls.has(s) || (s.id.startsWith('demo-') && BOARD_INFO[s.id])) return 'open';
+    if (this.bundledIds.has(s.id)) return 'handmade';
+    return 'custom';
   }
 
-  /** Phone board list: one compact row per board (badge, title, two lines of description, status). */
-  private phoneCatalogSection(title: string, solved: number, items: { s: Scenario; idx: number }[]): string {
+  /** Name and one-line symptom, translated: "Name · symptom" titles split, else the catalogue, else the description's first sentence. */
+  private boardNames(s: Scenario): { name: string; symptom: string } {
+    const { name, symptom } = splitTitle(t(s.meta.title));
+    if (symptom) return { name, symptom: symptom.replace(/^\p{Ll}/u, (ch) => ch.toUpperCase()) };
+    const own = BOARD_INFO[s.id]?.symptom;
+    if (own) return { name, symptom: t(own) };
+    const d = t(s.meta.description).replace(/^(?:Beginner Tutorial|Урок для новичков) \d+:\s*/, '');
+    return { name, symptom: d.split(/(?<=[.!?])\s/)[0] ?? '' };
+  }
+
+  private fmtLevel(v: number): string {
+    const s = v.toFixed(1);
+    return lang() === 'ru' ? s.replace('.', ',') : s;
+  }
+
+  private levelPill(s: Scenario, opts: { big?: boolean; named?: boolean } = {}): string {
+    return this.levelPillOf(boardLevel(s), opts);
+  }
+
+  private levelPillOf(v: number, opts: { big?: boolean; named?: boolean } = {}): string {
+    const b = levelBand(v);
+    const tip = t('Level {n} of 10 · {band} (estimate)', { n: this.fmtLevel(v), band: t(b.name) });
+    return `<span class="bp-lv ${b.id}${opts.big ? ' big' : ''}" title="${this.esc(tip)}"><b>${this.fmtLevel(v)}</b>${opts.named ? `<em>${t(b.name)}</em>` : ''}</span>`;
+  }
+
+  /** The board's picture (public/thumbs, npm run thumbs); boards without one get a labelled placeholder. */
+  private boardThumb(s: Scenario, opts: { pill?: boolean; done?: boolean } = {}): string {
+    const pic = !!BOARD_INFO[s.id] && !this.modBoards.has(s);
+    const kind = this.boardKind(s);
+    const inner = pic
+      ? `<img src="./thumbs/${encodeURIComponent(s.id)}.webp" alt="" loading="lazy" decoding="async" draggable="false">`
+      : `<span class="bp-ph">${this.esc(kind === 'mod' ? this.modBoards.get(s)?.mod.name ?? t('Mod') : s.generated ? t('New faults') : t('Your board'))}</span>`;
+    const done = opts.done !== false && this.solvedIds.has(s.id);
+    return `<span class="bp-th${pic ? '' : ' none'}">${inner}${opts.pill === false ? '' : `<span class="bp-th-lv">${this.levelPill(s)}</span>`}${done ? `<span class="bp-th-ok" title="${t('Solved')}">${icon('check', 14)}</span>` : ''}</span>`;
+  }
+
+  private learnedSet(): Set<SkillKey> {
+    return new Set(learnedSkills(this.solvedIds));
+  }
+
+  /** "Start repair", or back to the bench when this board is already open. */
+  private startButton(s: Scenario, idx: number, cls = 'primary'): string {
+    const open = s === this.activeScenario;
+    const label = open ? (this.moves > 0 ? t('Back to the bench') : t('Start repair')) : this.solvedIds.has(s.id) ? t('Play again') : t('Start repair');
+    return `<button class="btn ${cls}" data-bp-start="${open ? 'close' : idx}">${open ? '' : icon('play', 13)}<span>${label}</span></button>`;
+  }
+
+  private pickReason(r: PickReason): string {
+    switch (r) {
+      case 'first': return t('Your first repair');
+      case 'open': return t('You have this one open');
+      case 'next': return t('Next on your path');
+      case 'after': return t('Up after that');
+      case 'skip': return t('Know the basics? Skip ahead');
+    }
+  }
+
+  private pickerToday(): string {
+    const index = new Map(this.scenarios.map((s, i) => [s.id, i]));
+    const picks = todayPicks(new Set(index.keys()), this.solvedIds, this.activeScenario.id);
+    const learned = this.learnedSet();
+    if (!picks.length) {
+      return `
+        <div class="bp-scroll bp-today" data-scroll="today">
+          <div class="bp-done">
+            <div class="bp-done-t">${t('Every board on the path is alive again.')}</div>
+            <p>${t('All {n} boards of the path are solved. The Library has them all to play again; mods add more boards.', { n: PATH_ORDER.length })}</p>
+            <div class="row wrap"><button class="btn primary" data-bp-tab="library">${icon('grid', 13)}<span>${t('Open the Library')}</span></button><button class="btn" data-bp-act="mods">${icon('box', 13)}<span>${t('Mods')}</span></button></div>
+          </div>
+          ${this.dailyStrip()}
+          ${this.pickerPath(null)}
+        </div>`;
+    }
+    const [main, ...alts] = picks;
+    const mi = index.get(main.id)!, ms = this.scenarios[mi];
+    const mn = this.boardNames(ms);
+    const news = newSkillsFor(ms.id, learned).slice(0, 3);
+    const facts = [ms.board.components.length > 1 ? t('{n} part|{n} parts', { n: ms.board.components.length }) : '', t(KIND_LABEL[this.boardKind(ms)])].filter(Boolean).join(' · ');
+    const altCards = alts.map((p) => {
+      const i = index.get(p.id)!, s = this.scenarios[i], n = this.boardNames(s);
+      return `
+        <button class="bp-alt" data-bp-show="${i}">
+          ${this.boardThumb(s)}
+          <span class="bp-why">${this.pickReason(p.reason)}</span>
+          <span class="bp-t">${this.esc(n.name)}</span>
+          <span class="bp-s">${this.esc(n.symptom)}</span>
+        </button>`;
+    }).join('');
     return `
-      <section class="cat-sec">
-        <div class="cat-sec-head"><h3>${this.esc(t(title))}</h3><span class="badge info">${solved}/${items.length}</span></div>
-        <div class="m-cat-list">
-          ${items.map(({ s, idx }) => {
-            const isActive = s === this.activeScenario;
-            const isSolved = this.solvedIds.has(s.id);
-            const tutIdx = TUTORIAL_SCENARIO_IDS.indexOf(s.id as (typeof TUTORIAL_SCENARIO_IDS)[number]);
-            const badge = tutIdx >= 0 ? `<span class="br-badge tut">${tutIdx + 1}</span>` : `<span class="br-badge" title="${t('Difficulty {n}/5', { n: s.meta.difficulty })}">L${s.meta.difficulty}</span>`;
-            const state = isSolved ? `<span class="br-state ok">${icon('check', 14)}</span>` : isActive ? `<span class="br-state on">${t('Open')}</span>` : `<span class="br-state">${icon('chevronRight', 14)}</span>`;
-            return `
-              <button class="board-row ${isActive ? 'active' : ''} ${isSolved ? 'solved' : ''}" data-pick-board="${idx}">
-                ${badge}
-                <span class="br-main"><span class="br-title">${this.esc(t(s.meta.title))}</span><span class="br-desc">${this.esc(t(s.meta.description).replace(/^(?:Beginner Tutorial|Урок для новичков) \d+:\s*/, '').replace(/^\p{Ll}/u, (ch) => ch.toUpperCase()))}</span></span>
-                ${state}
-              </button>`;
-          }).join('')}
+      <div class="bp-scroll bp-today" data-scroll="today">
+        <div class="bp-hero">
+          <button class="bp-hero-pic" data-bp-show="${mi}" title="${t('Details')}">${this.boardThumb(ms, { done: false })}</button>
+          <div class="bp-hero-body">
+            <span class="bp-why on">${this.pickReason(main.reason)}</span>
+            <h3>${this.esc(mn.name)}</h3>
+            <div class="bp-hero-s">${this.esc(mn.symptom)}</div>
+            ${news.length ? `<div class="bp-chips">${news.map((k) => `<span class="bp-chip new">${t('New: {skill}', { skill: t(skillLabel(k)) })}</span>`).join('')}</div>` : ''}
+            <div class="bp-facts">${this.esc(facts)}</div>
+            <div class="row wrap">${this.startButton(ms, mi, 'primary lg')}<button class="btn ghost" data-bp-show="${mi}">${t('Details')}</button></div>
+          </div>
         </div>
-      </section>`;
+        ${this.dailyStrip()}
+        <div class="bp-row">
+          ${alts.length ? (this.mobile ? `<div class="bp-or"><div class="bp-h">${t('Or try')}</div><div class="bp-swipe">${altCards}</div></div>` : altCards) : ''}
+          ${this.pickerPath(main.id)}
+        </div>
+      </div>`;
+  }
+
+  private dailyDate(key: string): { day: string; month: string; label: string } {
+    const d = new Date(`${key}T12:00:00Z`), loc = lang() === 'ru' ? 'ru-RU' : 'en-GB';
+    const f = (o: Intl.DateTimeFormatOptions) => d.toLocaleDateString(loc, { ...o, timeZone: 'UTC' });
+    return { day: f({ day: 'numeric' }), month: f({ month: 'short' }).replace('.', ''), label: f({ day: 'numeric', month: 'short' }) };
+  }
+
+  /** Today's daily repair: one generated puzzle per UTC day, the same for every player (src/scenarios/daily.ts). */
+  private dailyStrip(): string {
+    const plan = dailyPlan(dailyKey());
+    const parent = this.scenarios.find((s) => s.id === plan.boardId);
+    if (!parent || !referenceBoard(parent)) return '';
+    const done = this.solvedIds.has(plan.id);
+    const ms = msToNextDaily();
+    const next = t('{h} h {m} min', { h: Math.floor(ms / 3_600_000), m: Math.floor((ms % 3_600_000) / 60_000) });
+    const date = this.dailyDate(plan.key);
+    const sub = done ? t('Solved. A new one in {time}.', { time: next })
+      : this.mobile ? t('A new one in {time}', { time: next })
+      : t('The same puzzle for every player today · a new one in {time}', { time: next });
+    return `
+      <div class="bp-daily">
+        <div class="bp-cal"><small>${this.esc(date.month)}</small><b>${this.esc(date.day)}</b></div>
+        <span class="bp-daily-lv">${this.levelPillOf(dailyLevel(plan))}</span>
+        <div class="bp-daily-main"><span class="bp-t">${t('Daily repair: {board}', { board: this.esc(this.boardNames(parent).name) })}</span><span class="bp-s">${this.esc(sub)}</span></div>
+        ${done ? `<span class="bp-solved">${icon('check', 14)}<span>${t('Done')}</span></span>`
+          : `<button class="btn" data-bp-act="daily" ${this.dailyBusy ? 'disabled' : ''}>${this.dailyBusy ? t('Preparing…') : t('Play')}</button>`}
+      </div>`;
+  }
+
+  /** Builds today's daily (or reopens it) and puts it on the bench. */
+  private async playDaily() {
+    if (this.dailyBusy) return;
+    const plan = dailyPlan(dailyKey());
+    const have = this.scenarios.findIndex((s) => s.id === plan.id);
+    if (have >= 0) { void this.openScenario(have); return; }
+    const parent = this.scenarios.find((s) => s.id === plan.boardId);
+    const good = parent && referenceBoard(parent);
+    if (!parent || !good) return;
+    this.dailyBusy = true;
+    let res: Awaited<ReturnType<typeof makeDaily>> = null;
+    try {
+      res = await makeDaily(plan, parent, good, `${t('Daily repair')} · ${this.dailyDate(plan.key).label}`, () => new Promise((r) => setTimeout(r, 0)));
+    } catch (err) {
+      this.toast(t('Could not generate a problem: {error}', { error: err instanceof Error ? err.message : String(err) }), 'danger');
+    }
+    this.dailyBusy = false;
+    if (!res) { this.toast(t('Today\'s daily repair could not be built on this device. Try the Library meanwhile.'), 'warn'); return; }
+    // one daily in the list: today's replaces an older one
+    const old = this.dailyScenario ? this.scenarios.indexOf(this.dailyScenario) : -1;
+    if (old >= 0) this.scenarios[old] = res.scenario;
+    else this.scenarios.push(res.scenario);
+    this.dailyScenario = res.scenario;
+    res.scenario.meta.description = t('Today\'s daily repair: the same puzzle for every player, {n} fault on a board you may know. A new one comes at midnight UTC.|Today\'s daily repair: the same puzzle for every player, {n} faults on a board you may know. A new one comes at midnight UTC.', { n: res.faults.length });
+    this.refreshScenarioSelect();
+    this.loadScenario(res.scenario);
+    const n = res.faults.length;
+    this.toast(t('Daily repair: {n} fault is hidden on the board.|Daily repair: {n} faults are hidden on the board.', { n }), 'success');
+  }
+
+  /** Skills from solved boards: three bars, what the main pick adds, what was learned last. Never a rating. */
+  private pickerPath(mainId: string | null): string {
+    const learned = learnedSkills(this.solvedIds);
+    const got = new Set(learned);
+    const next = mainId ? newSkillsFor(mainId, got).slice(0, 3) : [];
+    const chips = (keys: SkillKey[], cls: string) => keys.map((k) => `<span class="bp-sk ${cls}">${this.esc(t(skillLabel(k)))}</span>`).join('');
+    if (!learned.length) {
+      return `
+        <div class="bp-path">
+          <div class="bp-h">${t('Your path')}</div>
+          <p class="bp-muted">${t('Every tool and part you use on a solved board shows up here.')}</p>
+          ${next.length ? `<div><div class="bp-sub">${t('Your first repair teaches')}</div><div class="bp-chips">${chips(next, 'nx')}</div></div>` : ''}
+        </div>`;
+    }
+    const bars = SKILL_GROUPS.map((g) => {
+      const all = Object.keys(SKILLS[g.kind]);
+      const n = all.filter((id) => got.has(`${g.kind}:${id}` as SkillKey)).length;
+      return `<div class="bp-bar"><span>${t(g.label)}</span><span class="bp-track"><span style="width:${Math.round((n / all.length) * 100)}%"></span></span><span>${n}/${all.length}</span></div>`;
+    }).join('');
+    const full = this.bpAllSkills ? SKILL_GROUPS.map((g) => `
+      <div><div class="bp-sub">${t(g.label)}</div><div class="bp-chips">${Object.keys(SKILLS[g.kind]).map((id) => {
+        const k = `${g.kind}:${id}` as SkillKey;
+        return `<span class="bp-sk ${got.has(k) ? '' : 'off'}">${this.esc(t(skillLabel(k)))}</span>`;
+      }).join('')}</div></div>`).join('') : '';
+    return `
+      <div class="bp-path">
+        <div class="bp-path-head"><span class="bp-h">${t('Your path')}</span><span class="bp-muted">${t('{n} board solved|{n} boards solved', { n: this.solvedIds.size })}</span></div>
+        <div class="bp-bars">${bars}</div>
+        ${next.length ? `<div><div class="bp-sub">${t('Next to learn')}</div><div class="bp-chips">${chips(next, 'nx')}</div></div>` : ''}
+        <div><div class="bp-sub">${t('Learned last')}</div><div class="bp-chips">${chips(learned.slice(-3).reverse(), '')}</div></div>
+        ${full}
+        <button class="bp-link" data-bp-act="allskills">${this.bpAllSkills ? t('Show less') : t('See all skills')}</button>
+      </div>`;
+  }
+
+  private pickerSearchText(s: Scenario): string {
+    const topics = TUTORIAL_TOPICS[s.id] ?? [];
+    const teaches = BOARD_INFO[s.id]?.teaches ?? [];
+    const mod = this.modBoards.get(s)?.mod.name ?? '';
+    const sym = BOARD_INFO[s.id]?.symptom ?? '';
+    return [s.meta.title, t(s.meta.title), s.meta.description, t(s.meta.description), s.meta.author, mod, sym, sym && t(sym),
+      ...topics, ...topics.map((x) => t(x)), ...teaches.map(skillLabel), ...teaches.map((k) => t(skillLabel(k)))].join(' ').toLowerCase();
+  }
+
+  private pickerFiltered(): { s: Scenario; idx: number }[] {
+    const q = this.boardSearch.trim().toLowerCase();
+    const order = (id: string) => { const i = PATH_ORDER.indexOf(id); return i < 0 ? 999 : i; };
+    return this.scenarios
+      .map((s, idx) => ({ s, idx }))
+      .filter(({ s }) => {
+        if (s === this.dailyScenario) return false;
+        if (this.bpBand !== 'all' && levelBand(boardLevel(s)).id !== this.bpBand) return false;
+        if (this.bpKind !== 'all' && this.boardKind(s) !== this.bpKind) return false;
+        if (this.bpSkill !== 'all' && !(BOARD_INFO[s.id]?.teaches ?? []).includes(this.bpSkill)) return false;
+        if (this.bpHideSolved && this.solvedIds.has(s.id)) return false;
+        return !q || this.pickerSearchText(s).includes(q);
+      })
+      .sort((a, b) => boardLevel(a.s) - boardLevel(b.s) || order(a.s.id) - order(b.s.id) || a.s.meta.title.localeCompare(b.s.meta.title));
+  }
+
+  private pickerLibrary(): string {
+    const list = this.pickerFiltered();
+    const learned = this.learnedSet();
+    const kinds = (['tutorial', 'handmade', 'open', 'mod', 'custom'] as const).filter((k) => this.scenarios.some((s) => this.boardKind(s) === k));
+    const skillKeys = [...new Set(this.scenarios.flatMap((s) => BOARD_INFO[s.id]?.teaches ?? []))].filter((k) => !k.startsWith('fault:'));
+    const extra = (this.bpKind !== 'all' ? 1 : 0) + (this.bpSkill !== 'all' ? 1 : 0) + (this.mobile && this.bpHideSolved ? 1 : 0);
+    const bandBtn = (id: 'all' | BandId, label: string) => {
+      const n = id === 'all' ? 0 : this.scenarios.filter((s) => levelBand(boardLevel(s)).id === id).length;
+      return `<button class="${this.bpBand === id ? 'on' : ''}" data-bp-band="${id}">${id === 'all' ? '' : `<i class="bp-dot ${id}"></i>`}${label}${n && !this.mobile ? ` <small>${n}</small>` : ''}</button>`;
+    };
+    const hideSolved = `<button class="bp-switch ${this.bpHideSolved ? 'on' : ''}" data-bp-act="hidesolved" role="switch" aria-checked="${this.bpHideSolved}"><i></i>${t('Hide solved')}</button>`;
+    const pop = this.bpFilters ? `
+      <div class="bp-pop">
+        ${this.mobile ? hideSolved : ''}
+        <label>${t('Type')}<select id="bp-kind"><option value="all">${t('All types')}</option>${kinds.map((k) => `<option value="${k}" ${this.bpKind === k ? 'selected' : ''}>${t(KIND_LABEL[k])}</option>`).join('')}</select></label>
+        <label>${t('Uses a tool or part')}<select id="bp-skill"><option value="all">${t('Any')}</option>${SKILL_GROUPS.filter((g) => g.kind !== 'fault').map((g) => `<optgroup label="${this.esc(t(g.label))}">${skillKeys.filter((k) => k.startsWith(`${g.kind}:`)).map((k) => `<option value="${k}" ${this.bpSkill === k ? 'selected' : ''}>${this.esc(t(skillLabel(k)))}</option>`).join('')}</optgroup>`).join('')}</select></label>
+      </div>` : '';
+    const groups = LEVEL_BANDS.map((b) => ({ b, items: list.filter(({ s }) => levelBand(boardLevel(s)).id === b.id) })).filter((g) => g.items.length);
+    const body = groups.map(({ b, items }) => {
+      const solved = items.filter(({ s }) => this.solvedIds.has(s.id)).length;
+      const head = `<div class="bp-band ${b.id}"><b>${t(b.name)}</b><span>${this.fmtLevel(b.from)}–${this.fmtLevel(b.to)} · ${t('{n} board|{n} boards', { n: items.length })}${solved ? ` · ${t('{n} solved', { n: solved })}` : ''}</span></div>`;
+      if (this.mobile) {
+        return head + items.map(({ s, idx }) => {
+          const n = this.boardNames(s);
+          return `
+            <button class="bp-rowi ${s === this.activeScenario ? 'active' : ''}" data-bp-show="${idx}">
+              ${this.boardThumb(s, { pill: false, done: false })}
+              <span class="bp-rowi-main"><span class="bp-t">${this.esc(n.name)}</span><span class="bp-s">${this.esc(n.symptom)}</span></span>
+              <span class="bp-rowi-end">${this.levelPill(s)}${this.solvedIds.has(s.id) ? `<span class="bp-ok">${icon('check', 15)}</span>` : ''}</span>
+            </button>`;
+        }).join('');
+      }
+      return `${head}<div class="bp-grid">${items.map(({ s, idx }) => {
+        const n = this.boardNames(s);
+        const nw = newSkillsFor(s.id, learned)[0];
+        const tut = TUTORIAL_SCENARIO_IDS.indexOf(s.id as (typeof TUTORIAL_SCENARIO_IDS)[number]);
+        const chip = s === this.activeScenario ? `<span class="bp-chip on">${t('Open now')}</span>`
+          : nw ? `<span class="bp-chip new">${t('New: {skill}', { skill: t(skillLabel(nw)) })}</span>`
+          : tut >= 0 ? `<span class="bp-chip">${t('Tutorial {n}', { n: tut + 1 })}</span>`
+          : this.modBoards.has(s) ? `<span class="bp-chip">${this.esc(this.modBoards.get(s)!.mod.name)}</span>` : '';
+        return `
+          <button class="bp-card ${this.bpSel === s ? 'sel' : ''}" data-bp-show="${idx}">
+            ${this.boardThumb(s)}
+            <span class="bp-t">${this.esc(n.name)}</span>
+            <span class="bp-s">${this.esc(n.symptom)}</span>
+            <span class="bp-chips">${chip}</span>
+          </button>`;
+      }).join('')}</div>`;
+    }).join('') || `<div class="bp-empty"><div>${t('No matching boards found.')}</div><button class="btn sm" data-bp-act="clear">${t('Clear filters')}</button></div>`;
+
+    const sel = this.bpSel && this.scenarios.includes(this.bpSel) ? this.bpSel : null;
+    return `
+      <div class="bp-lib ${sel && !this.mobile ? 'has-sel' : ''}">
+        <div class="bp-lib-main">
+          <div class="bp-toolbar">
+            <input type="search" id="bp-search" placeholder="${this.mobile ? t('Search boards') : t('Search boards, symptoms, tools')}" value="${this.esc(this.boardSearch)}" autocomplete="off" />
+            <div class="bp-fchips">${bandBtn('all', t('All'))}${LEVEL_BANDS.map((b) => bandBtn(b.id, t(b.name))).join('')}${this.mobile ? `<button class="${this.bpFilters || extra ? 'on' : ''}" data-bp-act="filters">${icon('layers', 13)}${t('More')}${extra ? ` · ${extra}` : ''}</button>` : ''}</div>
+            ${this.mobile ? '' : `${hideSolved}<div class="bp-fchips"><button class="${this.bpFilters || extra ? 'on' : ''}" data-bp-act="filters">${icon('layers', 13)}${t('Filters')}${extra ? ` · ${extra}` : ''}</button></div>`}
+            ${pop}
+          </div>
+          <div class="bp-scroll bp-list" data-scroll="library">${body}</div>
+        </div>
+        ${sel && !this.mobile ? `<aside class="bp-scroll bp-drawer" data-scroll="drawer"><button class="btn ghost icon sm bp-x" data-bp-act="close-details" title="${t('Close')}">${icon('x', 14)}</button>${this.pickerDetails(sel)}</aside>` : ''}
+      </div>`;
+  }
+
+  private pickerDetails(s: Scenario): string {
+    const idx = this.scenarios.indexOf(s);
+    const n = this.boardNames(s);
+    const learned = this.learnedSet();
+    const tut = isTutorialScenario(s.id);
+    const uses = (BOARD_INFO[s.id]?.teaches ?? []).filter((k) => tut || !k.startsWith('fault:'));
+    const news = new Set(newSkillsFor(s.id, learned));
+    const mb = this.modBoards.get(s);
+    const parts = s.board.components.length;
+    const src = s.meta.source && /^https:\/\//.test(s.meta.source) ? s.meta.source : '';
+    const facts: [string, string][] = [
+      [t('Type'), t(KIND_LABEL[this.boardKind(s)]) + (mb ? ` · ${mb.mod.name}` : '')],
+      [t('Author'), t(s.meta.author)],
+      ...(parts > 1 ? [[t('Parts'), String(parts)] as [string, string]] : []),
+      ...(s.meta.par ? [[t('Par'), t('{n} move|{n} moves', { n: s.meta.par })] as [string, string]] : []),
+      [t('Solver'), s.solver === 'spice-power' ? 'SPICE + PWR' : 'DC'],
+      [t('Level'), t('{n} of 10 (estimate)', { n: this.fmtLevel(boardLevel(s)) })],
+      ...(this.videos[s.id] ? [[t('Video guide'), t('In the board\'s Overview tab')] as [string, string]] : []),
+      ...(mb?.schematic ? [[t('Schematic'), t('Included')] as [string, string]] : []),
+      ...(s.meta.license ? [[t('Licence'), s.meta.license] as [string, string]] : []),
+    ];
+    return `
+      ${this.boardThumb(s, { pill: false })}
+      <div class="bp-d-top">${this.levelPill(s, { big: true, named: true })}${this.solvedIds.has(s.id) ? `<span class="bp-solved">${icon('check', 14)}<span>${t('Solved')}</span></span>` : ''}</div>
+      <div><h3>${this.esc(n.name)}</h3><div class="bp-d-s">${this.esc(n.symptom)}</div></div>
+      <p>${this.esc(t(s.meta.description))}</p>
+      ${uses.length ? `<div><div class="bp-sub">${t('You\'ll use')}</div><div class="bp-chips">${uses.map((k) => `<span class="bp-chip ${news.has(k) ? 'new' : ''}">${news.has(k) ? t('New: {skill}', { skill: t(skillLabel(k)) }) : this.esc(t(skillLabel(k)))}</span>`).join('')}</div></div>` : ''}
+      ${this.startButton(s, idx, 'primary lg bp-go')}
+      <details class="bp-more" ${this.bpMoreOpen ? 'open' : ''}>
+        <summary>${icon('chevronRight', 13)}<span>${t('Board details')}</span></summary>
+        <dl>${facts.map(([k, v]) => `<dt>${this.esc(k)}</dt><dd>${this.esc(v)}</dd>`).join('')}${src ? `<dt>${t('Source')}</dt><dd><a href="${this.esc(src)}" target="_blank" rel="noopener">${this.esc(src.replace(/^https:\/\//, ''))}</a></dd>` : ''}</dl>
+        ${s.meta.credits ? `<p class="bp-credits">${this.esc(t(s.meta.credits))}</p>` : ''}
+      </details>`;
   }
 
   private renderBoardsModal() {
-    type CatKey = 'tutorials' | 'challenges' | 'hardware' | 'mods';
-    const counts: Record<CatKey, number> = { tutorials: 0, challenges: 0, hardware: 0, mods: 0 };
-    for (const s of this.scenarios) counts[this.classifyScenario(s)]++;
+    // keep scroll positions and the search caret across re-renders
+    const scroll = new Map<string, number>();
+    this.modalRootEl.querySelectorAll<HTMLElement>('[data-scroll]').forEach((el) => scroll.set(el.dataset.scroll!, el.scrollTop));
+    const searchFocused = document.activeElement?.id === 'bp-search';
+    const caret = searchFocused ? (document.activeElement as HTMLInputElement).selectionStart : null;
+    if (this.bpSel && !this.scenarios.includes(this.bpSel)) this.bpSel = null;
 
-    const sections: { key: CatKey; title: string; sub: string }[] = [
-      { key: 'tutorials', title: tk('Beginner Tutorials'), sub: tk('Guided step-by-step boards covering the core fundamentals') },
-      { key: 'challenges', title: tk('Repair Challenges'), sub: tk('Standalone fault-finding & multi-fault diagnostic puzzles') },
-      { key: 'hardware', title: tk('Real Hardware & Open Source'), sub: tk('Full multi-hundred-part schematics & boardviews on SPICE + PWR') },
-      { key: 'mods', title: tk('Community Mods'), sub: tk('Boards from mods you installed. Manage them with the Mods button') },
-    ];
+    const lib = this.bpTab === 'library';
+    const attention = this.modsNeedAttention();
+    const menu = this.bpMenu ? `
+      <div class="bp-menu" role="menu">
+        <button data-bp-act="new" role="menuitem">${icon('plus', 15)}<span>${t('New blank board')}<small>${t('Build a board or author a puzzle')}</small></span></button>
+        <button data-bp-act="import" role="menuitem">${icon('upload', 15)}<span>${t('Import a file')}<small>${t('KiCad, boardview, .pcbfix.json')}</small></span></button>
+        <button data-bp-act="mods" role="menuitem">${icon('box', 15)}<span>${t('Mods')}${attention ? ' ⚠' : ''}<small>${t('Install, remove and make mods')}</small></span></button>
+      </div>` : '';
+    const tabs = `<div class="bp-tabs" role="tablist"><button role="tab" aria-selected="${!lib}" class="${lib ? '' : 'on'}" data-bp-tab="today">${t('Today')}</button><button role="tab" aria-selected="${lib}" class="${lib ? 'on' : ''}" data-bp-tab="library">${t('Library')}</button></div>`;
+    const sheet = this.mobile && this.bpSel ? `
+      <div class="bp-sheet-bg" data-bp-act="close-details">
+        <div class="bp-sheet bp-scroll" data-scroll="sheet" role="dialog" aria-label="${this.esc(this.boardNames(this.bpSel).name)}"><div class="bp-grab"></div>${this.pickerDetails(this.bpSel)}</div>
+      </div>` : '';
 
-    const renderList = () => {
-      const q = this.boardSearch.trim().toLowerCase();
-      const blocks = sections
-        .filter((sec) => this.boardFilter === 'all' || this.boardFilter === sec.key)
-        .map((sec) => {
-          const items = this.scenarios
-            .map((s, idx) => ({ s, idx }))
-            .filter(({ s }) => this.classifyScenario(s) === sec.key)
-            .filter(({ s }) => {
-              if (!q) return true;
-              const topics = TUTORIAL_TOPICS[s.id]?.join(' ') ?? '';
-              const mod = this.modBoards.get(s)?.mod.name ?? '';
-              return `${s.meta.title} ${s.meta.description} ${t(s.meta.title)} ${t(s.meta.description)} ${s.meta.author} ${topics} ${(TUTORIAL_TOPICS[s.id] ?? []).map((x) => t(x)).join(' ')} ${mod}`.toLowerCase().includes(q);
-            });
-          if (!items.length) return '';
-          const solvedInSec = items.filter(({ s }) => this.solvedIds.has(s.id)).length;
-          if (this.mobile) return this.phoneCatalogSection(sec.title, solvedInSec, items);
-          return `
-            <section class="cat-sec">
-              <div class="cat-sec-head">
-                <div>
-                  <h3>${this.esc(t(sec.title))}</h3>
-                  <p>${this.esc(t(sec.sub))}</p>
-                </div>
-                <span class="badge info">${t('{solved}/{total} solved', { solved: solvedInSec, total: items.length })}</span>
-              </div>
-              <div class="cat-grid">
-                ${items.map(({ s, idx }) => {
-                  const isActive = s === this.activeScenario;
-                  const isSolved = this.solvedIds.has(s.id);
-                  const tutIdx = TUTORIAL_SCENARIO_IDS.indexOf(s.id as (typeof TUTORIAL_SCENARIO_IDS)[number]);
-                  const topics = TUTORIAL_TOPICS[s.id];
-                  const chips: string[] = [];
-                  const mb = this.modBoards.get(s);
-                  if (mb) {
-                    chips.push(mb.mod.name, t('by {author}', { author: mb.mod.author }));
-                    if (mb.schematic) chips.push(t('Schematic'));
-                    if (s.meta.license) chips.push(s.meta.license);
-                  } else if (topics) {
-                    chips.push(...topics.map((x) => t(x)));
-                  } else {
-                    if (s.board.components.length > 1) chips.push(t('{n} part|{n} parts', { n: s.board.components.length }));
-                    if (s.meta.par) chips.push(t('Par {n}', { n: s.meta.par }));
-                    if (s.solver === 'spice-power') chips.push('SPICE + PWR');
-                    if (this.videos[s.id]) chips.push(t('Video guide'));
-                    if (s.meta.license) chips.push(s.meta.license);
-                  }
-                  const leftBadge = tutIdx >= 0
-                    ? `<span class="badge info">${t('Tutorial {n}', { n: tutIdx + 1 })}</span>`
-                    : `<span class="row"><span class="badge">L${s.meta.difficulty}</span><span class="lvl" title="${t('Difficulty {n}/5', { n: s.meta.difficulty })}">${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= s.meta.difficulty ? 'on' : ''}"></i>`).join('')}</span></span>`;
-                  const rightBadge = isSolved
-                    ? `<span class="badge pass">${icon('check', 11)}<span>${t('Solved')}</span></span>`
-                    : isActive
-                      ? `<span class="badge info">${t('Active')}</span>`
-                      : tutIdx >= 0
-                        ? `<span class="badge">${t('Interactive')}</span>`
-                        : '';
-                  return `
-                    <button class="board-card ${isActive ? 'active' : ''} ${isSolved ? 'solved' : ''}" data-pick-board="${idx}">
-                      <div class="bc-top">
-                        ${leftBadge}
-                        ${rightBadge}
-                      </div>
-                      <div class="bc-title">${this.esc(t(s.meta.title))}</div>
-                      <div class="bc-desc">${this.esc(t(s.meta.description))}</div>
-                      ${chips.length ? `<div class="cat-chips">${chips.map((c) => `<span class="cat-chip">${this.esc(c)}</span>`).join('')}</div>` : ''}
-                    </button>
-                  `;
-                }).join('')}
-              </div>
-            </section>
-          `;
-        })
-        .join('');
-      return blocks || `<div class="muted" style="padding:24px;text-align:center">${t('No matching boards found.')}</div>`;
-    };
-
-    const filters: { id: 'all' | CatKey; label: string; count: number }[] = [
-      { id: 'all', label: t('All'), count: this.scenarios.length },
-      { id: 'tutorials', label: t('Tutorials'), count: counts.tutorials },
-      { id: 'challenges', label: t('Challenges'), count: counts.challenges },
-      { id: 'hardware', label: this.mobile ? t('Hardware') : t('Real Hardware'), count: counts.hardware },
-      ...(counts.mods ? [{ id: 'mods' as const, label: t('Mods'), count: counts.mods }] : []),
-    ];
-
-    this.modalRootEl.innerHTML = this.mobile ? `
+    this.modalRootEl.innerHTML = `
       <div class="modal-backdrop" id="modal-close-bg">
-        <div class="modal board-catalog m-cat">
-          <div class="modal-head">
-            <div class="row"><h2>${t('Boards')}</h2><span class="badge info">${t('{solved}/{total} solved', { solved: this.solvedIds.size, total: this.scenarios.length })}</span></div>
-            <button class="btn ghost icon sm" id="modal-close" title="${t('Close')}">${icon('x', 14)}</button>
-          </div>
-          <div class="cat-toolbar">
-            <div class="m-cat-filters">
-              ${filters.map((f) => `<button class="${this.boardFilter === f.id ? 'on' : ''}" data-cat-filter="${f.id}">${this.esc(f.label)} <span>${f.count}</span></button>`).join('')}
-            </div>
-            <input type="text" id="cat-search" placeholder="${t('Search boards')}" value="${this.esc(this.boardSearch)}" />
-          </div>
-          <div class="cat-body" id="cat-list">${renderList()}</div>
-          <div class="m-cat-foot">
-            <button class="btn sm" id="cat-new">${icon('plus', 13)}<span>${t('Blank')}</span></button>
-            <button class="btn sm" id="cat-import">${icon('upload', 13)}<span>${t('Import')}</span></button>
-            <button class="btn sm" id="cat-mods">${icon('box', 13)}<span>${t('Mods')}${this.modsNeedAttention() ? ' ⚠' : ''}</span></button>
-          </div>
-        </div>
-      </div>
-    ` : `
-      <div class="modal-backdrop" id="modal-close-bg">
-        <div class="modal board-catalog" style="transform: translate3d(${this.modalPos[0]}px, ${this.modalPos[1]}px, 0)">
-          <div class="modal-head" title="${t('Drag to move window')}">
+        <div class="modal board-catalog bp" style="transform: translate3d(${this.modalPos[0]}px, ${this.modalPos[1]}px, 0)">
+          <div class="modal-head" title="${this.mobile ? '' : t('Drag to move window')}">
             <div class="row">
-              <h2>${t('Boards & Tutorials')}</h2>
-              <span class="badge info">${t('{solved}/{total} solved', { solved: this.solvedIds.size, total: this.scenarios.length })}</span>
+              <h2>${this.mobile ? (lib ? t('Library') : t('Today')) : t('Boards')}</h2>
+              ${tabs}
             </div>
             <div class="row">
-              <button class="btn sm" id="cat-new">${icon('plus', 13)}<span>${t('Blank board')}</span></button>
-              <button class="btn sm" id="cat-import">${icon('upload', 13)}<span>${t('Import')}</span></button>
-              <button class="btn sm" id="cat-mods" title="${t('Install, remove and make mods')}">${icon('box', 13)}<span>${t('Mods')}${this.modsNeedAttention() ? ' ⚠' : ''}</span></button>
+              <button class="btn ghost icon sm bp-more-btn" data-bp-act="menu" title="${t('New board, import, mods')}" aria-haspopup="menu" aria-expanded="${this.bpMenu}">${icon('more', 16)}${attention ? '<i class="bp-attn"></i>' : ''}</button>
               <button class="btn ghost icon sm" id="modal-close" title="${t('Close (Esc)')}">${icon('x', 14)}</button>
             </div>
+            ${menu}
           </div>
-          <div class="cat-toolbar">
-            <div class="seg">
-              ${filters.map((f) => `<button class="${this.boardFilter === f.id ? 'on' : ''}" data-cat-filter="${f.id}">${this.esc(f.label)} (${f.count})</button>`).join('')}
-            </div>
-            <input type="text" id="cat-search" class="grow" placeholder="${t('Filter boards by name, symptom, or topic…')}" value="${this.esc(this.boardSearch)}" />
-          </div>
-          <div class="cat-body" id="cat-list">${renderList()}</div>
+          ${lib ? this.pickerLibrary() : this.pickerToday()}
+          <nav class="bp-tabbar">
+            <button class="${lib ? '' : 'on'}" data-bp-tab="today">${icon('target', 20)}<span>${t('Today')}</span></button>
+            <button class="${lib ? 'on' : ''}" data-bp-tab="library">${icon('grid', 20)}<span>${t('Library')}</span></button>
+          </nav>
+          ${sheet}
         </div>
-      </div>
-    `;
+      </div>`;
+
+    this.modalRootEl.querySelectorAll<HTMLElement>('[data-scroll]').forEach((el) => { const v = scroll.get(el.dataset.scroll!); if (v) el.scrollTop = v; });
+    const searchEl = this.modalRootEl.querySelector<HTMLInputElement>('#bp-search');
+    if (searchFocused && searchEl) { searchEl.focus(); searchEl.setSelectionRange(caret, caret); }
+    this.modalRootEl.querySelector<HTMLDetailsElement>('.bp-more')?.addEventListener('toggle', (e) => { this.bpMoreOpen = (e.target as HTMLDetailsElement).open; });
 
     const closeModal = () => {
       this.showBoards = false;
+      this.bpSel = null;
+      this.bpMenu = false;
+      this.bpFilters = false;
       this.renderModal();
     };
-    const bindBoardPickers = () => {
-      this.modalRootEl.querySelectorAll<HTMLButtonElement>('[data-pick-board]').forEach((b) => {
-        b.addEventListener('click', () => {
-          const idx = Number(b.dataset.pickBoard);
-          closeModal();
-          if (this.scenarios[idx]) void this.openScenario(idx);
-        });
-      });
-    };
-    bindBoardPickers();
+    const modal = this.modalRootEl.querySelector<HTMLElement>('.modal')!;
+    modal.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const el = target.closest<HTMLElement>('[data-bp-tab],[data-bp-start],[data-bp-show],[data-bp-band],[data-bp-act]');
+      // a click anywhere else closes the ⋯ menu
+      if (this.bpMenu && el?.dataset.bpAct !== 'menu' && !target.closest('.bp-menu')) { this.bpMenu = false; if (!el) { this.renderBoardsModal(); return; } }
+      if (!el) return;
+      const d = el.dataset;
+      if (d.bpTab) { this.bpTab = d.bpTab as 'today' | 'library'; this.bpFilters = false; if (this.mobile) this.bpSel = null; }
+      else if (d.bpStart) {
+        closeModal();
+        if (d.bpStart !== 'close' && this.scenarios[Number(d.bpStart)]) void this.openScenario(Number(d.bpStart));
+        return;
+      } else if (d.bpShow) {
+        const s = this.scenarios[Number(d.bpShow)];
+        if (!s) return;
+        if (!this.mobile) this.bpTab = 'library';
+        this.bpSel = this.bpSel === s && !this.mobile && el.classList.contains('bp-card') ? null : s;
+      } else if (d.bpBand) this.bpBand = d.bpBand as 'all' | BandId;
+      else switch (d.bpAct) {
+        case 'menu': this.bpMenu = !this.bpMenu; break;
+        case 'filters': this.bpFilters = !this.bpFilters; break;
+        case 'hidesolved': this.bpHideSolved = !this.bpHideSolved; break;
+        case 'allskills': this.bpAllSkills = !this.bpAllSkills; break;
+        case 'clear': this.boardSearch = ''; this.bpBand = 'all'; this.bpKind = 'all'; this.bpSkill = 'all'; this.bpHideSolved = false; break;
+        case 'close-details': if (target !== el && el.classList.contains('bp-sheet-bg')) return; this.bpSel = null; break;
+        case 'daily': closeModal(); void this.playDaily(); return;
+        case 'new': closeModal(); this.createBlankBoard(); return;
+        case 'import': closeModal(); this.fileInputEl.click(); return;
+        case 'mods': this.showBoards = false; this.bpMenu = false; this.showMods = true; this.renderModal(); return;
+        default: return;
+      }
+      this.renderBoardsModal();
+    });
+    modal.addEventListener('change', (e) => {
+      const el = e.target as HTMLSelectElement;
+      if (el.id === 'bp-kind') this.bpKind = el.value as 'all' | BoardKind;
+      else if (el.id === 'bp-skill') this.bpSkill = el.value as 'all' | SkillKey;
+      else return;
+      this.renderBoardsModal();
+    });
+    searchEl?.addEventListener('input', () => { this.boardSearch = searchEl.value; this.renderBoardsModal(); });
 
     this.modalRootEl.querySelector('#modal-close')?.addEventListener('click', closeModal);
     this.modalRootEl.querySelector('#modal-close-bg')?.addEventListener('click', (e) => {
@@ -4964,31 +5243,6 @@ export class PcbApp {
         return;
       }
       if ((e.target as HTMLElement).id === 'modal-close-bg') closeModal();
-    });
-    this.modalRootEl.querySelector('#cat-new')?.addEventListener('click', () => this.createBlankBoard());
-    this.modalRootEl.querySelector('#cat-mods')?.addEventListener('click', () => {
-      this.showBoards = false;
-      this.showMods = true;
-      this.renderModal();
-    });
-    this.modalRootEl.querySelector('#cat-import')?.addEventListener('click', () => {
-      closeModal();
-      this.fileInputEl.click();
-    });
-    this.modalRootEl.querySelectorAll<HTMLButtonElement>('[data-cat-filter]').forEach((b) => {
-      b.addEventListener('click', () => {
-        this.boardFilter = b.dataset.catFilter as 'all' | CatKey;
-        this.renderBoardsModal();
-      });
-    });
-    const searchEl = this.modalRootEl.querySelector<HTMLInputElement>('#cat-search');
-    const listBox = this.modalRootEl.querySelector<HTMLElement>('#cat-list');
-    searchEl?.addEventListener('input', () => {
-      this.boardSearch = searchEl.value;
-      if (listBox) {
-        listBox.innerHTML = renderList();
-        bindBoardPickers();
-      }
     });
   }
 

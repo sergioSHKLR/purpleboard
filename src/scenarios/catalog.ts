@@ -1,0 +1,149 @@
+/**
+ * What the board picker knows about each shipped board beyond its scenario file: a level
+ * estimate on a 0.0–10.0 scale, a one-line symptom for the hand-made boards (the demo boards
+ * carry theirs in the title, after " · "), and what the board teaches.
+ *
+ * **Levels are estimates** (2026-11-22, set by hand from part count, fault count, how deep the
+ * fault hides and how much help the board gives). They replace the 1–5 `meta.difficulty` in the
+ * picker so the order matches the challenge track; later they get fitted from solve data.
+ * Boards without an entry (mods, imports) get an estimate from `meta.difficulty`.
+ *
+ * **Teaches** lists tools, parts and fault kinds the board makes the player use. Fault kinds of
+ * challenge boards are never shown before the board is solved (they would give the fault away);
+ * tutorials show everything, since they teach it openly.
+ */
+import { tk } from '../i18n';
+import type { Scenario } from '../types';
+import { CHALLENGE_TRACK_IDS, TUTORIAL_SCENARIO_IDS } from '../ui/tutorial';
+
+/** Level bands, like CVSS scores: same cut points, colours from the brand's status colours. */
+export const LEVEL_BANDS = [
+  { id: 'low', name: tk('Low'), from: 0.1, to: 3.9 },
+  { id: 'medium', name: tk('Medium'), from: 4, to: 6.9 },
+  { id: 'high', name: tk('High'), from: 7, to: 8.9 },
+  { id: 'critical', name: tk('Critical'), from: 9, to: 10 },
+] as const;
+export type BandId = (typeof LEVEL_BANDS)[number]['id'];
+
+export function levelBand(level: number): (typeof LEVEL_BANDS)[number] {
+  return LEVEL_BANDS.find((b) => level < b.to + 0.05) ?? LEVEL_BANDS[LEVEL_BANDS.length - 1];
+}
+
+export type SkillKind = 'tool' | 'part' | 'fault';
+export type SkillKey = `${SkillKind}:${string}`;
+
+/** Labels: tools use the toolbar's own names, so the picker and the bench say the same thing. */
+export const SKILLS: Record<SkillKind, Record<string, string>> = {
+  tool: {
+    dmm: tk('Multimeter'), flip: tk('Flip'), jumper: tk('Jumper wire'), iron: tk('Soldering iron'),
+    supply: tk('Bench supply'), wick: tk('Desolder wick'), diode: tk('Diode test'), rotate: tk('Rotate 180°'),
+    replace: tk('Parts bin'), thermal: tk('Thermal'), ocp: tk('Current limit'), ipa: tk('Isopropyl'),
+    press: tk('Press / flex'), freeze: tk('Freeze spray'), heatmap: tk('Voltage map'),
+  },
+  part: {
+    cell: tk('Coin cell'), button: tk('Push button'), resistor: tk('Resistor'), led: tk('LED'),
+    testpoint: tk('Test point'), fuse: tk('Fuse'), diode: tk('Diode'), schottky: tk('Schottky diode'),
+    charger: tk('Li-ion charger'), ldo: tk('LDO regulator'), cap: tk('Capacitor'), mosfet: tk('MOSFET'),
+    mcu: tk('Microcontroller'), buck: tk('Buck converter'),
+  },
+  fault: {
+    open: tk('Cut trace'), cold: tk('Cold joint'), bridge: tk('Solder bridge'), reversed: tk('Reversed part'),
+    wrongval: tk('Wrong value'), missing: tk('Missing part'), multi: tk('Two faults at once'),
+    short: tk('Shorted part'), rootcause: tk('Cause before fuse'), layers: tk('Both copper layers'),
+    masked: tk('Masked fault'), residue: tk('Residue'), intermittent: tk('Intermittent fault'),
+    sequencing: tk('Power sequencing'),
+  },
+};
+export const SKILL_GROUPS: { kind: SkillKind; label: string }[] = [
+  { kind: 'tool', label: tk('Tools') }, { kind: 'part', label: tk('Parts') }, { kind: 'fault', label: tk('Faults') },
+];
+/** English label of a skill (translate where shown). */
+export function skillLabel(key: SkillKey): string {
+  const [kind, id] = key.split(':') as [SkillKind, string];
+  return SKILLS[kind]?.[id] ?? id;
+}
+
+export interface BoardInfo {
+  /** 0.0–10.0, an estimate. */
+  level: number;
+  /** One-line symptom for boards whose title has none (English; translate where shown). */
+  symptom?: string;
+  teaches: SkillKey[];
+}
+
+export const BOARD_INFO: Record<string, BoardInfo> = {
+  'builtin-first-light': { level: 0.8, symptom: tk('Press the button: the LED stays dark'), teaches: ['tool:dmm', 'tool:jumper', 'part:cell', 'part:button', 'part:resistor', 'part:led', 'fault:open'] },
+  'builtin-tut-cold-joint': { level: 1.0, symptom: tk('Every trace is fine, yet no current flows'), teaches: ['tool:flip', 'tool:iron', 'fault:cold'] },
+  'builtin-tut-solder-bridge': { level: 1.2, symptom: tk('28 mA from the battery, LED dark'), teaches: ['tool:supply', 'tool:wick', 'fault:bridge'] },
+  'builtin-tut-polarity': { level: 1.3, symptom: tk('Good supply, LED stays dark'), teaches: ['tool:diode', 'tool:rotate', 'fault:reversed'] },
+  'builtin-tut-resistor': { level: 1.5, symptom: tk('Blue LED starved to 0.02 mA'), teaches: ['tool:replace', 'fault:wrongval'] },
+  'builtin-tut-divider': { level: 1.8, symptom: tk('TP1 should read 2.50 V'), teaches: ['part:testpoint', 'fault:missing'] },
+  'builtin-bridge-troll': { level: 2.4, symptom: tk('Two LEDs, one button: both stay dark'), teaches: ['fault:multi'] },
+  'builtin-backwards-day': { level: 2.8, symptom: tk('USB status light, neither LED lights'), teaches: [] },
+  'builtin-smoke-test': { level: 3.2, symptom: tk('Blown fuse, dead 5 V rail'), teaches: ['tool:thermal', 'tool:ocp', 'part:fuse', 'part:diode', 'fault:short'] },
+  'builtin-ghost-short': { level: 3.6, symptom: tk('Back from the field: blown fuse, a part missing'), teaches: ['fault:rootcause'] },
+  'builtin-sagging-rail': { level: 3.9, symptom: tk('VREF sags below 0.5 V, LED dark'), teaches: ['fault:layers'] },
+  'demo-olimex-esp32-devkit-lipo': { level: 4.4, teaches: ['part:schottky', 'part:charger', 'part:mcu'] },
+  'demo-rana-tadpole-v1': { level: 4.7, teaches: ['part:ldo'] },
+  'demo-olimex-esp32-c3-devkit-lipo': { level: 5.6, teaches: ['part:cap', 'fault:masked'] },
+  'demo-esp32-c3-rust-board': { level: 6.1, teaches: ['tool:ipa', 'part:mosfet', 'fault:residue'] },
+  'demo-rana-tadpole-v2': { level: 6.6, teaches: [] },
+  'demo-antmicro-jetson-nano-bb': { level: 7.8, teaches: ['tool:press', 'tool:freeze', 'part:buck', 'fault:intermittent'] },
+  'demo-mnt-reform2-mb30': { level: 9.2, teaches: ['tool:heatmap', 'fault:sequencing'] },
+};
+
+/** The recommended order: tutorials, then the challenge track. */
+export const PATH_ORDER: readonly string[] = [...TUTORIAL_SCENARIO_IDS, ...CHALLENGE_TRACK_IDS];
+
+/** Level estimate of any board: the table, a generated problem from its board, else from the author's 1–5 difficulty. */
+export function boardLevel(s: Pick<Scenario, 'id' | 'meta'> & Partial<Pick<Scenario, 'generated'>>): number {
+  const known = BOARD_INFO[s.id];
+  if (known) return known.level;
+  // a generated problem (daily repair, "new problem"): its board's level, a little more per extra fault
+  const root = s.generated && BOARD_INFO[s.generated.from];
+  if (root) return Math.min(10, Math.round((root.level + 0.4 * Math.max(0, (s.meta.par ?? 1) - 1)) * 10) / 10);
+  const d = Math.min(5, Math.max(1, Math.round(s.meta.difficulty || 1)));
+  return [1.0, 2.5, 4.5, 6.5, 8.5][d - 1];
+}
+
+/** "Name · symptom" titles split; other boards take the symptom from the table. Both untranslated. */
+export function splitTitle(title: string): { name: string; symptom: string } {
+  const i = title.indexOf(' · ');
+  return i > 0 ? { name: title.slice(0, i), symptom: title.slice(i + 3) } : { name: title, symptom: '' };
+}
+
+/** Skills used on solved boards, in the order they were solved. */
+export function learnedSkills(solvedInOrder: Iterable<string>): SkillKey[] {
+  const out: SkillKey[] = [];
+  for (const id of solvedInOrder) for (const k of BOARD_INFO[id]?.teaches ?? []) if (!out.includes(k)) out.push(k);
+  return out;
+}
+
+/** What a board would add for this player; challenge boards keep their fault kinds hidden. */
+export function newSkillsFor(id: string, learned: ReadonlySet<SkillKey>): SkillKey[] {
+  const tutorial = (TUTORIAL_SCENARIO_IDS as readonly string[]).includes(id);
+  return (BOARD_INFO[id]?.teaches ?? []).filter((k) => !learned.has(k) && (tutorial || !k.startsWith('fault:')));
+}
+
+export type PickReason = 'first' | 'open' | 'next' | 'after' | 'skip';
+export interface TodayPick { id: string; reason: PickReason }
+
+/**
+ * Today's picks: one main pick and up to two more. For now the path order decides (the hidden
+ * adaptive rating will later choose instead): the board you have open if it is on the path and
+ * unsolved, else the next unsolved one; then the one after it, and a "skip ahead" choice at least
+ * 1.5 levels higher so players who already know the basics are not held back. No placement test.
+ */
+export function todayPicks(available: ReadonlySet<string>, solved: ReadonlySet<string>, openId?: string): TodayPick[] {
+  const todo = PATH_ORDER.filter((id) => available.has(id) && !solved.has(id));
+  if (!todo.length) return [];
+  const main = openId && todo.includes(openId) && openId !== todo[0] && solved.size > 0 ? openId : todo[0];
+  const picks: TodayPick[] = [{ id: main, reason: solved.size === 0 ? 'first' : main === openId && main !== todo[0] ? 'open' : 'next' }];
+  const rest = todo.filter((id) => id !== main);
+  if (rest[0]) picks.push({ id: rest[0], reason: 'after' });
+  const lvl = BOARD_INFO[main]?.level ?? 0;
+  const skip = rest.slice(1).find((id) => (BOARD_INFO[id]?.level ?? 0) >= lvl + 1.5);
+  if (skip) picks.push({ id: skip, reason: 'skip' });
+  else if (rest[1]) picks.push({ id: rest[1], reason: 'after' });
+  return picks;
+}
