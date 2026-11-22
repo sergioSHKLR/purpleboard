@@ -7,14 +7,56 @@
     <meta name="description" content="A board-level repair bench in your browser: multimeter, bench supply with boot current, oscilloscope, thermal camera and rework, on real open-hardware boards. Train like a technician, or crack repair challenges." />
     <meta name="theme-color" content="#090c0a" />
     <link rel="canonical" href="https://deadboard.org/" />
+    <link rel="alternate" hreflang="en" href="https://deadboard.org/" />
+    <link rel="alternate" hreflang="ru" href="https://deadboard.org/ru.html" />
+    <link rel="alternate" hreflang="x-default" href="https://deadboard.org/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="DEADBOARD" />
     <meta property="og:url" content="https://deadboard.org/" />
     <meta property="og:title" content="DEADBOARD — bring dead boards back" />
     <meta property="og:description" content="A board-level repair bench in your browser. Probe, scope, inject, reflow." />
     <meta property="og:image" content="https://deadboard.org/home/bench-1400.jpg" />
+    <meta property="og:image:width" content="1400" />
+    <meta property="og:image:height" content="663" />
+    <meta property="og:image:alt" content="DEADBOARD browser PCB repair bench showing the MNT Reform 2 mainboard in 3D with oscilloscope and bench power supply" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="DEADBOARD — bring dead boards back" />
+    <meta name="twitter:description" content="A board-level repair bench in your browser. Probe, scope, inject, reflow." />
+    <meta name="twitter:image" content="https://deadboard.org/home/bench-1400.jpg" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "name": "DEADBOARD",
+            "url": "https://deadboard.org/",
+            "inLanguage": ["en", "ru"]
+          },
+          {
+            "@type": "Organization",
+            "name": "DEADBOARD",
+            "url": "https://deadboard.org/",
+            "logo": "https://deadboard.org/icons/icon-512.png",
+            "sameAs": ["https://github.com/tholtman1-del/deadboard"]
+          },
+          {
+            "@type": "WebApplication",
+            "name": "DEADBOARD",
+            "alternateName": "DEADBOARD — board-level repair trainer",
+            "url": "https://deadboard.org/app.html",
+            "applicationCategory": "EducationalApplication",
+            "operatingSystem": "Web Browser",
+            "browserRequirements": "Requires WebGPU or WebGL2 in a recent browser",
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "screenshot": "https://deadboard.org/home/bench-1400.jpg",
+            "description": "A SPICE-simulated board-level PCB repair bench in your browser: multimeter, bench power supply with boot current and voltage injection, oscilloscope, thermal camera, and soldering rework on real open-hardware boards."
+          }
+        ]
+      }
+    </script>
     <script>
       // a Russian visitor would see English flash before the translation loads: hold the page briefly
       try {
@@ -66,7 +108,7 @@
         <figure class="hero-shot">
           <div class="frame">
             <div class="frame-bar"><i></i><i></i><i></i><span>deadboard — bench</span><span class="frame-hint"></span></div>
-            <img data-t-attr="alt" src="./home/bench.jpg" srcset="./home/bench-1400.jpg 1400w, ./home/bench.jpg 2088w" sizes="(max-width: 700px) 100vw, 1160px" width="2088" height="990" alt="The open-hardware MNT Reform 2 laptop mainboard in 3D on the DEADBOARD bench, with the oscilloscope on the 3.3 V converter's switch node and the bench supply reading 16.2 mA at 30 V." />
+            <img data-t-attr="alt" src="./home/bench.jpg" srcset="./home/bench-1400.jpg 1400w, ./home/bench.jpg 2088w" sizes="(max-width: 700px) 100vw, 1160px" width="2088" height="990" fetchpriority="high" decoding="async" alt="The open-hardware MNT Reform 2 laptop mainboard in 3D on the DEADBOARD bench, with the oscilloscope on the 3.3 V converter's switch node and the bench supply reading 16.2 mA at 30 V." />
           </div>
           <figcaption data-t>MNT Reform 2 laptop mainboard (open hardware, 530 parts), repaired and running: the 3.3&nbsp;V converter switching on the scope, 16.2&nbsp;mA from 30&nbsp;V on the supply.</figcaption>
         </figure>
@@ -202,6 +244,7 @@ $ verify
       <span class="muted"><span data-t>Board-level repair trainer</span> · <span data-year></span></span>
       <a href="./app.html" data-t>Open the bench</a>
       <a href="./learn.html" data-t>Repair guide</a>
+      <a href="./boardview.html" data-t>Boardview viewer</a>
       <a href="./modding.html" data-t>Make a mod</a>
       <a href="./app.html?feedback" data-t>Feedback</a>
       <a href="./privacy.html" data-t>Privacy</a>

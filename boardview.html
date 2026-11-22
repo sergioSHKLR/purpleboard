@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Online Boardview (.brd, .tvw) &amp; KiCad (.kicad_pcb) Viewer — DEADBOARD</title>
+    <meta name="description" content="Open TopTest / OpenBoardView (.brd), BRD2, Tebo-ICT (.tvw), and KiCad (.kicad_pcb) layouts locally in your browser. Trace nets in 2D/3D, inspect BOM &amp; schematics, run SPICE, and export ngspice (.cir)." />
+    <meta name="theme-color" content="#090c0a" />
+    <link rel="canonical" href="https://deadboard.org/boardview.html" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="DEADBOARD" />
+    <meta property="og:url" content="https://deadboard.org/boardview.html" />
+    <meta property="og:title" content="Online Boardview (.brd, .tvw) &amp; KiCad (.kicad_pcb) Viewer — DEADBOARD" />
+    <meta property="og:description" content="Open .brd, .tvw, and .kicad_pcb layouts locally in your browser: trace nets in 2D/3D, attach BOM &amp; schematics, and simulate with SPICE." />
+    <meta property="og:image" content="https://deadboard.org/home/bench-1400.jpg" />
+    <meta property="og:image:width" content="1400" />
+    <meta property="og:image:height" content="663" />
+    <meta property="og:image:alt" content="DEADBOARD 3D boardview of the MNT Reform 2 mainboard with oscilloscope and bench supply" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Online Boardview (.brd, .tvw) &amp; KiCad (.kicad_pcb) Viewer — DEADBOARD" />
+    <meta name="twitter:description" content="Open .brd, .tvw, and .kicad_pcb layouts locally in your browser: trace nets in 2D/3D, attach BOM &amp; schematics, and simulate with SPICE." />
+    <meta name="twitter:image" content="https://deadboard.org/home/bench-1400.jpg" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebApplication",
+            "name": "DEADBOARD Online Boardview & KiCad Viewer",
+            "applicationCategory": "UtilitiesApplication",
+            "operatingSystem": "Web Browser",
+            "isAccessibleForFree": true,
+            "url": "https://deadboard.org/app.html",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "description": "Local browser-based viewer and SPICE bench for TopTest/OpenBoardView .brd, BRD2, Tebo-ICT .tvw, and KiCad .kicad_pcb files."
+          },
+          {
+            "@type": "TechArticle",
+            "headline": "Online Boardview (.brd, .tvw) & KiCad (.kicad_pcb) Viewer",
+            "description": "How to open boardview (.brd, .tvw) and KiCad (.kicad_pcb) files locally in the browser, trace nets across layers, attach BOMs and schematics, and export SPICE netlists.",
+            "url": "https://deadboard.org/boardview.html",
+            "isAccessibleForFree": true,
+            "author": { "@type": "Organization", "name": "DEADBOARD", "url": "https://deadboard.org/" }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://deadboard.org/" },
+              { "@type": "ListItem", "position": 2, "name": "Learn", "item": "https://deadboard.org/learn.html" },
+              { "@type": "ListItem", "position": 3, "name": "Boardview & KiCad viewer", "item": "https://deadboard.org/boardview.html" }
+            ]
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Are my .brd, .tvw, or .kicad_pcb files uploaded anywhere?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. DEADBOARD is a static web application with no backend server. All file parsing, 2D/3D rendering, and SPICE solving run locally inside your browser tab."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What boardview formats does DEADBOARD support?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "DEADBOARD supports TopTest / OpenBoardView .brd (plain-text and standard obfuscated), BRD2 .brd, Tebo-ICT .tvw, and KiCad .kicad_pcb layouts, plus CSV/TSV BOMs and schematic PDFs."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="nav">
+      <a class="logo" href="./" aria-label="DEADBOARD home"><span data-mark></span><span class="wordmark">DEADBOARD</span></a>
+      <nav aria-label="Sections">
+        <a href="./">Home</a>
+        <a href="./learn.html" aria-current="page">Learn</a>
+        <a href="./modding.html">Mods</a>
+        <a href="https://github.com/tholtman1-del/deadboard">GitHub</a>
+      </nav>
+      <a class="btn primary small" href="./app.html">Open the bench</a>
+    </header>
+
+    <main id="main" class="doc-wrap">
+      <article class="doc">
+        <!--DOC-->
+        <!--DOCPAGER-->
+      </article>
+      <aside class="doc-side">
+        <!--DOCNAV-->
+        <div class="doc-cta">
+          <p class="eyebrow">&gt; drop a board</p>
+          <p>Open the bench and drag a .kicad_pcb, .brd, or .tvw file straight onto the canvas. Nothing leaves your browser.</p>
+          <a class="btn primary small" href="./app.html">Open viewer &amp; bench</a>
+          <a class="btn ghost small" href="./app.html?board=demo-mnt-reform2-mb30">Try MNT Reform 2 (3D)</a>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="foot">
+      <span class="logo small"><span data-mark></span><span class="wordmark">DEADBOARD</span></span>
+      <span class="muted">Board-level repair trainer · <span data-year></span></span>
+      <a href="./app.html">Open the bench</a>
+      <a href="./learn.html">Repair guide</a>
+      <a href="./boardview.html" aria-current="page">Boardview viewer</a>
+      <a href="./modding.html">Make a mod</a>
+      <a href="./app.html?feedback">Feedback</a>
+      <a href="./privacy.html">Privacy</a>
+    </footer>
+
+    <script type="module" src="./src/home/main.ts"></script>
+  </body>
+</html>

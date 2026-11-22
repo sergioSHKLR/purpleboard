@@ -289,6 +289,9 @@ figcaption { margin-top: 12px; font: 13px/1.5 var(--mono); color: var(--muted); 
 .doc th { color: var(--text); font-weight: 600; white-space: nowrap; }
 .doc td:first-child { white-space: nowrap; }
 .doc blockquote { margin: 16px 0; padding: 4px 16px; border-left: 3px solid var(--accent); }
+.doc figure { margin: 24px 0; }
+.doc figure img { border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface); }
+.doc figure figcaption { margin-top: 10px; font: 13px/1.5 var(--mono); color: var(--muted); }
 .doc-pager {
   display: grid;
   gap: 12px;

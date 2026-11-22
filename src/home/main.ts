@@ -37,19 +37,24 @@ for (const el of document.querySelectorAll<HTMLElement>('[data-icon]')) el.inner
 // Language: the app's choice (?lang=, saved, browser), switchable in place from the header.
 const TITLE = document.title;
 const hasTranslatable = document.querySelector('[data-t], [data-t-attr]') !== null;
+const staticRu = !hasTranslatable && document.documentElement.lang === 'ru';
 async function setLanguage(code?: string) {
-  await initI18n(code);
+  await initI18n(staticRu ? 'ru' : code);
   if (hasTranslatable) {
     translatePage();
     document.title = lang() === 'en' ? TITLE : t('DEADBOARD — bring dead boards back');
   }
-  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-lang]')) b.setAttribute('aria-pressed', String(b.dataset.lang === lang()));
+  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-lang]')) b.setAttribute('aria-pressed', String(b.dataset.lang === (staticRu ? 'ru' : lang())));
   document.documentElement.classList.remove('i18n-wait');
   relabelBoard?.();
 }
 let relabelBoard: (() => void) | undefined;
 for (const b of document.querySelectorAll<HTMLButtonElement>('[data-lang]')) {
   b.addEventListener('click', () => {
+    if (staticRu) {
+      if (b.dataset.lang === 'en') { saveLanguage('en'); location.href = './'; }
+      return;
+    }
     if (b.dataset.lang === lang()) return;
     saveLanguage(b.dataset.lang!); // the app opens in the same language
     void setLanguage(b.dataset.lang);

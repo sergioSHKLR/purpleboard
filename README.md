@@ -10,6 +10,8 @@
 
 <p align="center">
   <b><a href="https://deadboard.org/">▶ Try it in your browser</a></b> ·
+  <a href="https://deadboard.org/learn.html">Repair curriculum &amp; guides</a> ·
+  <a href="https://deadboard.org/boardview.html">Boardview &amp; KiCad viewer</a> ·
   <a href="https://github.com/tholtman1-del/deadboard/releases/latest">Watch the 1-minute showcase (MP4)</a>
 </p>
 

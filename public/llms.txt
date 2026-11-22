@@ -34,6 +34,8 @@ agents"; it has the exact schemas, the hard rules and a validate-and-fix loop.
 - [How to find a short circuit on a PCB](https://deadboard.org/learn-shorts.html): voltage injection, thermal imaging, freeze spray, IPA, rosin
 - [Power rails, boot current & oscilloscope](https://deadboard.org/learn-rails.html): boot current, LDO/buck regulators, oscilloscope modes, boardviews
 - [PCB soldering & rework](https://deadboard.org/learn-rework.html): cold joints, solder bridges, lifted pads, flux and preheaters
+- [Online Boardview & KiCad viewer](https://deadboard.org/boardview.html): open .brd, .tvw, .kicad_pcb, BOMs, and schematics locally in the browser
+- [Open-hardware repair case studies](https://deadboard.org/learn-case-studies.html): spoiler-free diagnostic plans for all 7 open-hardware boards
 
 ## Optional
 

@@ -35,6 +35,8 @@ Work through the four field guides in order, or jump straight to the diagnostic 
 2. **[Finding short circuits](SHORTS.md)** — Separating dead shorts from leaks and opens, splitting a circuit at a fuse or inductor, safe low-voltage current injection (and the high-side FET trap), IR emissivity pitfalls, freeze spray, IPA, and the rosin method.
 3. **[Power rails, boot current & oscilloscope](POWER_RAILS.md)** — Reading `G3H` and `S5 → S4 → S3 → S0` boot current, LDO vs. buck converter vs. Li-ion charger faults, oscilloscope Roll vs. Auto mode (and AC coupling / ripple), boardviews, and flex/thermal intermittent faults.
 4. **[PCB soldering & rework](REWORK.md)** — Spotting and reflowing cold joints, clearing solder bridges with wick, jumping broken traces and lifted pads, flux chemistry, ground-plane heat sinking, bottom preheaters, and hot-air MLCC thermal shock.
+5. **[Boardview (.brd, .tvw) & KiCad viewer](BOARDVIEW.md)** — Opening your own `.kicad_pcb`, `.brd`, `.tvw`, BOM, and schematic files locally in the browser, tracing nets in 2D/3D, and exporting `ngspice` netlists.
+6. **[Real open-hardware repair case studies](CASE_STUDIES.md)** — Spoiler-free diagnostic plans for all 7 real open-hardware boards (ESP32, RP2040, Jetson baseboard, and MNT Reform 2).
 
 ## Interactive curriculum on the bench
 

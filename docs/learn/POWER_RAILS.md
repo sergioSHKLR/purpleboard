@@ -65,6 +65,11 @@ A multimeter averages slowly — it hides a rail that rises for `2 ms` and colla
 
 > **Honest note on DEADBOARD's scope:** **Roll mode** plots real voltages recorded from successive circuit solves over time (real ramps, droop, and boot loops). Because the circuit engine solves averaged DC operating points rather than nanosecond switching cycles, **Auto mode** synthesizes representative switch-node square waves (`~600 kHz` typical estimate), output ripple (`~0.8%` p-p estimate), and named clock nets (`32K`, `24M`, etc., active only when powered) from the solved state — and labels those synthesized traces clearly on screen.
 
+<figure>
+  <img src="./home/bench-1400.jpg" width="1400" height="663" loading="lazy" alt="MNT Reform 2 mainboard on the DEADBOARD bench with oscilloscope showing the 3.3 V buck converter switch node and bench supply reading 16.2 mA at 30 V." />
+  <figcaption>A healthy 3.3 V buck switch node captured on the bench oscilloscope while the MNT Reform 2 mainboard draws 16.2 mA from 30 V.</figcaption>
+</figure>
+
 ## 4. Boardview, schematics & intermittent faults
 
 On boards with 50 to 500+ parts, tracing copper by eye alone breaks down:

@@ -1226,6 +1226,7 @@ const ru: Catalog = {
   "Repair challenges": "Задачи на ремонт",
   "Learn": "Обучение",
   "Repair guide": "Учебник",
+  "Boardview viewer": "Просмотр boardview",
 };
 
 export default ru;

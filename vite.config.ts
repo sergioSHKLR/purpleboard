@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { build as esbuild } from 'esbuild';
 import { defineConfig, type Plugin } from 'vite';
 import { Marked } from 'marked';
+import ruCatalog from './src/i18n/ru';
 
 // version + commit, shown in bug reports so a report can be matched to the build that produced it
 const version = (JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }).version;
@@ -29,6 +30,8 @@ const docPages: Record<string, DocPage> = {
   'learn-shorts.html': { md: 'docs/learn/SHORTS.md', slot: '<!--DOC-->', nav: 'Finding short circuits', group: 'learn' },
   'learn-rails.html': { md: 'docs/learn/POWER_RAILS.md', slot: '<!--DOC-->', nav: 'Power rails & scope', group: 'learn' },
   'learn-rework.html': { md: 'docs/learn/REWORK.md', slot: '<!--DOC-->', nav: 'Soldering & rework', group: 'learn' },
+  'boardview.html': { md: 'docs/learn/BOARDVIEW.md', slot: '<!--DOC-->', nav: 'Boardview & KiCad viewer', group: 'learn' },
+  'learn-case-studies.html': { md: 'docs/learn/CASE_STUDIES.md', slot: '<!--DOC-->', nav: 'Real board case studies', group: 'learn' },
   'privacy.html': { md: 'docs/PRIVACY.md', slot: '<!--PRIVACY-->' },
 };
 /** Markdown filename (as linked inside docs/*.md or docs/learn/*.md) → page name. */
@@ -126,24 +129,85 @@ function modRuntime(): Plugin {
   };
 }
 
+/** Pre-renders ru.html from index.html + src/i18n/ru.ts so search crawlers index static Russian HTML
+ *  with matching hreflang alternates instead of only English before client-side translation runs. */
+function ruHomePage(): Plugin {
+  const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
+  const ruText = (key: string) => {
+    const v = ruCatalog[key];
+    return typeof v === 'string' ? v : key;
+  };
+  const renderRuHome = () => {
+    const title = ruText('DEADBOARD — bring dead boards back');
+    const desc = 'Стенд компонентного ремонта плат в браузере: мультиметр, ЛБП с током старта, осциллограф, тепловизор и пайка на настоящих открытых платах. Тренируйтесь как мастер или решайте задачи на ремонт.';
+    const ogDesc = 'Стенд компонентного ремонта плат в браузере. Прозванивайте, измеряйте, подавайте ток, паяйте.';
+    let html = readFileSync('index.html', 'utf8')
+      .replace('<html lang="en">', '<html lang="ru">')
+      .replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`)
+      .replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${desc}" />`)
+      .replace('<link rel="canonical" href="https://deadboard.org/" />', '<link rel="canonical" href="https://deadboard.org/ru.html" />')
+      .replace('<meta property="og:url" content="https://deadboard.org/" />', '<meta property="og:url" content="https://deadboard.org/ru.html" />')
+      .replace(/<meta property="og:title" content="[^"]*" \/>/, `<meta property="og:title" content="${title}" />`)
+      .replace(/<meta property="og:description" content="[^"]*" \/>/, `<meta property="og:description" content="${ogDesc}" />`)
+      .replace(/<meta property="og:image:alt" content="[^"]*" \/>/, '<meta property="og:image:alt" content="Стенд ремонта плат DEADBOARD в браузере: материнская плата MNT Reform 2 в 3D, осциллограф и ЛБП" />')
+      .replace(/<meta name="twitter:title" content="[^"]*" \/>/, `<meta name="twitter:title" content="${title}" />`)
+      .replace(/<meta name="twitter:description" content="[^"]*" \/>/, `<meta name="twitter:description" content="${ogDesc}" />`)
+      .replace('<a class="logo" href="./"', '<a class="logo" href="./ru.html"')
+      .replace(/\s*<script>\s*\/\/ a Russian visitor[\s\S]*?<\/script>\s*<style>\.i18n-wait[\s\S]*?<\/style>/, '');
+    html = html.replace(/<([a-z][a-z0-9]*)\b([^>]*)\sdata-t(?=[\s>])([^>]*)>([\s\S]*?)<\/\1>/g, (_m, tag: string, pre: string, post: string, body: string) => {
+      return `<${tag}${pre}${post}>${ruText(norm(body))}</${tag}>`;
+    });
+    html = html.replace(/<([a-z][a-z0-9]*)\b([^>]*)\sdata-t-attr="([^"]+)"([^>]*)>/g, (_m, tag: string, pre: string, attrs: string, post: string) => {
+      let rest = `${pre}${post}`;
+      for (const a of attrs.split(',').map((x) => x.trim())) {
+        rest = rest.replace(new RegExp(`(\\s${a}=")([^"]*)(")`), (_am, p1: string, val: string, p3: string) => `${p1}${ruText(norm(val))}${p3}`);
+      }
+      return `<${tag}${rest}>`;
+    });
+    html = html
+      .replace('data-lang="en"', 'data-lang="en" aria-pressed="false"')
+      .replace('data-lang="ru"', 'data-lang="ru" aria-pressed="true"')
+      .replaceAll('href="./app.html"', 'href="./app.html?lang=ru"')
+      .replaceAll('href="./app.html?tutorial=1"', 'href="./app.html?lang=ru&amp;tutorial=1"')
+      .replaceAll('href="./app.html?feedback"', 'href="./app.html?lang=ru&amp;feedback"');
+    return html;
+  };
+  return {
+    name: 'ru-home-page',
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html, ctx) {
+        return ctx.filename.endsWith('/ru.html') || ctx.filename === 'ru.html' ? renderRuHome() : html;
+      },
+    },
+    configureServer(server) {
+      server.watcher.add('index.html');
+      server.watcher.add('src/i18n/ru.ts');
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [moddingGuide(), modRuntime()],
+  plugins: [ruHomePage(), moddingGuide(), modRuntime()],
   base: './',
   define: { __APP_BUILD__: JSON.stringify(commit ? `${version}+${commit}` : version) },
   build: {
     target: 'es2022',
     sourcemap: false,
     cssMinify: true,
-    // homepage at /, the bench app at /app.html, educational guides at /learn*.html, mod docs at /modding.html (+ mod-reference, code-mods, mod-safety, mods-for-agents), privacy policy at /privacy.html
+    // homepage at / (+ static Russian at /ru.html), the bench app at /app.html, educational & boardview guides at /learn*.html + /boardview.html, mod docs at /modding.html (+ mod-reference, code-mods, mod-safety, mods-for-agents), privacy policy at /privacy.html
     rollupOptions: {
       input: {
         home: 'index.html',
+        ru: 'ru.html',
         app: 'app.html',
         learn: 'learn.html',
         learnMultimeter: 'learn-multimeter.html',
         learnShorts: 'learn-shorts.html',
         learnRails: 'learn-rails.html',
         learnRework: 'learn-rework.html',
+        boardview: 'boardview.html',
+        learnCaseStudies: 'learn-case-studies.html',
         modding: 'modding.html',
         privacy: 'privacy.html',
         modReference: 'mod-reference.html',

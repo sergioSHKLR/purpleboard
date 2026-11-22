@@ -36,7 +36,7 @@ async function run() {
   assert(fs.existsSync('public/llms.txt') && /mods-for-agents\.md/.test(read('public/llms.txt')), 'llms.txt points agents to the docs');
 
   // educational guides: internal markdown links and ?board=<id> deep links resolve to real boards
-  const LEARN = ['INDEX.md', 'MULTIMETER.md', 'SHORTS.md', 'POWER_RAILS.md', 'REWORK.md'];
+  const LEARN = ['INDEX.md', 'MULTIMETER.md', 'SHORTS.md', 'POWER_RAILS.md', 'REWORK.md', 'BOARDVIEW.md', 'CASE_STUDIES.md'];
   const allBoardIds = new Set([...(await builtinScenarios()).map((s) => s.id), ...demos.map((d) => d.id)]);
   const learnAnchors = new Map(LEARN.map((d) => [d, new Set([...read(`docs/learn/${d}`).matchAll(/^#{1,4} (.+)$/gm)].map((m) => slug(m[1])))]));
   let learnBoards = 0;
@@ -59,9 +59,33 @@ async function run() {
       learnBoards++;
     }
   }
-  assert(learnBoards >= 15, `learn bench links checked (${learnBoards})`);
+  assert(learnBoards >= 25, `learn bench links checked (${learnBoards})`);
   assert(fs.existsSync('public/robots.txt') && fs.existsSync('public/sitemap.xml'), 'robots.txt and sitemap.xml present');
-  console.log(`DOCS TESTS PASSED (generated blocks current, ${checked} links between docs pages resolve, ${learnBoards} learn board links, llms.txt, sitemap)`);
+
+  // SEO parity: every site page in vite.config.ts is listed in sitemap.xml and carries core meta tags
+  const sitemap = read('public/sitemap.xml');
+  const viteSrc = read('vite.config.ts');
+  const inputBlock = /rollupOptions:\s*\{\s*input:\s*\{([\s\S]*?)\}\s*,?\s*\}/.exec(viteSrc)?.[1] ?? '';
+  const htmlPages = [...inputBlock.matchAll(/:\s*'([^']+\.html)'/g)].map((m) => m[1]);
+  assert(htmlPages.length >= 15, `vite HTML entry points (${htmlPages.length})`);
+  for (const p of htmlPages) {
+    const loc = p === 'index.html' ? 'https://deadboard.org/' : `https://deadboard.org/${p}`;
+    assert(sitemap.includes(`<loc>${loc}</loc>`), `public/sitemap.xml is missing ${loc}`);
+    if (p === 'ru.html') continue; // generated at build time from index.html
+    const html = read(p);
+    for (const [label, re] of [
+      ['title', /<title>[^<]+<\/title>/],
+      ['meta description', /<meta name="description" content="[^"]+" \/>/],
+      ['canonical', /<link rel="canonical" href="https:\/\/deadboard\.org\/[^"]*" \/>/],
+      ['og:title', /<meta property="og:title" content="[^"]+" \/>/],
+      ['og:description', /<meta property="og:description" content="[^"]+" \/>/],
+      ['og:image', /<meta property="og:image" content="https:\/\/deadboard\.org\/[^"]+" \/>/],
+      ['twitter:card', /<meta name="twitter:card" content="summary_large_image" \/>/],
+    ] as const) {
+      assert(re.test(html), `${p}: missing ${label}`);
+    }
+  }
+  console.log(`DOCS TESTS PASSED (generated blocks current, ${checked} links between docs pages resolve, ${learnBoards} learn board links, ${htmlPages.length} pages SEO + sitemap checked)`);
 }
 
 run().catch((e) => { console.error(e); (globalThis as unknown as { process: { exitCode: number } }).process.exitCode = 1; });
