@@ -64,6 +64,7 @@ import { onFirstHide, secondsBucket, trackBoardView, trackEvent, visibleClock } 
 import { APP_BUILD, mountFeedbackForm, type FeedbackContext } from './feedback';
 import { AttemptTracker, browserSender, daysSinceFirstPlay, setStatsSwitch, startActiveClock, statsSwitchOn, type PuzzleInfo } from '../attempts/client';
 import { shortHash } from '../attempts/record';
+import { attemptScore, loadSkill, puzzleLevel, saveSkill, setFittedLevels, update as updateSkill, type Skill } from '../scenarios/adaptive';
 import { boardDiff, encodeSnapshot, type BenchSnapshot } from '../snapshot';
 import { BRAND, markSvg } from './logo';
 import { beginnerPrimerHtml, CHALLENGE_TRACK_IDS, TUTORIAL_SCENARIO_IDS, TUTORIAL_TOPICS, getTutorialSteps, isTutorialScenario, nextTutorialScenarioId, type TutorialStep } from './tutorial';
@@ -426,6 +427,10 @@ export class PcbApp {
   private statsAvailable = browserSender() !== null;
   private firstPlayDays = 0;
   private puzzleVersions = new WeakMap<Scenario, string>();
+  /** The hidden difficulty estimate (src/scenarios/adaptive.ts): on this device only, never shown. */
+  private skill: Skill = loadSkill();
+  /** The attempt the hidden estimate will learn from (any build: website and apps alike). */
+  private rated: { level: number; weight: number; tests: number; notes: number; solution: boolean; activeSec: number; moves: number; done: boolean } | null = null;
   /** Whether the step the player just left with Next had its task done (analytics). */
   private tutPrevDone: boolean | null = null;
 
@@ -1017,6 +1022,7 @@ export class PcbApp {
     const v = this.videos[id]?.[kind];
     if (!v) return;
     if (id === this.activeScenario.id) this.attempts?.video(kind);
+    if (id === this.activeScenario.id && kind === 'solution' && this.rated) this.rated.solution = true;
     const box = document.createElement('div');
     box.className = 'video-backdrop';
     box.innerHTML = `
@@ -1905,6 +1911,7 @@ export class PcbApp {
     this.redoStack.length = 0;
     this.moves++;
     this.attempts?.move();
+    if (this.rated) this.rated.moves++;
   }
 
   private undo() {
@@ -2410,11 +2417,13 @@ export class PcbApp {
 
   /** Puzzle statistics: one anonymous record per attempt (src/attempts/client.ts), website only. */
   private startAttempts() {
+    // active play time feeds both the hidden estimate (everywhere) and the puzzle stats (website)
+    startActiveClock((sec) => { this.attempts?.active(sec); if (this.rated) this.rated.activeSec += sec; });
+    void fetch('./fitted-levels.json').then((r) => (r.ok ? r.json() : null)).then(setFittedLevels).catch(() => {});
     const send = browserSender();
     if (!send) return;
     this.attempts = new AttemptTracker(send, APP_BUILD);
     this.firstPlayDays = daysSinceFirstPlay();
-    startActiveClock((sec) => this.attempts?.active(sec));
     const hide = () => this.attempts?.hidden();
     document.addEventListener('visibilitychange', () => { if (document.hidden) hide(); });
     addEventListener('pagehide', hide);
@@ -2437,7 +2446,34 @@ export class PcbApp {
     return { puzzle: sc.id, kind, from: '', pv, level, faults: 0 };
   }
 
+  /**
+   * The hidden estimate learns from the attempt that just ended: a fix, or giving up on a board
+   * after really trying it (another board opened). Leaving the page says nothing.
+   */
+  private rateAttempt(fixed: boolean) {
+    const a = this.rated;
+    if (!a || a.done) return;
+    // giving up counts only after real work: a minute of active play with tests run or changes made
+    // (First Light asks for an early test run, and players browse boards: neither is a failure)
+    const engaged = a.activeSec >= 60 && (a.tests > 0 || a.moves > 0);
+    const score = attemptScore({ fixed, notes: a.notes, solution: a.solution, engaged });
+    if (fixed) a.done = true;
+    if (score === null) return;
+    a.done = true;
+    this.skill = updateSkill(this.skill, a.level, score, a.weight);
+    saveSkill(this.skill);
+  }
+
+  private beginRated(sc: Scenario) {
+    this.rateAttempt(false);
+    const shipped = (id: string) => this.shippedIds.has(id) && /^(builtin|demo)-/.test(id);
+    if (!(shipped(sc.id) || (sc.generated && shipped(sc.generated.from)))) { this.rated = null; return; }
+    const level = shipped(sc.id) ? puzzleLevel(sc.id, boardLevel(sc)) : boardLevel(sc);
+    this.rated = { level, weight: isTutorialScenario(sc.id) ? 0.5 : 1, tests: 0, notes: 0, solution: false, activeSec: 0, moves: 0, done: false };
+  }
+
   private beginAttempt(sc: Scenario) {
+    if (this.shippedIds.size) this.beginRated(sc);
     if (!this.attempts || !this.shippedIds.size) return;
     const l = lang();
     this.attempts.begin(this.puzzleInfo(sc), {
@@ -2478,6 +2514,8 @@ export class PcbApp {
     this.trackOnce(`tests:${this.activeScenario.id}`, 'tests run', { board: this.analyticsId(this.activeScenario), result: res.flag || (res.allPassed && !res.topologyMismatch) ? 'pass' : 'fail' });
     const fixed = !!res.flag || (res.allPassed && !res.topologyMismatch && !this.activeScenario.lock);
     this.attempts?.tests(!!res.flag || (res.allPassed && !res.topologyMismatch), fixed);
+    if (this.rated) this.rated.tests++;
+    if (fixed) this.rateAttempt(true);
     if (fixed) this.trackFix();
     if (this.runningCode.size) {
       this.codeHost.emit('tests:run', { passed: res.allPassed && !res.topologyMismatch, results: res.results.map((r) => ({ label: r.label, passed: r.passed, detail: r.detail })) });
@@ -4248,6 +4286,7 @@ export class PcbApp {
     this.sideBodyEl.querySelector('#btn-next-hint')?.addEventListener('click', () => {
       this.hintsShown = Math.min(hints.length, this.hintsShown + 1);
       this.attempts?.note();
+      if (this.rated) this.rated.notes++;
       this.renderMissionTab();
     });
     this.sideBodyEl.querySelector('#btn-copy-flag')?.addEventListener('click', async () => {
@@ -4943,7 +4982,7 @@ export class PcbApp {
 
   private pickerToday(): string {
     const index = new Map(this.scenarios.map((s, i) => [s.id, i]));
-    const picks = todayPicks(new Set(index.keys()), this.solvedIds, this.activeScenario.id);
+    const picks = todayPicks(new Set(index.keys()), this.solvedIds, this.activeScenario.id, this.skill);
     const learned = this.learnedSet();
     if (!picks.length) {
       return `

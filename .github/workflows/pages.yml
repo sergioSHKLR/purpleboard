@@ -1,10 +1,13 @@
-# Tests, builds and publishes the site (homepage + bench app) to GitHub Pages on every push to main.
+# Tests, builds and publishes the site (homepage + bench app) to GitHub Pages on every push to main,
+# and once a day so the hidden difficulty system gets the latest fitted puzzle levels.
 name: Deploy to GitHub Pages
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: '30 4 * * *'
 
 permissions:
   contents: read
@@ -26,6 +29,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      # the fitted "real" puzzle levels from the public stats (scripts/fetch-levels.ts); never fails
+      - run: npx tsx scripts/fetch-levels.ts
       - run: npm run build
         env:
           # where the in-app feedback form sends mail (address or FormSubmit alias); set it under

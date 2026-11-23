@@ -11,6 +11,8 @@ nothing in the apps, unless you send feedback.**
 - The iPhone, iPad and desktop apps have no analytics and no third-party SDKs.
 - Your progress, settings, imported boards and installed mods stay on your device (browser storage
   on the website, the app's own storage in the apps). They are never uploaded.
+- To suggest your next puzzle, the bench keeps a private estimate of your level from your own
+  repairs. It is stored only on your device, never shown and never sent.
 - Boards and files you import are read on your device only.
 
 **Feedback.** If you use the Feedback button and press Send, your message, the contact you chose to

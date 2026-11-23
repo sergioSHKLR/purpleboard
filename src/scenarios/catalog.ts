@@ -15,6 +15,7 @@
 import { tk } from '../i18n';
 import type { Scenario } from '../types';
 import { CHALLENGE_TRACK_IDS, TUTORIAL_SCENARIO_IDS } from '../ui/tutorial';
+import { puzzleLevel, targetLevel, type Skill } from './adaptive';
 
 /** Level bands, like CVSS scores: same cut points, colours from the brand's status colours. */
 export const LEVEL_BANDS = [
@@ -129,22 +130,36 @@ export function newSkillsFor(id: string, learned: ReadonlySet<SkillKey>): SkillK
 export type PickReason = 'first' | 'open' | 'next' | 'after' | 'skip';
 export interface TodayPick { id: string; reason: PickReason }
 
+/** Below this hidden estimate, unsolved lessons are never skipped: they teach the tools. */
+export const LESSON_SKIP_LEVEL = 2;
+
 /**
- * Today's picks: one main pick and up to two more. For now the path order decides (the hidden
- * adaptive rating will later choose instead): the board you have open if it is on the path and
- * unsolved, else the next unsolved one; then the one after it, and a "skip ahead" choice at least
- * 1.5 levels higher so players who already know the basics are not held back. No placement test.
+ * Today's picks: one main pick and up to two more. A new player (no counted attempts yet) follows
+ * the path order. After that the hidden estimate (src/scenarios/adaptive.ts, never shown) chooses
+ * the main pick: the unsolved path board closest to the level they fix about 70 % of the time,
+ * path order breaking ties; unsolved lessons come first until the estimate shows real skill. The
+ * board you have open, if on the path and unsolved, still comes first. Then the next board on the
+ * path, and a "skip ahead" choice at least 1.5 levels higher so players who know the basics are
+ * not held back. No placement test, no "you levelled up".
  */
-export function todayPicks(available: ReadonlySet<string>, solved: ReadonlySet<string>, openId?: string): TodayPick[] {
+export function todayPicks(available: ReadonlySet<string>, solved: ReadonlySet<string>, openId?: string, skill?: Skill): TodayPick[] {
   const todo = PATH_ORDER.filter((id) => available.has(id) && !solved.has(id));
   if (!todo.length) return [];
-  const main = openId && todo.includes(openId) && openId !== todo[0] && solved.size > 0 ? openId : todo[0];
+  const level = (id: string) => puzzleLevel(id, BOARD_INFO[id]?.level ?? 0);
+  const isLesson = (id: string) => (TUTORIAL_SCENARIO_IDS as readonly string[]).includes(id);
+  let main = todo[0];
+  if (openId && todo.includes(openId) && openId !== todo[0] && solved.size > 0) main = openId;
+  else if (skill && skill.n > 0 && !(skill.r < LESSON_SKIP_LEVEL && todo.some(isLesson))) {
+    const target = targetLevel(skill);
+    main = todo.reduce((best, id) => (Math.abs(level(id) - target) < Math.abs(level(best) - target) - 1e-9 ? id : best), todo[0]);
+  }
   const picks: TodayPick[] = [{ id: main, reason: solved.size === 0 ? 'first' : main === openId && main !== todo[0] ? 'open' : 'next' }];
   const rest = todo.filter((id) => id !== main);
-  if (rest[0]) picks.push({ id: rest[0], reason: 'after' });
-  const lvl = BOARD_INFO[main]?.level ?? 0;
-  const skip = rest.slice(1).find((id) => (BOARD_INFO[id]?.level ?? 0) >= lvl + 1.5);
+  const after = rest.find((id) => PATH_ORDER.indexOf(id) > PATH_ORDER.indexOf(main)) ?? rest[0];
+  if (after) picks.push({ id: after, reason: 'after' });
+  const lvl = level(main);
+  const skip = rest.find((id) => id !== after && PATH_ORDER.indexOf(id) > PATH_ORDER.indexOf(main) && level(id) >= lvl + 1.5);
   if (skip) picks.push({ id: skip, reason: 'skip' });
-  else if (rest[1]) picks.push({ id: rest[1], reason: 'after' });
+  else { const more = rest.find((id) => id !== after); if (more) picks.push({ id: more, reason: 'after' }); }
   return picks;
 }
