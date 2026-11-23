@@ -55,7 +55,16 @@ No reference hardware is available, so realism is validated against *design inte
   `deadboard.org/stats.html` (`src/home/stats.ts`, styles "Puzzle stats page" in home.css; phones
   fold Attempts / phone / notes / time, keep Level + Real + Fixed). Players are never asked
   anything: stuck / too hard / too easy are inferred from the record (notes, look, failed tests,
-  time, fix rate). Next in this line: feed fitted levels into the hidden adaptive picker (D).
+  time, fix rate). **D, first slice built 11-23:** `src/scenarios/adaptive.ts` (hidden estimate r ± u on
+  the 0–10 scale, Elo/Glicko-style step, target 70 % success, help < fail: clean 1 · notes 0.6–0.85 ·
+  solution video 0.4 · gave up 0; lessons weigh 0.5; stored in `pcbfix_skill`, never shown or
+  sent), `todayPicks(..., skill)` (new players follow the path; unsolved lessons first while
+  r < 2; else the unsolved path board nearest the target level), app.ts `beginRated` /
+  `rateAttempt` (fix = always counts; giving up = another board opened after ≥ 60 s active with
+  tests or moves; leaving the page = nothing). Fitted levels: `scripts/fetch-levels.ts` writes
+  `public/fitted-levels.json` before every Pages build; Pages also builds daily (cron 04:30 UTC);
+  the shown level is NOT changed (user decision pending: show fitted levels to players?).
+  `test/adaptive.test.ts`.
   **Next:** after ~3 days run `attempts-compare` (steady per-board ratio → cut the Umami events
   listed above) and `attempts-difficulty` (checkpoint 2). Was: record format `src/attempts/record.ts` (fields +
   `checkRecord`, shared by game and collector), tracker `src/attempts/client.ts` (one record per
