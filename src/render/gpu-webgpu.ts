@@ -5,7 +5,9 @@ import { GPU_REQUEST_TIMEOUT_MS, NoAdapterError, requestAnyAdapter, withTimeout 
 import type { PackedMeshes } from './meshes';
 import { GLOW_WGSL, SOLID_WGSL, ZONE_WGSL } from './shaders';
 
-const VERTEX = GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST;
+// A function, not a constant: GPUBufferUsage only exists where WebGPU does, and this module is
+// imported everywhere (renderer.ts picks the backend at run time, falling back to WebGL2).
+const vertexUsage = (): number => GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST;
 
 export class WebGPUBackend implements GpuBackend {
   description = 'WebGPU';
@@ -54,15 +56,15 @@ export class WebGPUBackend implements GpuBackend {
 
   private init(meshes: PackedMeshes) {
     const d = this.device;
-    this.vbo = d.createBuffer({ size: meshes.vertices.byteLength, usage: VERTEX });
+    this.vbo = d.createBuffer({ size: meshes.vertices.byteLength, usage: vertexUsage() });
     d.queue.writeBuffer(this.vbo, 0, meshes.vertices.buffer);
     this.ibo = d.createBuffer({ size: meshes.indices.byteLength, usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST });
     d.queue.writeBuffer(this.ibo, 0, meshes.indices.buffer);
 
     this.uniformBuf = d.createBuffer({ size: 24 * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-    this.instanceBuf = d.createBuffer({ size: this.instanceCap * INSTANCE_FLOATS * 4, usage: VERTEX });
-    this.zoneBuf = d.createBuffer({ size: this.zoneCap * ZONE_FLOATS * 4, usage: VERTEX });
-    this.glowBuf = d.createBuffer({ size: this.glowCap * GLOW_FLOATS * 4, usage: VERTEX });
+    this.instanceBuf = d.createBuffer({ size: this.instanceCap * INSTANCE_FLOATS * 4, usage: vertexUsage() });
+    this.zoneBuf = d.createBuffer({ size: this.zoneCap * ZONE_FLOATS * 4, usage: vertexUsage() });
+    this.glowBuf = d.createBuffer({ size: this.glowCap * GLOW_FLOATS * 4, usage: vertexUsage() });
 
     const bgl = d.createBindGroupLayout({
       entries: [{ binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }],
@@ -183,7 +185,7 @@ export class WebGPUBackend implements GpuBackend {
     if (total > this.instanceCap) {
       this.instanceCap = Math.max(this.instanceCap * 2, total);
       this.instanceBuf.destroy();
-      this.instanceBuf = d.createBuffer({ size: this.instanceCap * INSTANCE_FLOATS * 4, usage: VERTEX });
+      this.instanceBuf = d.createBuffer({ size: this.instanceCap * INSTANCE_FLOATS * 4, usage: vertexUsage() });
     }
     const first: number[] = [];
     let at = 0;
@@ -196,14 +198,14 @@ export class WebGPUBackend implements GpuBackend {
     if (f.zoneVerts > this.zoneCap) {
       this.zoneCap = Math.max(this.zoneCap * 2, f.zoneVerts);
       this.zoneBuf.destroy();
-      this.zoneBuf = d.createBuffer({ size: this.zoneCap * ZONE_FLOATS * 4, usage: VERTEX });
+      this.zoneBuf = d.createBuffer({ size: this.zoneCap * ZONE_FLOATS * 4, usage: vertexUsage() });
     }
     if (f.zoneVerts > 0) d.queue.writeBuffer(this.zoneBuf, 0, f.zones.buffer, 0, f.zoneVerts * ZONE_FLOATS * 4);
 
     if (f.glowCount > this.glowCap) {
       this.glowCap = Math.max(this.glowCap * 2, f.glowCount);
       this.glowBuf.destroy();
-      this.glowBuf = d.createBuffer({ size: this.glowCap * GLOW_FLOATS * 4, usage: VERTEX });
+      this.glowBuf = d.createBuffer({ size: this.glowCap * GLOW_FLOATS * 4, usage: vertexUsage() });
     }
     if (f.glowCount > 0) d.queue.writeBuffer(this.glowBuf, 0, f.glow.buffer, 0, f.glowCount * GLOW_FLOATS * 4);
 

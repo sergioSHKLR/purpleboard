@@ -79,3 +79,11 @@ function run() {
 }
 
 run();
+
+// The backends are imported statically by renderer.ts, so loading them must not touch WebGPU or
+// WebGL globals: a browser without WebGPU has no GPUBufferUsage, and a top-level read of it threw
+// "GPUBufferUsage is not defined" before the WebGL2 fallback could start (Node has neither).
+for (const mod of ['../src/render/gpu-webgpu', '../src/render/gpu-webgl2', '../src/render/gpuprobe']) {
+  try { await import(mod); } catch (e) { throw new Error(`${mod} must load without WebGPU/WebGL globals: ${(e as Error).message}`); }
+}
+console.log('RENDER BACKENDS LOAD WITHOUT GPU GLOBALS');
