@@ -62,6 +62,8 @@ import { chromeIntentUrl, inAppBrowser } from './inapp';
 import { LANGUAGES, lang, saveLanguage, t, t as translate, tk } from '../i18n';
 import { onFirstHide, secondsBucket, trackBoardView, trackEvent, visibleClock } from '../analytics';
 import { APP_BUILD, mountFeedbackForm, type FeedbackContext } from './feedback';
+import { AttemptTracker, browserSender, daysSinceFirstPlay, setStatsSwitch, startActiveClock, statsSwitchOn, type PuzzleInfo } from '../attempts/client';
+import { shortHash } from '../attempts/record';
 import { boardDiff, encodeSnapshot, type BenchSnapshot } from '../snapshot';
 import { BRAND, markSvg } from './logo';
 import { beginnerPrimerHtml, CHALLENGE_TRACK_IDS, TUTORIAL_SCENARIO_IDS, TUTORIAL_TOPICS, getTutorialSteps, isTutorialScenario, nextTutorialScenarioId, type TutorialStep } from './tutorial';
@@ -418,6 +420,12 @@ export class PcbApp {
   private benchUp = false;
   /** Furthest First Light tutorial step shown (1-based; 0 = none). */
   private tutMax = 0;
+  /** DEADBOARD's own puzzle statistics (src/attempts/): null wherever they are off (apps, dev, Do Not Track). */
+  private attempts: AttemptTracker | null = null;
+  /** The puzzle-stats switch is shown only where stats can be sent at all (the website). */
+  private statsAvailable = browserSender() !== null;
+  private firstPlayDays = 0;
+  private puzzleVersions = new WeakMap<Scenario, string>();
   /** Whether the step the player just left with Next had its task done (analytics). */
   private tutPrevDone: boolean | null = null;
 
@@ -567,6 +575,7 @@ export class PcbApp {
     if (params.has('feedback')) this.showFeedback = true;
 
     this.shippedIds = new Set(this.scenarios.map((s) => s.id));
+    this.startAttempts();
     // Load from URL hash if present (#s=...)
     const loadedHash = await this.tryLoadFromHash();
     if (!loadedHash) {
@@ -828,6 +837,7 @@ export class PcbApp {
               <div class="bench-pop settings-pop" id="settings-pop" hidden>
                 <div class="bench-row"><span>${t('Sound')}</span><button class="btn sm" id="btn-sound"></button></div>
                 <div class="bench-row"><span>${t('3D orbit')}</span><button class="btn sm" id="btn-invert-orbit"></button></div>
+                ${this.statsAvailable ? `<div class="bench-row"><span>${t('Puzzle stats')}</span><button class="btn sm" id="btn-stats"></button></div>` : ''}
                 <label class="bench-row"><span>${lang() === 'en' ? 'Language' : `${t('Language')} · Language`}</span>${this.langPickerHtml('full')}</label>
               </div>
             </div>
@@ -949,6 +959,7 @@ export class PcbApp {
             <div class="m-sec"><div class="m-sec-t">${t('App')}</div>
               ${this.langPickerHtml('row')}
               <button class="m-row" data-proxy="#btn-sound"><span id="m-sound-ico"></span><span id="m-sound-lbl"></span></button>
+              ${this.statsAvailable ? '<button class="m-row" data-proxy="#btn-stats"><span id="m-stats-ico"></span><span id="m-stats-lbl"></span></button>' : ''}
               ${row('#btn-feedback', 'message', t('Feedback'))}
               ${row('#btn-help', 'help', t('Help'))}
             </div>
@@ -1005,6 +1016,7 @@ export class PcbApp {
   private playVideo(id: string, kind: 'approach' | 'solution') {
     const v = this.videos[id]?.[kind];
     if (!v) return;
+    if (id === this.activeScenario.id) this.attempts?.video(kind);
     const box = document.createElement('div');
     box.className = 'video-backdrop';
     box.innerHTML = `
@@ -1542,6 +1554,7 @@ export class PcbApp {
     const sc = this.activeScenario, v = this.lastVerify;
     const ref = referenceBoard(sc);
     if (!ref || !v) return;
+    this.attempts?.look();
     this.lookHere = { forVerify: v, candidates: null };
     this.renderMissionTab();
     try {
@@ -1824,6 +1837,7 @@ export class PcbApp {
 
   private loadScenario(sc: Scenario) {
     this.activeScenario = sc;
+    this.beginAttempt(sc);
     this.board = cloneBoard(sc.board);
     this.undoStack = [];
     this.redoStack = [];
@@ -1890,6 +1904,7 @@ export class PcbApp {
     if (this.undoStack.length > 60) this.undoStack.shift();
     this.redoStack.length = 0;
     this.moves++;
+    this.attempts?.move();
   }
 
   private undo() {
@@ -2393,6 +2408,46 @@ export class PcbApp {
     trackEvent(name, data);
   }
 
+  /** Puzzle statistics: one anonymous record per attempt (src/attempts/client.ts), website only. */
+  private startAttempts() {
+    const send = browserSender();
+    if (!send) return;
+    this.attempts = new AttemptTracker(send, APP_BUILD);
+    this.firstPlayDays = daysSinceFirstPlay();
+    startActiveClock((sec) => this.attempts?.active(sec));
+    const hide = () => this.attempts?.hidden();
+    document.addEventListener('visibilitychange', () => { if (document.hidden) hide(); });
+    addEventListener('pagehide', hide);
+  }
+
+  /** What an attempt record says about the puzzle: shipped boards by id, everything else "custom". */
+  private puzzleInfo(sc: Scenario): PuzzleInfo {
+    const shipped = (id: string) => this.shippedIds.has(id) && /^(builtin|demo)-/.test(id);
+    let pv = this.puzzleVersions.get(sc);
+    if (!pv) { pv = shortHash(JSON.stringify(sc.board)); this.puzzleVersions.set(sc, pv); }
+    const level = Math.min(10, Math.max(0, boardLevel(sc)));
+    if (sc.generated) {
+      const from = sc.generated.from;
+      if (!shipped(from)) return { puzzle: 'custom', kind: 'custom', from: '', pv, level, faults: 0 };
+      const kind = sc === this.dailyScenario ? 'daily' : 'generated';
+      return { puzzle: kind, kind, from, pv, level, faults: Math.min(9, Math.max(1, Math.round(sc.meta.par ?? 1))) };
+    }
+    if (!shipped(sc.id)) return { puzzle: 'custom', kind: 'custom', from: '', pv, level, faults: 0 };
+    const kind = isTutorialScenario(sc.id) ? 'tutorial' : sc.id.startsWith('demo-') ? 'real' : 'challenge';
+    return { puzzle: sc.id, kind, from: '', pv, level, faults: 0 };
+  }
+
+  private beginAttempt(sc: Scenario) {
+    if (!this.attempts || !this.shippedIds.size) return;
+    const l = lang();
+    this.attempts.begin(this.puzzleInfo(sc), {
+      layout: this.mobile ? 'phone' : 'desktop',
+      lang: l === 'en' || l === 'ru' ? l : 'other',
+      solvedBefore: this.solvedIds.size,
+      daysSinceFirst: this.firstPlayDays,
+    });
+  }
+
   /** Analytics: a board fixed (once per board per page load); fixing the last lesson finishes the tutorial. */
   private trackFix() {
     const id = this.analyticsId(this.activeScenario);
@@ -2421,7 +2476,9 @@ export class PcbApp {
     }
     this.lastVerify = res;
     this.trackOnce(`tests:${this.activeScenario.id}`, 'tests run', { board: this.analyticsId(this.activeScenario), result: res.flag || (res.allPassed && !res.topologyMismatch) ? 'pass' : 'fail' });
-    if (res.flag || (res.allPassed && !res.topologyMismatch && !this.activeScenario.lock)) this.trackFix();
+    const fixed = !!res.flag || (res.allPassed && !res.topologyMismatch && !this.activeScenario.lock);
+    this.attempts?.tests(!!res.flag || (res.allPassed && !res.topologyMismatch), fixed);
+    if (fixed) this.trackFix();
     if (this.runningCode.size) {
       this.codeHost.emit('tests:run', { passed: res.allPassed && !res.topologyMismatch, results: res.results.map((r) => ({ label: r.label, passed: r.passed, detail: r.detail })) });
       if (res.flag) this.codeHost.emit('flag:unlocked', { title: this.activeScenario.meta.title });
@@ -2587,6 +2644,10 @@ export class PcbApp {
       setSoundEnabled(!soundEnabled);
       this.renderUI();
     });
+    this.mount.querySelector('#btn-stats')?.addEventListener('click', () => {
+      setStatsSwitch(!statsSwitchOn());
+      this.updateTopButtons();
+    });
     q('#btn-feedback').addEventListener('click', () => this.openFeedback(!this.showFeedback));
     this.mount.querySelectorAll<HTMLSelectElement>('.lang-select').forEach((sel) => sel.addEventListener('change', () => this.switchLanguage(sel.value, sel)));
     q('#btn-help').addEventListener('click', () => {
@@ -2659,7 +2720,7 @@ export class PcbApp {
     more.querySelectorAll<HTMLButtonElement>('[data-proxy]').forEach((b) => b.addEventListener('click', () => {
       const sel = b.dataset.proxy!;
       // these open something else (a modal, a file picker, a fresh board): close the sheet first
-      if (sel !== '#btn-sound' && sel !== '#btn-invert-orbit') more.hidden = true;
+      if (sel !== '#btn-sound' && sel !== '#btn-invert-orbit' && sel !== '#btn-stats') more.hidden = true;
       q(sel)?.click();
       this.updateTopButtons();
     }));
@@ -3128,6 +3189,8 @@ export class PcbApp {
 
   private placeProbe(which: 'red' | 'black', pt: V2, side: Side) {
     this.trackOnce('tool', 'first tool', { tool: 'dmm', board: this.analyticsId(this.activeScenario) });
+    this.attempts?.tool('dmm');
+    this.attempts?.probe();
     const hit = netAt(this.board, this.conn, pt, side, this.vizMode === 'xray');
     const pin: ProbePin = hit
       ? { pos: hit.snap, side, net: hit.net, label: hit.label }
@@ -3155,6 +3218,7 @@ export class PcbApp {
 
   private applyToolAt(pt: V2, side: Side) {
     if (this.activeTool !== 'inspect') this.trackOnce('tool', 'first tool', { tool: this.activeTool, board: this.analyticsId(this.activeScenario) });
+    if (this.activeTool !== 'inspect') this.attempts?.tool(this.activeTool);
     const xray = this.vizMode === 'xray';
     const hit = pickAt(this.board, pt, side, xray);
 
@@ -3466,6 +3530,14 @@ export class PcbApp {
 
     const sBtn = this.mount.querySelector('#btn-sound')!;
     sBtn.innerHTML = `${icon(soundEnabled ? 'volume' : 'mute', 13)}<span>${soundEnabled ? t('On') : t('Off')}</span>`;
+    const statsOn = statsSwitchOn();
+    const stBtn = this.mount.querySelector<HTMLElement>('#btn-stats');
+    if (stBtn) {
+      stBtn.innerHTML = `${icon(statsOn ? 'check' : 'x', 13)}<span>${statsOn ? t('On') : t('Off')}</span>`;
+      stBtn.title = statsOn
+        ? t('Sends anonymous puzzle results (no IDs, no cookies) to make the puzzles better. Click to turn off.')
+        : t('Puzzle stats are off: nothing about your repairs is sent. Click to turn on.');
+    }
 
     const tBtn = this.mount.querySelector('#btn-tutorial')!;
     const tutBoard = isTutorialScenario(this.activeScenario.id);
@@ -3479,6 +3551,8 @@ export class PcbApp {
       set('#m-invert-lbl', this.camera.invertOrbit ? t('3D drag moves the camera (tap: board follows)') : t('3D drag turns the board (tap: camera moves)'));
       set('#m-sound-ico', icon(soundEnabled ? 'volume' : 'mute', 16));
       set('#m-sound-lbl', soundEnabled ? t('Sound on') : t('Sound off'));
+      set('#m-stats-ico', icon(statsOn ? 'check' : 'x', 16));
+      set('#m-stats-lbl', statsOn ? t('Puzzle stats on') : t('Puzzle stats off'));
       const tutRow = this.mount.querySelector<HTMLElement>('[data-proxy="#btn-tutorial"]');
       if (tutRow) tutRow.hidden = !tutBoard;
     }
@@ -3800,6 +3874,7 @@ export class PcbApp {
     const total = steps.length;
     const idx = Math.max(0, Math.min(total - 1, this.tutorialStep));
     const step = steps[idx];
+    this.attempts?.tutStep(idx + 1);
     if (this.activeScenario.id === TUTORIAL_SCENARIO_IDS[0]) {
       this.tutMax = Math.max(this.tutMax, idx + 1);
       // prev: was the step before done when Next was pressed, or skipped?
@@ -4172,6 +4247,7 @@ export class PcbApp {
     });
     this.sideBodyEl.querySelector('#btn-next-hint')?.addEventListener('click', () => {
       this.hintsShown = Math.min(hints.length, this.hintsShown + 1);
+      this.attempts?.note();
       this.renderMissionTab();
     });
     this.sideBodyEl.querySelector('#btn-copy-flag')?.addEventListener('click', async () => {

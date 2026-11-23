@@ -21,3 +21,6 @@ docs/grants/
 
 # downloaded player feedback (scripts/feedback.ts); can hold contact details
 .feedback/
+
+# wrangler dev state (local D1 database of the collector)
+collector/.wrangler/

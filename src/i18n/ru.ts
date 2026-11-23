@@ -324,6 +324,11 @@ const ru: Catalog = {
   "3D drag turns the board (tap: camera moves)": "В 3D перетаскивание вращает плату (нажмите: двигается камера)",
   "Sound on": "Звук вкл.",
   "Sound off": "Звук выкл.",
+  "Puzzle stats": "Статистика головоломок",
+  "Puzzle stats on": "Статистика вкл.",
+  "Puzzle stats off": "Статистика выкл.",
+  "Sends anonymous puzzle results (no IDs, no cookies) to make the puzzles better. Click to turn off.": "Отправляет анонимные результаты головоломок (без идентификаторов и cookie), чтобы делать головоломки лучше. Нажмите, чтобы выключить.",
+  "Puzzle stats are off: nothing about your repairs is sent. Click to turn on.": "Статистика выключена: о ваших ремонтах ничего не отправляется. Нажмите, чтобы включить.",
   // ---- App: status bar, multimeter, tutorial card
   "cold joint": "холодная пайка",
   "bare metal": "голый металл",

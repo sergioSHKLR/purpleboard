@@ -1,0 +1,24 @@
+# DEADBOARD puzzle-statistics collector (see README.md). Deploy: npx wrangler deploy
+name = "deadboard-stats"
+main = "worker.ts"
+compatibility_date = "2026-06-01"
+workers_dev = false
+routes = [{ pattern = "stats.deadboard.org", custom_domain = true }]
+
+[vars]
+ALLOWED_ORIGIN = "https://deadboard.org"
+# rows per UTC day at most (D1 free plan: 100k rows written per day; one record writes ~4)
+DAILY_CAP = "20000"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "deadboard-attempts"
+# filled in by `npx wrangler d1 create deadboard-attempts` (see README.md)
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[triggers]
+crons = ["17 3 * * *"]
+
+# no request logs: nothing about a request (IP, headers) is kept anywhere
+[observability]
+enabled = false

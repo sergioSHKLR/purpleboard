@@ -1,11 +1,11 @@
 # Privacy
 
-*Last updated: 20 November 2026*
+*Last updated: 23 November 2026*
 
 DEADBOARD (the website, the app on iPhone and iPad, and the desktop app) is made by Tibor Holtman.
 
-**What DEADBOARD collects: anonymous visit counts on the website; nothing in the apps, unless you
-send feedback.**
+**What DEADBOARD collects: anonymous visit counts and anonymous puzzle results on the website;
+nothing in the apps, unless you send feedback.**
 
 - No account, no sign-in, no ads, no cookies, no cross-site tracking.
 - The iPhone, iPad and desktop apps have no analytics and no third-party SDKs.
@@ -43,6 +43,25 @@ program error, it records the error's type and which tool and built-in board wer
 many people use DEADBOARD and for how long. You can't be identified, and you aren't followed across
 sites or from one month to the next. If your browser sends Do Not Track, nothing is counted.
 Content blockers usually block it too.
+
+**Puzzle statistics (website only).** To make the puzzles and their help better, the website sends
+DEADBOARD's own server (stats.deadboard.org, run on Cloudflare) one short anonymous record per
+attempt at a puzzle. It says which built-in puzzle it was (a board you imported or made counts only as
+"custom"), its version and level, and whether you fixed it, left, or switched to another board. Everything
+else is a range or a count: how long you played actively, how many moves, probe placements and test
+runs, whether the first test passed, how many notes you revealed, whether you asked «Where to look?» or
+watched a video, which tools you used, how far the lesson guide got, phone or computer layout, the app
+language (English, Russian or other), the attempt number in this visit, how many boards you had solved
+before, and how many days since you first opened the bench (that first date is kept on your device
+only). There is no account, user or device identifier and no free text. Each record carries a random
+number made for that one attempt, so that the record sent when you switch tabs can be replaced by the
+final one; it is not stored on your device, and the server erases it after a day or two. The server adds
+the date (not the time) a record arrived; it does not store your IP address or any other detail of the
+request and keeps no request logs (Cloudflare, which runs the server, handles the connection; see
+Cloudflare's privacy policy). Records are kept for 90 days, after which only daily counts per puzzle
+remain. They are used only to improve DEADBOARD's puzzles and help, never sold or shared. To turn them
+off: ⚙ Settings → Puzzle stats. Nothing is sent if your browser sends Do Not Track or Global Privacy
+Control. The apps never send these records. The code is open source: `src/attempts/` and `collector/`.
 
 **Submitting a mod.** If you press **Submit** on a mod in the Mods window and send it, the mod
 (its `.zip`, or the link you give), your note and the contact you chose to give (optional) are sent
