@@ -7,6 +7,52 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
+- **Analytics direction (decided by the user, 2026-11-23).** Build our own small **attempt-record
+  collector for DEADBOARD only**, optimised for this game; no generic platform for now (keep the
+  record schema clean so it could be split out later). Rules: no IDs (not even a random install
+  ID), no cookies, IP never stored or logged, a fixed public field list in `docs/PRIVACY.md`, no
+  free text, coarse values (ranges / bands), no country or device in attempt records, raw rows
+  expire (e.g. 90 days), reports hide groups < ~10, collector open source. **Website only**; the
+  iOS / desktop apps stay silent ("Data Not Collected"; Umami must never run there). If app data is
+  ever needed: opt-in under Apple's *Product Improvement Programs* exception (two clear buttons,
+  no feature impact, setting to change, not linked to the device), or a user-sent "Share my stats"
+  via the share sheet. Umami stays for website traffic for now. Goal = good engagement (flow ≈
+  target solve rate, return by choice, skills learned, "felt right"), not raw time; no streak
+  pressure or dark patterns. Checkpoints: (1) collector + weekly puzzle health report flags
+  puzzles Umami couldn't, (2) fitted difficulty predicts solve rate better than hand-set levels,
+  (3) adaptive picker beats track order in an A/B (puzzles per session / return). Stop early if
+  1 or 2 don't pay off. Needs from the user: server / host choice (EU, not Hetzner) and approval
+  of the field list. 11-23 Umami read: see memory / the analytics note (onboarding fixes helped:
+  tutorial step 1→2 39%→52%, bench→first tool 48%→58%; bounce drop after 11-21 is an artefact of
+  `home left`; ~4.6k events/day ≈ 140k/month, over the Hobby cap in December).
+  **Hosting decided (user, 11-23): Cloudflare Workers + D1 (free plan) for the collector; Umami
+  Cloud stays for website traffic.** **Run both in parallel first (user, 11-23):** Umami stays
+  complete until the collector's numbers are checked against it (e.g. fixes per board, the First
+  Light funnel); only then cut from Umami what the collector covers (`tutorial step`, `tests run`
+  per board, `board fixed` per board, `first tool`, `tutorial closed`, `problem generated`, the
+  `/board/<id>` virtual page views, the denser active milestones). A trim was written and tested
+  on 11-23, then reverted at the user's request. Risk: ~4.6k events/day ≈ 140k/month runs over
+  the Hobby cap (100k) in December; if it gets close, re-apply the trim or pay for one month.
+  Read the D1 free-tier enforcement changelog (2026-09-01) before relying on the free limits.
+  **deadboard.org is registered on Cloudflare (user, 11-23)**, so the zone is already there: the
+  collector can run as a Worker custom domain (e.g. `stats.deadboard.org`; Cloudflare adds the DNS
+  record and certificate). Don't change the GitHub Pages records. Deploy via `npx wrangler login`
+  (the user clicks Allow).
+  **Built 11-23, not committed, not deployed:** record format `src/attempts/record.ts` (fields +
+  `checkRecord`, shared by game and collector), tracker `src/attempts/client.ts` (one record per
+  attempt: begins on `loadScenario`, ends fixed / switched / left; provisional "left" on tab hide,
+  replaced via a per-attempt random token; skipped when < 10 s active and nothing done), hooks in
+  `app.ts` (`startAttempts`, `puzzleInfo`, `beginAttempt`, tools / probes / moves / tests / notes /
+  look / video / tutorial step), ⚙ "Puzzle stats" switch (desktop + phone sheet, RU done), collector
+  `collector/` (core.ts logic, worker.ts entry — a Worker module may export only handlers;
+  schema.sql; wrangler.toml with custom domain stats.deadboard.org, cron 03:17 UTC, observability
+  off, DAILY_CAP 20000; README with deploy steps), `npm run attempts-report` (puzzle health,
+  groups < 10 hidden), `test/attempts.test.ts` (rules, tracker, requests, real SQL on node:sqlite),
+  PRIVACY.md section, Pages workflow passes `vars.ATTEMPTS_URL` as `VITE_ATTEMPTS_URL` (unset =
+  nothing sent). Verified: wrangler dev + local D1 (upsert, 403 other origin, 400 junk), and the
+  built game served as https://deadboard.org in headless Chrome (records on switch / hide, nothing
+  after the switch is off, no page errors). **Waiting on the user:** approve the field list, then
+  commit; deploy = `wrangler login` + README steps + repo variable `ATTEMPTS_URL`.
 - **NEXT SESSION — start here (2026-11-22): workstreams A and B built, NOT committed yet.** The board
   picker is now **Today + Library** (`renderBoardsModal` in `src/ui/app.ts`, styles under
   "Board picker" in `styles.css`). Data in `src/scenarios/catalog.ts`: level estimates 0.0–10.0
