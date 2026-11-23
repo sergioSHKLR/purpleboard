@@ -7,6 +7,7 @@
 //   npm run umami -- stats [--days 7]                     visitors, visits, bounce, time
 //   npm run umami -- events [--days 7]                    event counts
 //   npm run umami -- values "<event>" <property> [--days 7]
+//   npm run umami -- home [--days 7]                      where homepage visits end, per device
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -103,7 +104,20 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     for (const [k, n] of [...(await eventCounts(startAt, endAt))].sort((x, y) => y[1] - x[1])) console.log(`${String(n).padStart(6)}  ${k}`);
   } else if (cmd === 'values' && a && b) {
     for (const [k, n] of [...(await eventValues(a, b, startAt, endAt))].sort((x, y) => y[1] - x[1])) console.log(`${String(n).padStart(6)}  ${k}`);
+  } else if (cmd === 'home') {
+    // the homepage leave report: where visits ended, per device (the "home left" event)
+    for (const device of ['mobile', 'laptop', 'desktop']) {
+      const r = await umami<{ value: string; total: number }[]>('event-data/values', { startAt, endAt, event: 'home left', propertyName: 'exit', device });
+      const total = r.reduce((a, x) => a + x.total, 0);
+      if (!total) continue;
+      console.log(`\n${device}: ${total} homepage visits`);
+      for (const x of r.sort((p, q) => q.total - p.total).slice(0, 12)) console.log(`${String(x.total).padStart(6)}  ${String(Math.round((100 * x.total) / total)).padStart(3)}%  ${x.value}`);
+      for (const prop of ['shown', 'touched', 'teaser', 'via']) {
+        const v = await umami<{ value: string; total: number }[]>('event-data/values', { startAt, endAt, event: 'home left', propertyName: prop, device });
+        console.log(`  ${prop}: ${v.sort((p, q) => q.total - p.total).map((x) => `${x.value} ${x.total}`).join(' · ')}`);
+      }
+    }
   } else {
-    console.log('npm run umami -- stats | events | values "<event>" <property>   [--days N]');
+    console.log('npm run umami -- stats | events | home | values "<event>" <property>   [--days N]');
   }
 }

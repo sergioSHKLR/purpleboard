@@ -38,8 +38,11 @@ new players get stuck, it also records whether the bench's graphics started (and
 phone or a computer; when the bench is slow to start or fails, at which start-up step), how far the first lesson's guide was followed or where it was closed, which
 tool was used first, and whether the first test run on each board passed (a board you imported or made yourself is only
 counted as "custom", never by name). When you leave the homepage, it records roughly how long it was on screen (as a
-range such as "5–15 s"), how far you scrolled (in quarters), whether you went to the bench, another page or another
-site, and whether the 3D board was shown. When you leave the bench within its first minute, it records the same time
+range such as "5–15 s"), how far you scrolled (in quarters) and which part of the page was the furthest you
+saw, whether and roughly when you first touched or scrolled anything, roughly how long the page took to
+show, whether you went to the bench, another page or another site and through which button, whether the 3D
+board or the small example board was shown and whether you pressed its button, and the page language.
+Automated browsers are not counted. When you leave the bench within its first minute, it records the same time
 range and how far you got (loading, the bench, a tool, a test, a fix, the tutorial step). If the bench hits a
 program error, it records the error's type and which tool and built-in board were in use, never the error's text. Umami combines this into totals, so the developer can see roughly how
 many people use DEADBOARD and for how long. You can't be identified, and you aren't followed across
@@ -64,7 +67,8 @@ Cloudflare's privacy policy). Records are kept for 90 days, after which only dai
 remain. They are used only to improve DEADBOARD's puzzles and help, never sold or shared. To turn them
 off: ⚙ Settings → Puzzle stats. Nothing is sent if your browser sends Do Not Track or Global Privacy
 Control. The apps never send these records. Totals per puzzle are public at
-https://deadboard.org/stats.html (any group of fewer than 10 attempts is left out). The code is open
+https://deadboard.org/stats.html (any group of fewer than 10 attempts is left out). The homepage reads those public
+totals to show how many boards players fixed; that request sends nothing about you. The code is open
 source: `src/attempts/` and `collector/`.
 
 **Submitting a mod.** If you press **Submit** on a mod in the Mods window and send it, the mod

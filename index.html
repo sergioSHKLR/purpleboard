@@ -83,7 +83,7 @@
       <div class="lang-toggle" role="group" aria-label="Language" data-t-attr="aria-label">
         <button type="button" data-lang="en" lang="en" title="English">EN</button><button type="button" data-lang="ru" lang="ru" title="Русский">RU</button>
       </div>
-      <a class="btn primary small" href="./app.html"><span class="long" data-t>Open the bench</span><span class="short" data-t>Bench</span></a>
+      <a class="btn primary small" href="./app.html" data-cta="nav"><span class="long" data-t>Open the bench</span><span class="short" data-t>Bench</span></a>
     </header>
 
     <main id="main">
@@ -92,18 +92,36 @@
         <div class="hero-copy">
           <p class="eyebrow" data-t>&gt; board-level repair trainer</p>
           <h1 data-t>Bring dead boards back.</h1>
-          <p class="lede lede-short" data-t>A repair bench in your browser: find the fault on a real board, then fix it.</p>
+          <p class="lede lede-short" data-t>Find the fault on a broken circuit board, then fix it. Your first repair takes two minutes.</p>
           <p class="lede lede-long" data-t>
-            DEADBOARD is a repair bench in your browser. Probe a real open-hardware board with a multimeter,
-            read boot current off the bench supply, scope the switch nodes, find the short with a
-            thermal camera, then fix it with an iron that obeys physics.
+            A repair bench in your browser. Start with a dead flashlight and a multimeter, finish with real
+            open-hardware laptop boards, a scope and a thermal camera. No experience needed.
           </p>
           <div class="cta">
-            <a class="btn primary" href="./app.html" data-t>Open the bench <span aria-hidden="true">→</span></a>
-            <a class="btn ghost" href="./app.html?tutorial=1" data-t>Learn the basics · 5 min</a>
+            <a class="btn primary" href="./app.html" data-cta="hero" data-t>Fix your first board <span aria-hidden="true">→</span></a>
+            <a class="btn ghost" href="./learn.html" data-cta="guide" data-t>Read the repair guide</a>
           </div>
-          <p class="req" data-t>Runs in any recent browser: Chrome, Edge, Safari, Firefox. Nothing to install.</p>
+          <p class="req"><span data-t>Free · no sign-up · runs in your browser · beginners welcome</span><span class="live-stats" data-live-stats hidden></span></p>
         </div>
+
+        <!-- phones: a tiny playable first repair instead of the 3D board (src/home/main.ts) -->
+        <figure class="hero-teaser" data-teaser>
+          <svg viewBox="0 0 320 184" role="img" aria-labelledby="teaser-cap">
+            <rect x="4" y="4" width="312" height="176" rx="10" class="tz-pcb"/>
+            <path d="M70 58 V30 H150 M178 30 H206 M262 30 H290 V96 M290 140 V160 H70 V142" class="tz-trace"/>
+            <g class="tz-cell"><circle cx="70" cy="100" r="40"/><circle cx="70" cy="100" r="33" class="tz-cell-top"/><text x="70" y="104">BT1</text></g>
+            <g class="tz-btn" data-teaser-btn tabindex="0" role="button" aria-label="Push button SW1" data-t-attr="aria-label">
+              <circle cx="164" cy="30" r="24" class="tz-ring"/>
+              <rect x="148" y="14" width="32" height="32" rx="4" class="tz-btn-body"/>
+              <circle cx="164" cy="30" r="9" class="tz-btn-cap"/>
+              <text x="164" y="62">SW1</text>
+            </g>
+            <g class="tz-res"><rect x="206" y="22" width="56" height="16" rx="8"/><path d="M220 22 V38 M230 22 V38 M240 22 V38 M250 22 V38" class="tz-bands"/><text x="234" y="56">R1</text></g>
+            <g class="tz-led"><circle cx="290" cy="118" r="18" class="tz-led-body"/><text x="262" y="122">D1</text></g>
+            <text x="300" y="172" class="tz-amps" data-teaser-amps>— mA</text>
+          </svg>
+          <figcaption id="teaser-cap"><span data-teaser-cap data-t>Press the button. Does the LED light up?</span></figcaption>
+        </figure>
 
         <figure class="hero-shot">
           <div class="frame">
@@ -235,14 +253,14 @@ $ verify
       <!-- final CTA -->
       <section class="final">
         <h2 data-t>There's a dead board on the bench.</h2>
-        <a class="btn primary" href="./app.html" data-t>Open the bench <span aria-hidden="true">→</span></a>
+        <a class="btn primary" href="./app.html" data-cta="final" data-t>Open the bench <span aria-hidden="true">→</span></a>
       </section>
     </main>
 
     <footer class="foot">
       <span class="logo small"><span data-mark></span><span class="wordmark">DEADBOARD</span></span>
       <span class="muted"><span data-t>Board-level repair trainer</span> · <span data-year></span></span>
-      <a href="./app.html" data-t>Open the bench</a>
+      <a href="./app.html" data-cta="footer" data-t>Open the bench</a>
       <a href="./learn.html" data-t>Repair guide</a>
       <a href="./boardview.html" data-t>Boardview viewer</a>
       <a href="./modding.html" data-t>Make a mod</a>
