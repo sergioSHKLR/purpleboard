@@ -324,6 +324,8 @@ const ru: Catalog = {
   "3D drag turns the board (tap: camera moves)": "В 3D перетаскивание вращает плату (нажмите: двигается камера)",
   "Sound on": "Звук вкл.",
   "Sound off": "Звук выкл.",
+  "Next repair": "Следующий ремонт",
+  "Start next repair": "Начать следующий ремонт",
   "Puzzle stats": "Статистика головоломок",
   "Puzzle stats on": "Статистика вкл.",
   "Puzzle stats off": "Статистика выкл.",

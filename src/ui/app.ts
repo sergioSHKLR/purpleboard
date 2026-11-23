@@ -1765,6 +1765,42 @@ export class PcbApp {
     return this.shippedIds.has(sc.id) ? sc.id : sc.generated ? 'generated' : 'custom';
   }
 
+  /**
+   * Help ladder: the solution video waits until the player has really tried (tests run after a
+   * minute of work, or three minutes on the board), or solved it before. The board, the notes and
+   * "How to approach" come first.
+   */
+  private triedEnough(s: Scenario): boolean {
+    if (this.solvedIds.has(s.id)) return true;
+    const a = s === this.activeScenario ? this.rated : null;
+    return !!a && ((a.tests > 0 && a.activeSec >= 60) || a.activeSec >= 180);
+  }
+
+  /**
+   * Right after a fix: the next board, one tap away. The hidden difficulty system picks it (the
+   * same pick as Today in the board picker); the player never sees why.
+   */
+  private nextRepairHtml(): string {
+    const v = this.lastVerify;
+    const fixed = !!this.revealedFlag || (!!v?.allPassed && !v.topologyMismatch && !this.activeScenario.lock && this.activeScenario.objectives.length > 0);
+    if (!fixed) return '';
+    const index = new Map(this.scenarios.map((sc, i) => [sc.id, i]));
+    const solved = new Set(this.solvedIds);
+    solved.add(this.activeScenario.id);
+    const pick = todayPicks(new Set(index.keys()), solved, undefined, this.skill)[0];
+    if (!pick || pick.id === this.activeScenario.id) return '';
+    const i = index.get(pick.id)!, s = this.scenarios[i], n = this.boardNames(s);
+    return `
+      <div class="card next-card">
+        <div class="card-title"><span class="row">${icon('play', 14)}<span>${t('Next repair')}</span></span></div>
+        <button class="next-pick" data-next-board="${i}">
+          ${this.boardThumb(s, { done: false })}
+          <span class="next-body"><span class="next-t">${this.esc(n.name)}</span><span class="muted">${this.esc(n.symptom)}</span></span>
+        </button>
+        <button class="btn primary" data-next-board="${i}">${icon('play', 13)}<span>${t('Start next repair')}</span></button>
+      </div>`;
+  }
+
   /** The board passes every check and is the reference design: it can be broken again. */
   private canGenerate(): boolean {
     const v = this.lastVerify;
@@ -3947,8 +3983,8 @@ export class PcbApp {
         </div>
         <div class="tut-prog"><i style="width:${pct}%"></i></div>
         <div class="tut-body">
-          <div class="tut-title">${this.esc(this.txt(t(step.title)))}</div>
-          <div class="tut-concept">${this.esc(this.txt(t(step.concept)))}</div>
+          <div class="tut-title"><span>${this.esc(this.txt(t(step.title)))}</span><button class="btn sm ghost ${this.tutWhy === `${this.activeScenario.id}:${idx}` ? 'active' : ''}" id="tut-why">${icon('help', 12)}<span>${this.tutWhy === `${this.activeScenario.id}:${idx}` ? t('Hide') : t('Why?')}</span></button></div>
+          ${this.tutWhy === `${this.activeScenario.id}:${idx}` ? `<div class="tut-concept">${this.esc(this.txt(t(step.concept)))}</div>` : ''}
           <div class="tut-goal ${done ? 'done' : ''}">
             <div class="tut-goal-head">
               <span>${done ? t('Step complete') : t('Your turn')}</span>
@@ -3979,12 +4015,12 @@ export class PcbApp {
       </div>
     `;
 
+    this.tutBoxEl.querySelector('#tut-why')?.addEventListener('click', () => {
+      const key = `${this.activeScenario.id}:${idx}`;
+      this.tutWhy = this.tutWhy === key ? '' : key;
+      this.renderTutorial();
+    });
     if (this.mobile) {
-      this.tutBoxEl.querySelector('#tut-why')?.addEventListener('click', () => {
-        const key = `${this.activeScenario.id}:${idx}`;
-        this.tutWhy = this.tutWhy === key ? '' : key;
-        this.renderTutorial();
-      });
       this.tutBoxEl.querySelector('.tut-head')?.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).closest('button')) return;
         this.tutCollapsed = !this.tutCollapsed;
@@ -4132,6 +4168,7 @@ export class PcbApp {
       || (inTutTrack && (TUTORIAL_SCENARIO_IDS.every((id) => this.solvedIds.has(id)) || s.id === TUTORIAL_SCENARIO_IDS[TUTORIAL_SCENARIO_IDS.length - 1]));
 
     this.sideBodyEl.innerHTML = `
+      ${this.nextRepairHtml()}
       <div class="card">
         <div class="card-title lg">
           <span>${this.esc(t(s.meta.title))}</span>
@@ -4158,8 +4195,8 @@ export class PcbApp {
           <div class="walkthrough">
             <span class="walk-title">${t('Walkthrough')}</span>
             <div class="row wrap">
-              <button class="btn sm primary" id="vid-approach">${icon('play', 12)}<span>${t('How to approach')} · ${fmtDur(this.videos[s.id].approach.seconds)}</span></button>
-              <button class="btn sm" id="vid-solution">${t('Show solution')}</button>
+              <button class="btn sm" id="vid-approach">${icon('play', 12)}<span>${t('How to approach')} · ${fmtDur(this.videos[s.id].approach.seconds)}</span></button>
+              ${this.triedEnough(s) ? `<button class="btn sm" id="vid-solution">${t('Show solution')}</button>` : ''}
             </div>
           </div>
         ` : ''}
@@ -4289,6 +4326,9 @@ export class PcbApp {
       if (this.rated) this.rated.notes++;
       this.renderMissionTab();
     });
+    this.sideBodyEl.querySelectorAll<HTMLElement>('[data-next-board]').forEach((b) => b.addEventListener('click', () => {
+      void this.openScenario(Number(b.dataset.nextBoard)).then(() => this.refreshScenarioSelect());
+    }));
     this.sideBodyEl.querySelector('#btn-copy-flag')?.addEventListener('click', async () => {
       if (this.revealedFlag) {
         await navigator.clipboard?.writeText(this.revealedFlag);
