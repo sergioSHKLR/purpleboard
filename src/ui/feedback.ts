@@ -139,7 +139,7 @@ export function mountFeedbackForm(host: HTMLElement, context: () => FeedbackCont
   const updateGh = () => { for (const a of ghLinks) a.href = githubIssueUrl(draft.kind, msg.value, ghDetails()); };
   const refresh = () => {
     host.querySelectorAll<HTMLButtonElement>('.fb-kind button').forEach((b) => b.classList.toggle('on', b.dataset.kind === draft.kind));
-    $('.fb-msg-label')!.textContent = draft.kind === 'idea' ? t('What would make DEADBOARD better?')
+    $('.fb-msg-label')!.textContent = draft.kind === 'idea' ? t('What would make PurpleBoard better?')
       : include.checked && context().snapshot ? t('What went wrong? (optional: your bench is attached)') : t('What went wrong? What did you do just before?');
     msg.placeholder = draft.kind === 'bug'
       ? t("e.g. On Bridge Troll, flipped to the bottom in 3D: the solder blob between D2's legs is not visible.")

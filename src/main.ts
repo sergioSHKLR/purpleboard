@@ -1,4 +1,5 @@
 import '@fontsource-variable/inter';
+import '@fontsource-variable/martian-mono/standard.css';
 import '@fontsource-variable/jetbrains-mono';
 import './ui/styles.css';
 import { initAnalytics } from './analytics';

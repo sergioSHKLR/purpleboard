@@ -2,93 +2,93 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>https://deadboard.org/</loc>
+    <loc>https://sergioshklr.github.io/purpleboard/</loc>
     <lastmod>2026-11-22</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="https://deadboard.org/" />
-    <xhtml:link rel="alternate" hreflang="ru" href="https://deadboard.org/ru.html" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://deadboard.org/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://sergioshklr.github.io/purpleboard/" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://sergioshklr.github.io/purpleboard/ru.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sergioshklr.github.io/purpleboard/" />
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://deadboard.org/ru.html</loc>
+    <loc>https://sergioshklr.github.io/purpleboard/ru.html</loc>
     <lastmod>2026-11-22</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="https://deadboard.org/" />
-    <xhtml:link rel="alternate" hreflang="ru" href="https://deadboard.org/ru.html" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://deadboard.org/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://sergioshklr.github.io/purpleboard/" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://sergioshklr.github.io/purpleboard/ru.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sergioshklr.github.io/purpleboard/" />
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://deadboard.org/app.html</loc>
-    <lastmod>2026-11-22</lastmod>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://deadboard.org/learn.html</loc>
+    <loc>https://sergioshklr.github.io/purpleboard/app.html</loc>
     <lastmod>2026-11-22</lastmod>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://deadboard.org/learn-multimeter.html</loc>
+    <loc>https://sergioshklr.github.io/purpleboard/learn.html</loc>
+    <lastmod>2026-11-22</lastmod>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://sergioshklr.github.io/purpleboard/learn-multimeter.html</loc>
     <lastmod>2026-11-22</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://deadboard.org/learn-shorts.html</loc>
+    <loc>https://sergioshklr.github.io/purpleboard/learn-shorts.html</loc>
     <lastmod>2026-11-22</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://deadboard.org/learn-rails.html</loc>
+    <loc>https://sergioshklr.github.io/purpleboard/learn-rails.html</loc>
     <lastmod>2026-11-22</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://deadboard.org/learn-rework.html</loc>
+    <loc>https://sergioshklr.github.io/purpleboard/learn-rework.html</loc>
     <lastmod>2026-11-22</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://deadboard.org/boardview.html</loc>
+    <loc>https://sergioshklr.github.io/purpleboard/boardview.html</loc>
     <lastmod>2026-11-22</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://deadboard.org/learn-case-studies.html</loc>
+    <loc>https://sergioshklr.github.io/purpleboard/learn-case-studies.html</loc>
     <lastmod>2026-11-22</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://deadboard.org/modding.html</loc>
+    <loc>https://sergioshklr.github.io/purpleboard/modding.html</loc>
     <lastmod>2026-11-22</lastmod>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://deadboard.org/mod-reference.html</loc>
+    <loc>https://sergioshklr.github.io/purpleboard/mod-reference.html</loc>
     <lastmod>2026-11-22</lastmod>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://deadboard.org/code-mods.html</loc>
+    <loc>https://sergioshklr.github.io/purpleboard/code-mods.html</loc>
     <lastmod>2026-11-22</lastmod>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://deadboard.org/mod-safety.html</loc>
+    <loc>https://sergioshklr.github.io/purpleboard/mod-safety.html</loc>
     <lastmod>2026-11-22</lastmod>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://deadboard.org/mods-for-agents.html</loc>
+    <loc>https://sergioshklr.github.io/purpleboard/mods-for-agents.html</loc>
     <lastmod>2026-11-22</lastmod>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://deadboard.org/privacy.html</loc>
+    <loc>https://sergioshklr.github.io/purpleboard/privacy.html</loc>
     <lastmod>2026-11-22</lastmod>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://deadboard.org/stats.html</loc>
+    <loc>https://sergioshklr.github.io/purpleboard/stats.html</loc>
     <lastmod>2026-11-23</lastmod>
     <priority>0.4</priority>
   </url>

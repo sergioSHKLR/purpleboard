@@ -10,20 +10,20 @@ import type { WebGlInfo } from '../render/gpuprobe';
 export function gpuHelp(ua: string, gl: WebGlInfo | null, maxTouchPoints = 0): string {
   // desktop build: the browser is built in, so only the GPU driver can be the problem
   if (/Electron\//.test(ua)) {
-    if (/Linux/.test(ua)) return t('The desktop app renders with WebGPU on Vulkan. Install or update the Vulkan driver for your graphics card (vulkaninfo should list it), then restart DEADBOARD.');
-    return t('The desktop app renders with WebGPU, which needs a graphics card and driver that support DirectX 12 (Windows) or Metal (macOS). Update the graphics driver and restart DEADBOARD.');
+    if (/Linux/.test(ua)) return t('The desktop app renders with WebGPU on Vulkan. Install or update the Vulkan driver for your graphics card (vulkaninfo should list it), then restart PurpleBoard.');
+    return t('The desktop app renders with WebGPU, which needs a graphics card and driver that support DirectX 12 (Windows) or Metal (macOS). Update the graphics driver and restart PurpleBoard.');
   }
-  if (gl) return t('Your browser has WebGL ({renderer}), but WebGL2, which DEADBOARD needs, would not start. Update the browser and the graphics driver, then reload.', { renderer: gl.renderer });
+  if (gl) return t('Your browser has WebGL ({renderer}), but WebGL2, which PurpleBoard needs, would not start. Update the browser and the graphics driver, then reload.', { renderer: gl.renderer });
   const ff = /Firefox\//.test(ua);
   if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && maxTouchPoints > 1)) {
     return t('Safari could not start 3D graphics. Update iOS (Settings → General → Software Update), close some tabs and reload; if it still fails, restart the device.');
   }
   if (/Android/.test(ua)) {
     return ff
-      ? t('Firefox could not start 3D graphics on this phone: open DEADBOARD in Chrome.')
+      ? t('Firefox could not start 3D graphics on this phone: open PurpleBoard in Chrome.')
       : t('Your browser could not start 3D graphics. Update Chrome and «Android System WebView» from the Play Store, restart the phone and try again.');
   }
   if (ff) return t('Firefox is not giving web pages any 3D graphics (neither WebGPU nor WebGL). In Settings → Performance, untick «Use recommended performance settings», tick «Use hardware acceleration when available», and restart Firefox. about:support → Graphics says why WebGL is blocked; updating the graphics driver usually fixes it.');
-  if (/Safari\//.test(ua) && !/Chrome|Chromium|Edg\//.test(ua)) return t('Safari could not start 3D graphics. Update macOS, or open DEADBOARD in Chrome or Firefox.');
+  if (/Safari\//.test(ua) && !/Chrome|Chromium|Edg\//.test(ua)) return t('Safari could not start 3D graphics. Update macOS, or open PurpleBoard in Chrome or Firefox.');
   return t('Your browser is not giving web pages any 3D graphics (neither WebGPU nor WebGL). Turn on «Use graphics acceleration when available» (Chrome / Edge: Settings → System) and restart the browser. If it is on already, open chrome://gpu: if WebGL says «Disabled», your graphics card or driver is on the browser\'s blocklist. Update the driver, or as a last resort enable «Override software rendering list» in chrome://flags.');
 }

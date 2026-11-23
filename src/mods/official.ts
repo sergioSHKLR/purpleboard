@@ -15,7 +15,7 @@ export const OFFICIAL_MODS: readonly OfficialMod[] = [
     id: OFFICIAL_BOARDS,
     name: tk('Official boards'),
     version: '1.0.0',
-    description: tk('The tutorials, repair challenges and open-hardware demo boards that ship with DEADBOARD.'),
+    description: tk('The tutorials, repair challenges and open-hardware demo boards that ship with PurpleBoard.'),
   },
   {
     id: 'official-solvers',
@@ -33,7 +33,7 @@ export const OFFICIAL_MODS: readonly OfficialMod[] = [
     id: 'official-importers',
     name: tk('Official importers'),
     version: '1.0.0',
-    description: tk('Board files the app reads: KiCad layouts (.kicad_pcb), boardviews (.brd, .tvw) and DEADBOARD challenges (.pcbfix.json).'),
+    description: tk('Board files the app reads: KiCad layouts (.kicad_pcb), boardviews (.brd, .tvw) and PurpleBoard challenges (.pcbfix.json).'),
   },
   {
     id: 'official-rules',

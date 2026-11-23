@@ -1,4 +1,4 @@
-# DEADBOARD
+# PurpleBoard
 
 > A board-level repair trainer in the browser: probe, rework and repair simulated circuit boards on
 > a realistic bench (SPICE-based). Anyone can extend it with mods: boards, repair puzzles,
@@ -10,34 +10,34 @@ agents"; it has the exact schemas, the hard rules and a validate-and-fix loop.
 
 ## Mods
 
-- [Making mods: a guide for AI agents](https://deadboard.org/mods-for-agents.md): compact spec, schemas, templates, common errors
-- [Mod reference](https://deadboard.org/mod-reference.md): every mod.json field and item type, addresses of every shipped item
-- [Code mods](https://deadboard.org/code-mods.md): the plug-in API (solvers, importers, panels, events, permissions, sandbox rules) and its type definitions
-- [Make your own boards](https://deadboard.org/modding.md): the guide for people
-- [Are mods safe?](https://deadboard.org/mod-safety.md): what mods can and can't do
+- [Making mods: a guide for AI agents](https://sergioshklr.github.io/purpleboard/mods-for-agents.md): compact spec, schemas, templates, common errors
+- [Mod reference](https://sergioshklr.github.io/purpleboard/mod-reference.md): every mod.json field and item type, addresses of every shipped item
+- [Code mods](https://sergioshklr.github.io/purpleboard/code-mods.md): the plug-in API (solvers, importers, panels, events, permissions, sandbox rules) and its type definitions
+- [Make your own boards](https://sergioshklr.github.io/purpleboard/modding.md): the guide for people
+- [Are mods safe?](https://sergioshklr.github.io/purpleboard/mod-safety.md): what mods can and can't do
 
 ## Examples
 
-- [starter-kit.zip](https://deadboard.org/examples/starter-kit.zip): a KiCad board with BOM and schematic, and a repair challenge
-- [night-light-extras.zip](https://deadboard.org/examples/night-light-extras.zip): a knowledge pack, a puzzle and a patch, no board files
-- [repair-lab.zip](https://deadboard.org/examples/repair-lab.zip): a fault type, a meter, a rule and a puzzle
-- [ideal-dc.zip](https://deadboard.org/examples/ideal-dc.zip): a code mod with a circuit solver
-- [local-coach.zip](https://deadboard.org/examples/local-coach.zip): a code mod with a panel that asks a local language model
-- [board-notes.zip](https://deadboard.org/examples/board-notes.zip): knowledge packs (rails, sources, expected readings) for every shipped board
+- [starter-kit.zip](https://sergioshklr.github.io/purpleboard/examples/starter-kit.zip): a KiCad board with BOM and schematic, and a repair challenge
+- [night-light-extras.zip](https://sergioshklr.github.io/purpleboard/examples/night-light-extras.zip): a knowledge pack, a puzzle and a patch, no board files
+- [repair-lab.zip](https://sergioshklr.github.io/purpleboard/examples/repair-lab.zip): a fault type, a meter, a rule and a puzzle
+- [ideal-dc.zip](https://sergioshklr.github.io/purpleboard/examples/ideal-dc.zip): a code mod with a circuit solver
+- [local-coach.zip](https://sergioshklr.github.io/purpleboard/examples/local-coach.zip): a code mod with a panel that asks a local language model
+- [board-notes.zip](https://sergioshklr.github.io/purpleboard/examples/board-notes.zip): knowledge packs (rails, sources, expected readings) for every shipped board
 
-- [community/index.json](https://deadboard.org/community/index.json): every mod listed in the app's Community tab (file, size, SHA-256, what it adds)
+- [community/index.json](https://sergioshklr.github.io/purpleboard/community/index.json): every mod listed in the app's Community tab (file, size, SHA-256, what it adds)
 
 ## Learn
 
-- [Learn board-level PCB repair](https://deadboard.org/learn.html): written curriculum and interactive labs
-- [How to test a PCB with a multimeter](https://deadboard.org/learn-multimeter.html): voltage, resistance, diode mode, capacitance, Ohm's law
-- [How to find a short circuit on a PCB](https://deadboard.org/learn-shorts.html): voltage injection, thermal imaging, freeze spray, IPA, rosin
-- [Power rails, boot current & oscilloscope](https://deadboard.org/learn-rails.html): boot current, LDO/buck regulators, oscilloscope modes, boardviews
-- [PCB soldering & rework](https://deadboard.org/learn-rework.html): cold joints, solder bridges, lifted pads, flux and preheaters
-- [Online Boardview & KiCad viewer](https://deadboard.org/boardview.html): open .brd, .tvw, .kicad_pcb, BOMs, and schematics locally in the browser
-- [Open-hardware repair case studies](https://deadboard.org/learn-case-studies.html): spoiler-free diagnostic plans for all 7 open-hardware boards
+- [Learn board-level PCB repair](https://sergioshklr.github.io/purpleboard/learn.html): written curriculum and interactive labs
+- [How to test a PCB with a multimeter](https://sergioshklr.github.io/purpleboard/learn-multimeter.html): voltage, resistance, diode mode, capacitance, Ohm's law
+- [How to find a short circuit on a PCB](https://sergioshklr.github.io/purpleboard/learn-shorts.html): voltage injection, thermal imaging, freeze spray, IPA, rosin
+- [Power rails, boot current & oscilloscope](https://sergioshklr.github.io/purpleboard/learn-rails.html): boot current, LDO/buck regulators, oscilloscope modes, boardviews
+- [PCB soldering & rework](https://sergioshklr.github.io/purpleboard/learn-rework.html): cold joints, solder bridges, lifted pads, flux and preheaters
+- [Online Boardview & KiCad viewer](https://sergioshklr.github.io/purpleboard/boardview.html): open .brd, .tvw, .kicad_pcb, BOMs, and schematics locally in the browser
+- [Open-hardware repair case studies](https://sergioshklr.github.io/purpleboard/learn-case-studies.html): spoiler-free diagnostic plans for all 7 open-hardware boards
 
 ## Optional
 
-- [Source code](https://github.com/tholtman1-del/deadboard): Apache-2.0; AGENTS.md there is for agents changing the app itself
-- [The app](https://deadboard.org/app.html)
+- [Source code](https://github.com/sergioSHKLR/purpleboard): Apache-2.0, based on DEADBOARD by tholtman1-del (https://github.com/tholtman1-del/deadboard); AGENTS.md there is for agents changing the app itself
+- [The app](https://sergioshklr.github.io/purpleboard/app.html)

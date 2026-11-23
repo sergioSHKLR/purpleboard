@@ -46,8 +46,10 @@ img { max-width: 100%; height: auto; display: block; }
 .logo { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
 .logo .brand-svg { display: block; }
 .wordmark {
-  font: 700 15px/1 var(--mono);
-  letter-spacing: 0.16em;
+  /* PurpleBoard wordmark: self-hosted Martian Mono, condensed */
+  font: 700 16px/1 'Martian Mono Variable', var(--mono);
+  font-stretch: 75%;
+  letter-spacing: 0.01em;
   display: inline-flex;
   align-items: center;
 }
@@ -456,3 +458,6 @@ figcaption { margin-top: 12px; font: 13px/1.5 var(--mono); color: var(--muted); 
   .hero-copy > .req { order: 6; }
   .cta .btn.ghost { display: none; }
 }
+
+/* attribution to the upstream project (Apache-2.0) */
+.foot .attrib a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }

@@ -1,4 +1,5 @@
-DEADBOARD
+PurpleBoard
+Based on DEADBOARD by tholtman1-del (Apache-2.0): https://github.com/tholtman1-del/deadboard
 Copyright 2026 The DEADBOARD authors
 
 This product is licensed under the Apache License, Version 2.0 (see LICENSE).
@@ -13,7 +14,7 @@ Third-party material distributed with it keeps its own licence:
 - src/io/tvw.ts: the Tebo-ICT (.tvw) record layout follows the reverse-engineered reader in
   eagleview (https://github.com/nitrocaster/eagleview), MIT License, Copyright (c) 2019-2020
   Pavel Kovalenko. Full licence text: licenses/eagleview-MIT.txt.
-- Fonts (JetBrains Mono, Inter) are bundled at build time from npm under the SIL Open Font
+- Fonts (JetBrains Mono, Inter, Martian Mono) are bundled at build time from npm under the SIL Open Font
   License 1.1.
 
 Jetson is a trademark of NVIDIA. MNT Reform is a trademark of MNT Research GmbH. ESP32 is a
@@ -23,3 +24,7 @@ Gamepad mod (Xbox controller support: src/ui/gamepad.ts, src/ui/gamepad-ui.ts, s
 and the gamepad section of src/ui/app.ts), the fork version (vite.config.ts) and the blue-violet
 accent (src/ui/styles.css, src/home/home.css, app.html, public/app.webmanifest) by sergioSHKLR, 2026.
 Modified files are marked; Apache License 2.0. The gamepad outline is an original generic drawing.
+PurpleBoard rename (v0.4.0) by sergioSHKLR, 2026: the PurpleBoard name, wordmark and app icon
+(src/ui/brand-icon.ts, src/ui/logo.ts, public/favicon.svg, public/favicon-32.png, public/icons/,
+docs/brand/purpleboard-icon*.svg) and the site URLs. The icon is an original drawing; the DEADBOARD
+name and mark are not used as this fork's branding.

@@ -15,6 +15,7 @@ const CSS = `
 .gp-cursor .lbl:empty{display:none}
 .gp-panel{position:fixed;z-index:70;background:rgba(18,20,22,.94);color:#e8e8e8;border:1px solid #3a3d41;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.45);font:13px/1.4 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
 .gp-hint{left:12px;bottom:40px;padding:10px 12px;max-width:min(420px,calc(100vw - 24px))}
+.gp-brand{font-family:'Martian Mono Variable',ui-monospace,monospace;font-stretch:75%;font-weight:700;letter-spacing:.01em;text-transform:none;color:#fff}
 .gp-hint h4,.gp-cal h4{margin:0 0 6px;font:700 12px/1.2 system-ui,sans-serif;letter-spacing:.06em;color:#b3a1ff;text-transform:uppercase}
 .gp-hint table{border-collapse:collapse}
 .gp-hint td{padding:2px 8px 2px 0;vertical-align:top}
@@ -76,7 +77,7 @@ export class GamepadOverlay {
 
   /** Rebuilds the help overlay from the current button map. */
   renderHints() {
-    this.hintEl.innerHTML = `<h4>Controller</h4><table>${controlHints(this.mapper.settings).map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>
+    this.hintEl.innerHTML = `<h4><span class="gp-brand">PurpleBoard</span> · Controller</h4><table>${controlHints(this.mapper.settings).map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>
       <div class="gp-foot">Realistic heat: Bench → Rework → Iron 350 °C (or set a default heat mode in Settings → Controller). In instant mode the iron trigger does the classic click.</div>
       <button type="button" data-gp="settings">Controller settings</button><button type="button" data-gp="cal">Calibrate sticks</button><button type="button" data-gp="close">Close</button>`;
   }

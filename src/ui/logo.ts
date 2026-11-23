@@ -1,26 +1,19 @@
-// DEADBOARD mark: a board outline (chamfered corner) whose trace flatlines, then spikes back
-// to life and ends in a via — "bring dead boards back". One source for the header, favicon
-// and brand files; colours come from CSS (currentColor + --brand-signal) unless given.
+// PurpleBoard mark: the app icon (soldering-iron tip on a pad, src/ui/brand-icon.ts) inline, so
+// the header, the homepage and the favicon share one drawing.
 
 import { tk } from '../i18n';
+import { iconSvg } from './brand-icon';
 
-const BOARD = 'M7 4h15l6 6v15a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z';
-const TRACE = 'M4 17h7l2.5-7 3 13 2.5-8h4';
-
-export function markSvg(size = 20, colors: { board?: string; signal?: string; fill?: string } = {}): string {
-  const board = colors.board ?? 'currentColor';
-  const signal = colors.signal ?? 'var(--brand-signal)';
-  const fill = colors.fill ?? 'none';
-  return `<svg class="brand-svg" width="${size}" height="${size}" viewBox="0 0 32 32" fill="none" aria-hidden="true">`
-    + `<path d="${BOARD}" fill="${fill}" stroke="${board}" stroke-width="2" stroke-linejoin="round"/>`
-    + `<path d="${TRACE}" stroke="${signal}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>`
-    + `<circle cx="25" cy="15" r="2.2" fill="${fill === 'none' ? 'var(--bg)' : fill}" stroke="${signal}" stroke-width="2"/>`
-    + '</svg>';
+let markSeq = 0;
+/** The app icon at `size` px. `colors` is kept for older callers; the tile has fixed colours. */
+export function markSvg(size = 20, _colors: { board?: string; signal?: string; fill?: string } = {}): string {
+  return iconSvg({ id: `pbm${++markSeq}`, size }).replace('<svg ', '<svg class="brand-svg" ');
 }
 
 export const BRAND = {
-  name: 'DEADBOARD',
+  name: 'PurpleBoard',
   tagline: 'Bring dead boards back.',
+  upstream: 'https://github.com/tholtman1-del/deadboard',
   descriptor: tk('Board-level repair trainer'),
-  site: 'https://deadboard.org/',
+  site: 'https://sergioshklr.github.io/purpleboard/',
 } as const;

@@ -69,17 +69,17 @@ async function run() {
   const htmlPages = [...inputBlock.matchAll(/:\s*'([^']+\.html)'/g)].map((m) => m[1]);
   assert(htmlPages.length >= 15, `vite HTML entry points (${htmlPages.length})`);
   for (const p of htmlPages) {
-    const loc = p === 'index.html' ? 'https://deadboard.org/' : `https://deadboard.org/${p}`;
+    const loc = p === 'index.html' ? 'https://sergioshklr.github.io/purpleboard/' : `https://sergioshklr.github.io/purpleboard/${p}`;
     assert(sitemap.includes(`<loc>${loc}</loc>`), `public/sitemap.xml is missing ${loc}`);
     if (p === 'ru.html') continue; // generated at build time from index.html
     const html = read(p);
     for (const [label, re] of [
       ['title', /<title>[^<]+<\/title>/],
       ['meta description', /<meta name="description" content="[^"]+" \/>/],
-      ['canonical', /<link rel="canonical" href="https:\/\/deadboard\.org\/[^"]*" \/>/],
+      ['canonical', /<link rel="canonical" href="https:\/\/sergioshklr\.github\.io\/purpleboard\/[^"]*" \/>/],
       ['og:title', /<meta property="og:title" content="[^"]+" \/>/],
       ['og:description', /<meta property="og:description" content="[^"]+" \/>/],
-      ['og:image', /<meta property="og:image" content="https:\/\/deadboard\.org\/[^"]+" \/>/],
+      ['og:image', /<meta property="og:image" content="https:\/\/sergioshklr\.github\.io\/purpleboard\/[^"]+" \/>/],
       ['twitter:card', /<meta name="twitter:card" content="summary_large_image" \/>/],
     ] as const) {
       assert(re.test(html), `${p}: missing ${label}`);

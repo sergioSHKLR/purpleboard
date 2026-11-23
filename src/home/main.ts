@@ -1,6 +1,7 @@
 // DEADBOARD homepage: fonts, brand mark, icons, the power-up log, legacy share links.
 import '@fontsource-variable/inter';
 import '@fontsource-variable/jetbrains-mono';
+import '@fontsource-variable/martian-mono/standard.css';
 import './home.css';
 import { markSvg } from '../ui/logo';
 import { icon } from '../ui/icons';
@@ -77,7 +78,7 @@ async function setLanguage(code?: string) {
   await initI18n(staticRu ? 'ru' : code);
   if (hasTranslatable) {
     translatePage();
-    document.title = lang() === 'en' ? TITLE : t('DEADBOARD — bring dead boards back');
+    document.title = lang() === 'en' ? TITLE : t('PurpleBoard — bring dead boards back');
   }
   for (const b of document.querySelectorAll<HTMLButtonElement>('[data-lang]')) b.setAttribute('aria-pressed', String(b.dataset.lang === (staticRu ? 'ru' : lang())));
   document.documentElement.classList.remove('i18n-wait');

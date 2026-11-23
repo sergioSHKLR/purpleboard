@@ -1,6 +1,10 @@
 <p align="center">
-  <img src="docs/brand/deadboard-lockup.svg" alt="DEADBOARD — bring dead boards back" width="520">
+  <img src="docs/brand/purpleboard-icon.svg" alt="PurpleBoard icon: a soldering-iron tip on a PCB pad" width="112">
 </p>
+
+<h1 align="center">PurpleBoard</h1>
+
+<p align="center">Based on <a href="https://github.com/tholtman1-del/deadboard">DEADBOARD by tholtman1-del</a> (Apache-2.0). This fork adds Xbox controller support for the Navy 2M soldering trainer; see <a href="ROADMAP.md">ROADMAP.md</a>.</p>
 
 <p align="center"><b>Board-level repair trainer.</b> Diagnose and repair simulated circuit boards on a realistic bench, right in the browser.</p>
 
@@ -9,15 +13,15 @@
 </p>
 
 <p align="center">
-  <b><a href="https://deadboard.org/">▶ Try it in your browser</a></b> ·
-  <a href="https://deadboard.org/learn.html">Repair curriculum &amp; guides</a> ·
-  <a href="https://deadboard.org/boardview.html">Boardview &amp; KiCad viewer</a> ·
+  <b><a href="https://sergioshklr.github.io/purpleboard/">▶ Try it in your browser</a></b> ·
+  <a href="https://sergioshklr.github.io/purpleboard/learn.html">Repair curriculum &amp; guides</a> ·
+  <a href="https://sergioshklr.github.io/purpleboard/boardview.html">Boardview &amp; KiCad viewer</a> ·
   <a href="https://github.com/tholtman1-del/deadboard/releases/latest">Watch the 1-minute showcase (MP4)</a>
 </p>
 
 ---
 
-DEADBOARD puts a broken board on your bench and gives you the tools a repair technician uses.
+PurpleBoard puts a broken board on your bench and gives you the tools a repair technician uses.
 You probe, reason, rework and prove the fix. The circuit runs on a SPICE-style simulator, so
 the meter reads what the circuit really does, not a scripted answer.
 
@@ -84,7 +88,7 @@ Without it, the form falls back to a prefilled GitHub issue.
 - [docs/VIDEOS.md](docs/VIDEOS.md): how the walkthrough videos are recorded
 - [docs/BRAND.md](docs/BRAND.md): name, logo, colour, type and voice
 - [docs/SIMULATION_HANDOFF.md](docs/SIMULATION_HANDOFF.md): simulator architecture, models and open items
-- Mods ([on the website](https://deadboard.org/modding.html)): [docs/MODDING.md](docs/MODDING.md) (guide),
+- Mods ([on the website](https://sergioshklr.github.io/purpleboard/modding.html)): [docs/MODDING.md](docs/MODDING.md) (guide),
   [docs/MOD_REFERENCE.md](docs/MOD_REFERENCE.md), [docs/CODE_MODS.md](docs/CODE_MODS.md),
   [docs/MOD_SAFETY.md](docs/MOD_SAFETY.md), [docs/MODS_FOR_AGENTS.md](docs/MODS_FOR_AGENTS.md);
   design and security review: [docs/MOD_PLATFORM.md](docs/MOD_PLATFORM.md)
@@ -92,7 +96,7 @@ Without it, the form falls back to a prefilled GitHub issue.
 
 ## Licence
 
-DEADBOARD is licensed under the [Apache License 2.0](LICENSE). The demo boards in
+PurpleBoard, like the DEADBOARD project it is based on (https://github.com/tholtman1-del/deadboard), is licensed under the [Apache License 2.0](LICENSE). The demo boards in
 `public/demos/` keep the licences of their source designs (CERN-OHL-S-2.0, CERN-OHL-P-2.0 and Apache-2.0); see
 [NOTICE](NOTICE) and [public/demos/NOTICE.txt](public/demos/NOTICE.txt). MNT Reform is a
 trademark of MNT Research GmbH, Jetson a trademark of NVIDIA and ESP32 a trademark of Espressif

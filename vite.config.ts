@@ -86,14 +86,14 @@ function moddingGuide(): Plugin {
     ].join('');
   };
   /** The doc as raw Markdown for agents: absolute links, other docs as .md. */
-  const rawDoc = (file: string) => mapDocLinks(readFileSync(file, 'utf8'), (page) => `https://deadboard.org/${page}.md`);
+  const rawDoc = (file: string) => mapDocLinks(readFileSync(file, 'utf8'), (page) => `https://sergioshklr.github.io/purpleboard/${page}.md`);
   return {
     name: 'modding-guide',
     transformIndexHtml(html, ctx) {
       const page = Object.keys(docPages).find((p) => ctx.filename.endsWith(p));
       if (!page) return html;
       // site-relative links: the download sits next to the page; other docs are pages
-      const src = mapDocLinks(readFileSync(docPages[page].md, 'utf8').replaceAll('https://deadboard.org/', './'), (p) => `./${p}.html`);
+      const src = mapDocLinks(readFileSync(docPages[page].md, 'utf8').replaceAll('https://sergioshklr.github.io/purpleboard/', './'), (p) => `./${p}.html`);
       return html
         .replace(docPages[page].slot, md.parse(src) as string)
         .replace('<!--DOCNAV-->', docNav(page))
@@ -143,18 +143,18 @@ function ruHomePage(): Plugin {
     return typeof v === 'string' ? v : key;
   };
   const renderRuHome = () => {
-    const title = ruText('DEADBOARD — bring dead boards back');
+    const title = ruText('PurpleBoard — bring dead boards back');
     const desc = 'Стенд компонентного ремонта плат в браузере: мультиметр, ЛБП с током старта, осциллограф, тепловизор и пайка на настоящих открытых платах. Тренируйтесь как мастер или решайте задачи на ремонт.';
     const ogDesc = 'Стенд компонентного ремонта плат в браузере. Прозванивайте, измеряйте, подавайте ток, паяйте.';
     let html = readFileSync('index.html', 'utf8')
       .replace('<html lang="en">', '<html lang="ru">')
       .replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`)
       .replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${desc}" />`)
-      .replace('<link rel="canonical" href="https://deadboard.org/" />', '<link rel="canonical" href="https://deadboard.org/ru.html" />')
-      .replace('<meta property="og:url" content="https://deadboard.org/" />', '<meta property="og:url" content="https://deadboard.org/ru.html" />')
+      .replace('<link rel="canonical" href="https://sergioshklr.github.io/purpleboard/" />', '<link rel="canonical" href="https://sergioshklr.github.io/purpleboard/ru.html" />')
+      .replace('<meta property="og:url" content="https://sergioshklr.github.io/purpleboard/" />', '<meta property="og:url" content="https://sergioshklr.github.io/purpleboard/ru.html" />')
       .replace(/<meta property="og:title" content="[^"]*" \/>/, `<meta property="og:title" content="${title}" />`)
       .replace(/<meta property="og:description" content="[^"]*" \/>/, `<meta property="og:description" content="${ogDesc}" />`)
-      .replace(/<meta property="og:image:alt" content="[^"]*" \/>/, '<meta property="og:image:alt" content="Стенд ремонта плат DEADBOARD в браузере: материнская плата MNT Reform 2 в 3D, осциллограф и ЛБП" />')
+      .replace(/<meta property="og:image:alt" content="[^"]*" \/>/, '<meta property="og:image:alt" content="Стенд ремонта плат PurpleBoard в браузере: материнская плата MNT Reform 2 в 3D, осциллограф и ЛБП" />')
       .replace(/<meta name="twitter:title" content="[^"]*" \/>/, `<meta name="twitter:title" content="${title}" />`)
       .replace(/<meta name="twitter:description" content="[^"]*" \/>/, `<meta name="twitter:description" content="${ogDesc}" />`)
       .replace('<a class="logo" href="./"', '<a class="logo" href="./ru.html"')

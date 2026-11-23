@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://deadboard.org/sitemap.xml
+Sitemap: https://sergioshklr.github.io/purpleboard/sitemap.xml

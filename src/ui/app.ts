@@ -525,7 +525,7 @@ export class PcbApp {
   /** init() threw before the bench was up: say so (a reload starts without mods, see bootBegin). */
   startFailed(err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error('DEADBOARD could not start:', err);
+    console.error('PurpleBoard could not start:', err);
     if (this.startDone) return; // the bench is up; the error is in the console and the bug report
     this.startDone = true;
     trackEvent('bench failed', { reason: 'start error', stage: this.startStage, layout: this.mobile ? 'phone' : 'desktop' });
@@ -616,7 +616,7 @@ export class PcbApp {
     this.bindEvents();
     this.started = true;
     bootDone();
-    if (this.autoSafe) this.toast(t("DEADBOARD didn't finish starting last time, so mods are off for this visit. To try again: Mods → Leave safe mode."), 'info');
+    if (this.autoSafe) this.toast(t("PurpleBoard didn't finish starting last time, so mods are off for this visit. To try again: Mods → Leave safe mode."), 'info');
     if (this.showBoards || this.showFeedback) this.renderModal();
     void this.loadVideoIndex();
     if (params.has('automation')) this.exposeAutomation();
@@ -648,7 +648,7 @@ export class PcbApp {
     // a social app's built-in browser: the fix is another browser, so say that first and offer it
     const inApp = app === null ? '' : `
         <div class="card">
-          <div class="card-title lg">${t('Open DEADBOARD in your browser')}</div>
+          <div class="card-title lg">${t('Open PurpleBoard in your browser')}</div>
           <p class="text-2" style="margin:0">${app ? t('You opened this page inside the {app} app. Its built-in browser can\'t start the 3D bench.', { app }) : t('You opened this page inside an app. Its built-in browser can\'t start the 3D bench.')}</p>
           <p class="muted" style="margin:0">${android ? t('Tap «Open in Chrome», or use the app\'s menu (⋮) → «Open in browser».') : t('Use the app\'s menu (⋯ or the share button) → «Open in browser» / «Open in Safari», or copy the link into your browser.')}</p>
           <div class="row wrap">
@@ -766,7 +766,7 @@ export class PcbApp {
 
   private buildDom() {
     const m = this.mobile;
-    document.title = t('DEADBOARD — board-level repair trainer');
+    document.title = t('PurpleBoard — board-level repair trainer');
     if (m) {
       document.body.classList.add('is-mobile');
       this.panelOpen = false;
@@ -5649,7 +5649,7 @@ export class PcbApp {
     }));
     root.querySelector<HTMLInputElement>('#code-mods-on')?.addEventListener('change', (e) => {
       const on = (e.target as HTMLInputElement).checked;
-      if (on && !confirm(t('Code mods run other people\'s programs inside DEADBOARD. They run in a sandbox with no access to the page, your files or the network (unless a mod asks and you allow it), but this protection hasn\'t had an outside security review yet. Turn on code mods?'))) { (e.target as HTMLInputElement).checked = false; return; }
+      if (on && !confirm(t('Code mods run other people\'s programs inside PurpleBoard. They run in a sandbox with no access to the page, your files or the network (unless a mod asks and you allow it), but this protection hasn\'t had an outside security review yet. Turn on code mods?'))) { (e.target as HTMLInputElement).checked = false; return; }
       this.codeModsOn = on;
       try { localStorage.setItem('deadboard_code_mods', on ? '1' : '0'); } catch { /* storage unavailable */ }
       void this.syncCodeMods();
@@ -5871,7 +5871,7 @@ export class PcbApp {
           <div class="mod-head">
             <div>
               <div class="mod-name">${t(om.name)} <span class="muted mono">v${om.version}</span> <span class="badge pass">${t('Official')}</span></div>
-              <div class="muted">${t('Ships with DEADBOARD · always on')} · <span class="mono">${om.id}</span></div>
+              <div class="muted">${t('Ships with PurpleBoard · always on')} · <span class="mono">${om.id}</span></div>
             </div>
           </div>
           <p class="text-2" style="margin:0">${t(om.description)}</p>

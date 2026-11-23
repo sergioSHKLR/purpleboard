@@ -3,55 +3,57 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DEADBOARD — bring dead boards back</title>
+    <title>PurpleBoard — bring dead boards back</title>
     <meta name="description" content="A board-level repair bench in your browser: multimeter, bench supply with boot current, oscilloscope, thermal camera and rework, on real open-hardware boards. Train like a technician, or crack repair challenges." />
     <meta name="theme-color" content="#090c0a" />
-    <link rel="canonical" href="https://deadboard.org/" />
-    <link rel="alternate" hreflang="en" href="https://deadboard.org/" />
-    <link rel="alternate" hreflang="ru" href="https://deadboard.org/ru.html" />
-    <link rel="alternate" hreflang="x-default" href="https://deadboard.org/" />
+    <link rel="canonical" href="https://sergioshklr.github.io/purpleboard/" />
+    <link rel="alternate" hreflang="en" href="https://sergioshklr.github.io/purpleboard/" />
+    <link rel="alternate" hreflang="ru" href="https://sergioshklr.github.io/purpleboard/ru.html" />
+    <link rel="alternate" hreflang="x-default" href="https://sergioshklr.github.io/purpleboard/" />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="DEADBOARD" />
-    <meta property="og:url" content="https://deadboard.org/" />
-    <meta property="og:title" content="DEADBOARD — bring dead boards back" />
+    <meta property="og:site_name" content="PurpleBoard" />
+    <meta property="og:url" content="https://sergioshklr.github.io/purpleboard/" />
+    <meta property="og:title" content="PurpleBoard — bring dead boards back" />
     <meta property="og:description" content="A board-level repair bench in your browser. Probe, scope, inject, reflow." />
-    <meta property="og:image" content="https://deadboard.org/home/bench-1400.jpg" />
+    <meta property="og:image" content="https://sergioshklr.github.io/purpleboard/home/bench-1400.jpg" />
     <meta property="og:image:width" content="1400" />
     <meta property="og:image:height" content="663" />
-    <meta property="og:image:alt" content="DEADBOARD browser PCB repair bench showing the MNT Reform 2 mainboard in 3D with oscilloscope and bench power supply" />
+    <meta property="og:image:alt" content="PurpleBoard browser PCB repair bench showing the MNT Reform 2 mainboard in 3D with oscilloscope and bench power supply" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="DEADBOARD — bring dead boards back" />
+    <meta name="twitter:title" content="PurpleBoard — bring dead boards back" />
     <meta name="twitter:description" content="A board-level repair bench in your browser. Probe, scope, inject, reflow." />
-    <meta name="twitter:image" content="https://deadboard.org/home/bench-1400.jpg" />
+    <meta name="twitter:image" content="https://sergioshklr.github.io/purpleboard/home/bench-1400.jpg" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
+    <link rel="apple-touch-icon" href="./icons/icon-180.png" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@graph": [
           {
             "@type": "WebSite",
-            "name": "DEADBOARD",
-            "url": "https://deadboard.org/",
+            "name": "PurpleBoard",
+            "url": "https://sergioshklr.github.io/purpleboard/",
             "inLanguage": ["en", "ru"]
           },
           {
             "@type": "Organization",
-            "name": "DEADBOARD",
-            "url": "https://deadboard.org/",
-            "logo": "https://deadboard.org/icons/icon-512.png",
-            "sameAs": ["https://github.com/tholtman1-del/deadboard"]
+            "name": "PurpleBoard",
+            "url": "https://sergioshklr.github.io/purpleboard/",
+            "logo": "https://sergioshklr.github.io/purpleboard/icons/icon-512.png",
+            "sameAs": ["https://github.com/sergioSHKLR/purpleboard", "https://github.com/tholtman1-del/deadboard"]
           },
           {
             "@type": "WebApplication",
-            "name": "DEADBOARD",
-            "alternateName": "DEADBOARD — board-level repair trainer",
-            "url": "https://deadboard.org/app.html",
+            "name": "PurpleBoard",
+            "alternateName": "PurpleBoard — board-level repair trainer",
+            "url": "https://sergioshklr.github.io/purpleboard/app.html",
             "applicationCategory": "EducationalApplication",
             "operatingSystem": "Web Browser",
             "browserRequirements": "Requires WebGPU or WebGL2 in a recent browser",
             "isAccessibleForFree": true,
             "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-            "screenshot": "https://deadboard.org/home/bench-1400.jpg",
+            "screenshot": "https://sergioshklr.github.io/purpleboard/home/bench-1400.jpg",
             "description": "A SPICE-simulated board-level PCB repair bench in your browser: multimeter, bench power supply with boot current and voltage injection, oscilloscope, thermal camera, and soldering rework on real open-hardware boards."
           }
         ]
@@ -71,7 +73,7 @@
     <a class="skip" href="#main" data-t>Skip to content</a>
 
     <header class="nav">
-      <a class="logo" href="./" aria-label="DEADBOARD home" data-t-attr="aria-label"><span data-mark></span><span class="wordmark">DEADBOARD</span></a>
+      <a class="logo" href="./" aria-label="PurpleBoard home" data-t-attr="aria-label"><span data-mark></span><span class="wordmark">PurpleBoard</span></a>
       <nav aria-label="Sections" data-t-attr="aria-label">
         <a href="#bench" data-t>Bench</a>
         <a href="#faults" data-t>Faults</a>
@@ -125,8 +127,8 @@
 
         <figure class="hero-shot">
           <div class="frame">
-            <div class="frame-bar"><i></i><i></i><i></i><span>deadboard — bench</span><span class="frame-hint"></span></div>
-            <img data-t-attr="alt" src="./home/bench.jpg" srcset="./home/bench-1400.jpg 1400w, ./home/bench.jpg 2088w" sizes="(max-width: 700px) 100vw, 1160px" width="2088" height="990" fetchpriority="high" decoding="async" alt="The open-hardware MNT Reform 2 laptop mainboard in 3D on the DEADBOARD bench, with the oscilloscope on the 3.3 V converter's switch node and the bench supply reading 16.2 mA at 30 V." />
+            <div class="frame-bar"><i></i><i></i><i></i><span>purpleboard — bench</span><span class="frame-hint"></span></div>
+            <img data-t-attr="alt" src="./home/bench.jpg" srcset="./home/bench-1400.jpg 1400w, ./home/bench.jpg 2088w" sizes="(max-width: 700px) 100vw, 1160px" width="2088" height="990" fetchpriority="high" decoding="async" alt="The open-hardware MNT Reform 2 laptop mainboard in 3D on the PurpleBoard bench, with the oscilloscope on the 3.3 V converter's switch node and the bench supply reading 16.2 mA at 30 V." />
           </div>
           <figcaption data-t>MNT Reform 2 laptop mainboard (open hardware, 530 parts), repaired and running: the 3.3&nbsp;V converter switching on the scope, 16.2&nbsp;mA from 30&nbsp;V on the supply.</figcaption>
         </figure>
@@ -209,7 +211,7 @@ ok    board alive</code></pre>
           <p class="eyebrow" data-t>&gt; real boards</p>
           <h2 data-t>Any board. No per-board scripting.</h2>
           <p class="section-lede" data-t>
-            Import a boardview (.brd, .tvw) or a KiCad layout. DEADBOARD finds the power tree, the
+            Import a boardview (.brd, .tvw) or a KiCad layout. PurpleBoard finds the power tree, the
             regulators and the power states from the netlist and its net names, then simulates
             the whole board with a SPICE engine. Export it as an ngspice netlist whenever you like.
           </p>
@@ -224,7 +226,7 @@ ok    board alive</code></pre>
           <p data-t>
             Values come from the board data, datasheets and design intent. Where none exist, the
             estimate is labelled as an estimate, and synthesized waveforms say so on the scope.
-            Measured a real board? Feed the readings back and DEADBOARD calibrates its model
+            Measured a real board? Feed the readings back and PurpleBoard calibrates its model
             against your bench.
           </p>
         </div>
@@ -258,7 +260,7 @@ $ verify
     </main>
 
     <footer class="foot">
-      <span class="logo small"><span data-mark></span><span class="wordmark">DEADBOARD</span></span>
+      <span class="logo small"><span data-mark></span><span class="wordmark">PurpleBoard</span></span>
       <span class="muted"><span data-t>Board-level repair trainer</span> · <span data-year></span></span>
       <a href="./app.html" data-cta="footer" data-t>Open the bench</a>
       <a href="./learn.html" data-t>Repair guide</a>
@@ -266,6 +268,7 @@ $ verify
       <a href="./modding.html" data-t>Make a mod</a>
       <a href="./app.html?feedback" data-t>Feedback</a>
       <a href="./privacy.html" data-t>Privacy</a>
+      <span class="muted attrib">Based on <a href="https://github.com/tholtman1-del/deadboard">DEADBOARD by tholtman1-del</a> (Apache-2.0)</span>
     </footer>
 
     <script type="module" src="./src/home/main.ts"></script>
