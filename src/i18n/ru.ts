@@ -1350,6 +1350,23 @@ const ru: Catalog = {
   "safety {score}/100": "безопасность {score}/100",
   "Safety buzzer": "Сигнал нарушения",
   "Buzz when a safety rule is broken (the points are taken either way).": "Звуковой сигнал при нарушении техники безопасности (очки снимаются в любом случае).",
+  "Power off before the iron, wick or isopropyl touch the board (−{iron} / −{wick} / −{ipa} pts if not).": "Выключите питание, прежде чем касаться платы паяльником, оплёткой или изопропанолом (иначе −{iron} / −{wick} / −{ipa} очк.).",
+  "High voltage ({v}): keep hands and tools off live copper.": "Высокое напряжение ({v}): не касайтесь руками и инструментом меди под напряжением.",
+  "The {v} supply can drive a short: a bridge or jumper made live burns parts or blows {fuses} (−{n} pts).": "Питание {v} способно дать ток замыкания: перемычка или капля припоя под питанием сожжёт детали или пережжёт {fuses} (−{n} очк.).",
+  "The {v} supply can drive a short: a bridge or jumper made live burns parts (−{n} pts).": "Питание {v} способно дать ток замыкания: перемычка или капля припоя под питанием сожжёт детали (−{n} очк.).",
+  "Large capacitors ({refs}) can stay charged after power-off: discharge them before work.": "Большие конденсаторы ({refs}) могут оставаться заряженными после выключения: разрядите их перед работой.",
+  "Heat each joint only as long as it needs: overheating lifts pads and damages parts (−{n} pts in Realistic rework).": "Грейте каждое соединение не дольше, чем нужно: перегрев отслаивает площадки и портит детали (−{n} очк. в реалистичном ремонте).",
+  "Ceramic capacitors ({refs}) crack from thermal shock: preheat before heating them (−{n} pts).": "Керамические конденсаторы ({refs}) трескаются от теплового удара: сначала прогрейте плату (−{n} очк.).",
+  "Hot air can blow small parts ({refs}) off their pads: heat briefly, then check them.": "Фен может сдуть мелкие детали ({refs}) с площадок: грейте недолго, потом проверьте их.",
+  "Residue on {refs}: scrub with isopropyl only with power off. It is flammable: let it dry before the iron (−{n} pts).": "Налёт на {refs}: отмывайте изопропанолом только при выключенном питании. Он горюч: дайте ему высохнуть до паяльника (−{n} очк.).",
+  "Short brief": "Краткий инструктаж",
+  "Standard brief": "Обычный инструктаж",
+  "Full brief": "Полный инструктаж",
+  "Safety brief": "Инструктаж по технике безопасности",
+  "Acknowledge to start this board.": "Подтвердите, чтобы начать работу с платой.",
+  "I understand, start": "Понятно, начать",
+  "{n} supply input ({volts}): make sure it is off.|{n} supply inputs ({volts}): make sure all of them are off.": { one: "{n} вход питания ({volts}): убедитесь, что он выключен.", few: "{n} входа питания ({volts}): убедитесь, что все они выключены.", many: "{n} входов питания ({volts}): убедитесь, что все они выключены.", other: "{n} входа питания ({volts}): убедитесь, что все они выключены." },
+  "{n} IC is static-sensitive: use a wrist strap and mat (good practice; the sim does not score ESD).|{n} ICs are static-sensitive: use a wrist strap and mat (good practice; the sim does not score ESD).": { one: "{n} микросхема чувствительна к статике: используйте браслет и коврик (хорошая практика; симулятор не оценивает ESD).", few: "{n} микросхемы чувствительны к статике: используйте браслет и коврик (хорошая практика; симулятор не оценивает ESD).", many: "{n} микросхем чувствительны к статике: используйте браслет и коврик (хорошая практика; симулятор не оценивает ESD).", other: "{n} микросхемы чувствительны к статике: используйте браслет и коврик (хорошая практика; симулятор не оценивает ESD)." },
 };
 
 export default ru;

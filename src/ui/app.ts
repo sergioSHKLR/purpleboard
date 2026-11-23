@@ -61,7 +61,7 @@ import { Renderer, type RendererKind, type VizMode } from '../render/renderer';
 import { NoAdapterError, gpuDiagnosis, webGlInfo } from '../render/gpuprobe';
 import { gpuHelp } from './gpuhelp';
 import { setSoundEnabled, sfxBeep, sfxBlow, sfxBuzz, sfxClick, sfxCut, sfxSolder, sfxWin, soundEnabled } from './audio';
-import { SAFETY_LABELS, SafetyLog, isOverheatEvent, liveToolViolation, loadBuzzerOn, saveBuzzerOn, type SafetyKind } from '../safety';
+import { BRIEF_TIER_LABELS, SAFETY_LABELS, SafetyLog, isOverheatEvent, safetyBriefFor, liveToolViolation, loadBuzzerOn, saveBuzzerOn, type SafetyKind } from '../safety';
 import { icon } from './icons';
 import { chromeIntentUrl, inAppBrowser } from './inapp';
 import { LANGUAGES, lang, saveLanguage, t, t as translate, tk } from '../i18n';
@@ -370,6 +370,9 @@ export class PcbApp {
   /** performance.now() until which a new short counts as made by the last live edit. */
   private liveEditUntil = 0;
   private wasShorted = false;
+  /** A board exercise waiting for its safety brief (shown once no other window is open). */
+  private briefPending = false;
+  private briefEl: HTMLElement | null = null;
 
   // Floating window & sidepanel drag state
   private tutPos: V2 = [0, 0];
@@ -1152,6 +1155,10 @@ export class PcbApp {
       gamepadSettings: () => JSON.parse(JSON.stringify(this.gp.settings)),
       gamepadPanelOpen: () => !!this.gpPanel?.isOpen,
       gamepadTestOpen: () => !!this.gpPanel?.test.isOpen,
+      /** Safety brief: open, and its item ids. */
+      briefOpen: () => !!this.briefEl,
+      briefItems: () => Array.from(this.briefEl?.querySelectorAll<HTMLElement>('[data-item]') ?? []).map((li) => li.dataset.item),
+      safetyScore: () => this.safety.score,
       cameraState: () => ({ tx: this.camera.tx, ty: this.camera.ty, dist: this.camera.dist, orthoHalfH: this.camera.orthoHalfH, yaw: this.camera.yaw, pitch: this.camera.pitch }),
       gamepad: () => ({ index: this.gpIndex, used: this.gpUsed, cursor: this.gpCursor, world: this.cursorWorld, hovered: this.hovered ? { kind: this.hovered.kind, ref: 'comp' in this.hovered ? this.hovered.comp.ref : null } : null, heating: !!this.gpHeat?.src, fine: this.gp.fine }),
       /** Board point (mm) → page pixel (CSS px), on the given side's copper surface. */
@@ -1947,6 +1954,8 @@ export class PcbApp {
     this.safety.reset();
     this.liveEditUntil = 0;
     this.wasShorted = false;
+    this.closeBrief();
+    this.briefPending = true; // mandatory safety brief before every board exercise
     this.hintsShown = 0;
     this.selectedNet = -1;
     this.selectedCompId = null;
@@ -3300,6 +3309,11 @@ export class PcbApp {
   }
 
   private onKeyDown(e: KeyboardEvent) {
+    if (this.briefEl) {
+      // the safety brief is modal and mandatory: keys stay in it (Enter / Space press its button)
+      if (e.key === 'Tab' || e.key === 'Escape') { e.preventDefault(); this.briefEl.querySelector<HTMLElement>('#sb-ack')?.focus(); }
+      return;
+    }
     if (e.key === 'Escape' && this.showBoards && (this.bpMenu || this.bpFilters || this.bpSel)) {
       // the picker's menu, filters or details close first, then the picker
       if (this.bpMenu) this.bpMenu = false; else if (this.bpFilters) this.bpFilters = false; else this.bpSel = null;
@@ -6298,6 +6312,7 @@ export class PcbApp {
       }
       if (!this.powerOn && !this.boot.history.length) { this.psuClock += dt; if (this.psuClock >= 0.1) { this.psuClock = 0; this.renderScope(); } }
     }
+    if (this.briefPending && !this.briefEl && this.started && !this.gpModalOpen()) this.openBrief();
     this.pollGamepad(dt);
     this.camera.tick(dt);
     const tutSteps = this.tutorialOpen ? getTutorialSteps(this.activeScenario.id) : null;
@@ -6436,11 +6451,11 @@ export class PcbApp {
     return hapticPulse(act, vib, strong, weak, ms);
   }
 
-  private gpModalOpen(): boolean { return this.showBoards || this.showHelp || this.showFeedback || this.showMods; }
+  private gpModalOpen(): boolean { return this.showBoards || this.showHelp || this.showFeedback || this.showMods || !!this.briefEl; }
 
   /** Menus: D-pad moves focus through the dialog's controls, A presses, B / Menu close. */
   private gpModalNav(f: PadFrame) {
-    const root = this.modalRootEl;
+    const root = this.briefEl ?? this.modalRootEl;
     const items = Array.from(root.querySelectorAll<HTMLElement>('button, a[href], input, select, [tabindex]:not([tabindex="-1"])'))
       .filter((el) => !(el as HTMLButtonElement).disabled && el.offsetParent !== null);
     const at = items.indexOf(document.activeElement as HTMLElement);
@@ -6646,6 +6661,48 @@ export class PcbApp {
     if (toast) this.toast(t('Safety violation: {what} (−{n} pts)', { what: t(SAFETY_LABELS[kind]), n: v.points }), 'danger');
     if (this.activeTab === 'mission') this.renderUI();
     return v.points;
+  }
+
+  /**
+   * The safety brief: a modal the player acknowledges before the board can be worked on (mouse,
+   * touch, keyboard or the pad's A). Items come from the board (safetyBriefFor), not per-board text.
+   */
+  private openBrief() {
+    this.briefPending = false;
+    const brief = safetyBriefFor(this.board);
+    const el = document.createElement('div');
+    el.className = 'modal-backdrop safety-brief-bg';
+    el.innerHTML = `
+      <div class="modal safety-brief" role="dialog" aria-modal="true" aria-labelledby="sb-title" aria-describedby="sb-list">
+        <div class="modal-head">
+          <h2 id="sb-title">${t('Safety brief')} · ${this.esc(t(this.activeScenario.meta.title))}</h2>
+          <span class="badge ${brief.tier === 'short' ? 'info' : 'warn'}">${t(BRIEF_TIER_LABELS[brief.tier])}</span>
+        </div>
+        <ol class="sb-list" id="sb-list">${brief.items.map((i) => `<li class="${i.scored ? 'scored' : ''}" data-item="${i.id}">${this.esc(i.text)}</li>`).join('')}</ol>
+        <div class="sb-foot">
+          <span class="muted">${t('Acknowledge to start this board.')}</span>
+          <button class="btn primary" id="sb-ack">${t('I understand, start')}</button>
+        </div>
+      </div>`;
+    // the backdrop does not dismiss it; focus stays on the one button (focus trap)
+    el.addEventListener('pointerdown', (e) => { if (!(e.target as HTMLElement).closest('#sb-ack')) { e.preventDefault(); btn.focus(); } });
+    el.addEventListener('focusout', () => setTimeout(() => { if (this.briefEl === el && !el.contains(document.activeElement)) btn.focus(); }, 0));
+    this.mount.appendChild(el);
+    this.briefEl = el;
+    const btn = el.querySelector<HTMLButtonElement>('#sb-ack')!;
+    btn.addEventListener('click', () => this.closeBrief());
+    this.gpEndHeat();
+    this.gpOverlay?.toggleHint(false);
+    this.gpOverlay?.hideCursor();
+    btn.focus();
+  }
+
+  private closeBrief() {
+    if (!this.briefEl) return;
+    this.briefEl.remove();
+    this.briefEl = null;
+    this.gpSuppress = true; // the A that acknowledged must not also act on the board
+    this.canvas?.focus?.();
   }
 
   /** Mission tab: the board's safety score and what cost points. */

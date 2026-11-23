@@ -1,6 +1,8 @@
 // Safety violations (PurpleBoard): debounce once per contact, points and score, tool rules,
 // overheat events, buzzer setting, and the bench wiring (one check shared by mouse, touch and pad).
-import { SAFETY_DEBOUNCE_S, SAFETY_LABELS, SAFETY_ORDER, SAFETY_POINTS, SafetyLog, isOverheatEvent, liveToolViolation, loadBuzzerOn, saveBuzzerOn } from '../src/safety';
+import { BRIEF_LIMITS, BRIEF_TIER_LABELS, SAFETY_DEBOUNCE_S, SAFETY_LABELS, SAFETY_ORDER, SAFETY_POINTS, SafetyLog, isOverheatEvent, liveToolViolation, loadBuzzerOn, safetyBriefFor, saveBuzzerOn } from '../src/safety';
+import { builtinScenarios } from '../src/scenarios/builtin';
+import type { Board } from '../src/types';
 
 function assert(c: unknown, m: string): asserts c { if (!c) throw new Error(m); }
 
@@ -60,4 +62,58 @@ for (const k of SAFETY_ORDER) assert(SAFETY_POINTS[k] > 0 && SAFETY_LABELS[k].le
   assert(body('onReworkEvents').includes("this.safetyViolation('overheat'"), 'overheat damage is checked');
 }
 
-console.log('safety: ok (once per contact, points + score, live-board tools, overheat, buzzer setting, bench wiring)');
+// ---- safety brief: derived from the board, tiered ----
+{
+  interface Fs { readFileSync(p: string, enc: 'utf8'): string }
+  const fsName = 'node:fs';
+  const { readFileSync } = (await import(/* @vite-ignore */ fsName)) as Fs;
+  const all = await builtinScenarios();
+  const board = (id: string) => { const s = all.find((x) => x.id === id); assert(s, `${id} missing`); return s.board; };
+  const demo = (file: string) => (JSON.parse(readFileSync(new URL(`../public/demos/${file}`, import.meta.url).pathname, 'utf8')) as { board: Board }).board;
+  const ids = (b: Board) => safetyBriefFor(b).items.map((i) => i.id);
+
+  // low hazard: a 3 V coin cell, four parts
+  const fl = safetyBriefFor(board('builtin-first-light'));
+  assert(fl.tier === 'short' && fl.items.length === 2, `First Light: short brief of 2 (got ${fl.items.length})`);
+  assert(ids(board('builtin-first-light')).join() === 'power-off,heat', 'First Light: power off + heat only');
+  assert(fl.items[0].text.includes(`−${SAFETY_POINTS['live-iron']}`) && fl.items[0].text.includes(`−${SAFETY_POINTS['live-ipa']}`), 'penalties come from SAFETY_POINTS');
+  // a 5 V board with a fuse: the short item names the fuse
+  const gs = safetyBriefFor(board('builtin-ghost-short'));
+  assert(gs.tier === 'standard' && gs.items.some((i) => i.id === 'short' && /F\d/.test(i.text)), 'Ghost Short: standard, short risk names the fuse');
+  // high hazard: two supplies, big caps, ceramics, tiny parts, residue, ICs
+  const idsReform = ids(demo('demo-mnt-reform2-mb30.pcbfix.json'));
+  const reform = safetyBriefFor(demo('demo-mnt-reform2-mb30.pcbfix.json'));
+  assert(reform.tier === 'full' && reform.items.length > gs.items.length && gs.items.length > fl.items.length, 'more hazards → more items');
+  for (const k of ['power-off', 'supplies', 'short', 'charge', 'heat', 'mlcc', 'hot-air', 'ipa', 'esd']) assert(idsReform.includes(k as never), `MNT Reform: ${k}`);
+  assert(reform.items.find((i) => i.id === 'esd')!.scored === false, 'ESD is advice only (the sim has no ESD)');
+  // nothing invented: no residue → no IPA item, no ICs → no ESD item, nothing above 60 V → no high-voltage item
+  for (const b of all.map((s) => s.board)) {
+    const i = ids(b);
+    assert(i.includes('ipa') === b.components.some((c) => c.state.residue), 'IPA item only with residue');
+    assert(i.includes('esd') === b.components.some((c) => c.kind === 'ic' && c.state.populated !== false), 'ESD item only with ICs');
+    assert(!i.includes('high-voltage'), 'no built-in board is high voltage');
+  }
+  // rules on a modified board: high voltage, and an unpowered board has no power-off item
+  const hv: Board = structuredClone(board('builtin-first-light'));
+  hv.components.find((c) => c.kind === 'battery')!.value = BRIEF_LIMITS.highVolts + 60;
+  assert(ids(hv).includes('high-voltage') && ids(hv).includes('short'), 'above 60 V: high voltage + short');
+  const dead: Board = structuredClone(board('builtin-first-light'));
+  dead.components = dead.components.filter((c) => c.kind !== 'battery');
+  assert(!ids(dead).includes('power-off') && ids(dead).includes('heat'), 'no supply: no power-off item, heat still applies');
+  for (const tier of ['short', 'standard', 'full'] as const) assert(BRIEF_TIER_LABELS[tier], `${tier} label`);
+}
+
+// ---- brief wiring: every board load asks for it; it blocks keys and the pad until acknowledged ----
+{
+  interface Fs { readFileSync(p: string, enc: 'utf8'): string }
+  const fsName = 'node:fs';
+  const { readFileSync } = (await import(/* @vite-ignore */ fsName)) as Fs;
+  const src = readFileSync(new URL('../src/ui/app.ts', import.meta.url).pathname, 'utf8');
+  const body = (name: string) => { const i = src.indexOf(`private ${name}(`); assert(i >= 0, `${name} not found`); return src.slice(i, src.indexOf('\n  }\n', i)); };
+  assert(body('loadScenario').includes('this.briefPending = true'), 'every board load asks for the brief');
+  assert(body('onKeyDown').startsWith('private onKeyDown(e: KeyboardEvent) {\n    if (this.briefEl) {'), 'keys stay in the brief');
+  assert(src.includes('|| !!this.briefEl; }'), 'the pad treats the brief as a modal (A presses its button)');
+  assert(body('openBrief').includes('safetyBriefFor(this.board)'), 'the brief comes from the board');
+}
+
+console.log('safety: ok (once per contact, points + score, live-board tools, overheat, buzzer setting, bench wiring, tiered safety brief)');
