@@ -1,3 +1,4 @@
+// Modified by sergioSHKLR (2026): Xbox gamepad support (search "gamepad mod").
 import type { Board, Component, LedColor, Objective, Scenario, Side, V2 } from '../types';
 import { clearFault, injectFault, listFaults, rng, setFaultRangeOverlay, severityHint, type FaultClass } from '../faults';
 import { buildFaultRegistry, faultTypesFor, injectFaultType, type FaultRegistry } from '../mods/faulttypes';
@@ -45,7 +46,9 @@ import { Builder } from '../scenarios/builder';
 import { dailyKey, dailyPlan, dailyLevel, makeDaily, msToNextDaily } from '../scenarios/daily';
 import { BOARD_INFO, LEVEL_BANDS, PATH_ORDER, SKILLS, SKILL_GROUPS, boardLevel, levelFromPlayers, shownLevel, learnedSkills, levelBand, newSkillsFor, skillLabel, splitTitle, todayPicks, type BandId, type PickReason, type SkillKey } from '../scenarios/catalog';
 import { BOTH_GAP, Camera } from '../render/camera';
-import { EMISSIVITY, ThermalModel, apparentTemp } from '../thermal';
+import { EMISSIVITY, ThermalModel, apparentTemp, type HeatSource } from '../thermal';
+import { GamepadMapper, hapticPulse, loadGamepadSettings, saveGamepadSettings, type PadFrame } from './gamepad';
+import { GamepadOverlay } from './gamepad-ui';
 import { FlexField, settleIntermittents, updateIntermittents } from '../intermittent';
 import { BootController, requiredRails, type RequiredRail } from '../boot';
 import { cleanWithIpa, residueNear } from '../residue';
@@ -347,6 +350,15 @@ export class PcbApp {
   private downPx = 0;
   private downPy = 0;
   private spaceHeld = false;
+  // ---- gamepad mod (sergioSHKLR): one controller cursor over the board ----
+  private gp = new GamepadMapper(loadGamepadSettings(PcbApp.storage()));
+  private gpIndex: number | null = null;
+  private gpOverlay: GamepadOverlay | null = null;
+  /** Controller cursor in CSS px relative to the canvas; null until the pad is first used. */
+  private gpCursor: [number, number] | null = null;
+  private gpUsed = false;
+  private gpHudClock = 0;
+  private gpHeat: { src: HeatSource | null; smoke: number; pulse: number } | null = null;
 
   // Floating window & sidepanel drag state
   private tutPos: V2 = [0, 0];
@@ -604,6 +616,7 @@ export class PcbApp {
     if (this.showBoards || this.showFeedback) this.renderModal();
     void this.loadVideoIndex();
     if (params.has('automation')) this.exposeAutomation();
+    this.initGamepad();
     this.rafId = requestAnimationFrame(this.loop);
   }
 
@@ -1116,6 +1129,11 @@ export class PcbApp {
       /** The bug-report snapshot code, without sending anything. */
       snapshot: () => this.benchSnapshot(),
       side: () => this.camera.side,
+      /** Gamepad mod: hottest temperature of a part (°C), the active tool, live iron sources, pad cursor. */
+      partTemp: (ref: string) => { const c = find(ref); return c && this.thermal ? this.thermal.partTemp(c.id) ?? null : null; },
+      tool: () => this.activeTool,
+      ironSources: () => (this.thermal?.sources ?? []).filter((x) => x.kind === 'iron').map((x) => ({ ...x })),
+      gamepad: () => ({ index: this.gpIndex, used: this.gpUsed, cursor: this.gpCursor, world: this.cursorWorld, hovered: this.hovered ? { kind: this.hovered.kind, ref: 'comp' in this.hovered ? this.hovered.comp.ref : null } : null, heating: !!this.gpHeat?.src, fine: this.gp.fine }),
       /** Board point (mm) → page pixel (CSS px), on the given side's copper surface. */
       toScreen: (x: number, y: number, side: Side = this.camera.side) => {
         const r = this.canvas.getBoundingClientRect();
@@ -2085,6 +2103,7 @@ export class PcbApp {
       const bad = e.kind === 'pad-lifted' || e.kind === 'part-overheated' || e.kind === 'mlcc-cracked' || e.kind === 'part-displaced' || e.kind === 'dull-joint';
       this.toast(e.detail, bad ? 'danger' : 'success');
       if (e.kind === 'reflowed') sfxSolder();
+      if (this.gpUsed) this.gpRumble(bad ? 1 : 0.6, bad ? 0.6 : 0.3, bad ? 320 : 110);
     }
     if (changed) { this.recompute(true); this.renderUI(); }
   }
@@ -3154,6 +3173,7 @@ export class PcbApp {
     }
 
     if (e.target !== this.canvas) return;
+    if (this.gpUsed && e.pointerType === 'mouse' && !this.gpHeat) { this.gpUsed = false; this.gpOverlay?.hideCursor(); }
     const { sx, sy, w, h } = this.canvasPt(e);
     const resolved = this.resolveBoardPt(this.camera.screenToBoard(sx, sy, w, h, this.board.thickness));
     this.cursorWorld = resolved?.pt ?? null;
@@ -6228,6 +6248,7 @@ export class PcbApp {
       }
       if (!this.powerOn && !this.boot.history.length) { this.psuClock += dt; if (this.psuClock >= 0.1) { this.psuClock = 0; this.renderScope(); } }
     }
+    this.pollGamepad(dt);
     this.camera.tick(dt);
     const tutSteps = this.tutorialOpen ? getTutorialSteps(this.activeScenario.id) : null;
     const tutStep = tutSteps ? tutSteps[Math.max(0, Math.min(tutSteps.length - 1, this.tutorialStep))] : null;
@@ -6256,6 +6277,226 @@ export class PcbApp {
     });
     this.rafId = requestAnimationFrame(this.loop);
   };
+
+  // ======================= gamepad mod (sergioSHKLR) =======================
+  private static storage(): Storage | null { try { return window.localStorage; } catch { return null; } }
+
+  private initGamepad() {
+    if (typeof navigator === 'undefined' || typeof navigator.getGamepads !== 'function') return;
+    window.addEventListener('gamepadconnected', (e) => {
+      const g = (e as GamepadEvent).gamepad;
+      if (this.gpIndex === null) this.gpIndex = g.index;
+      const name = g.id.replace(/\s*\(.*$/, '').slice(0, 40) || 'Controller';
+      this.toast(`${name} connected. Press View for the controls, hold View to calibrate.`, 'success');
+      this.ensureGpOverlay().toggleHint(true, 9000);
+    });
+    window.addEventListener('gamepaddisconnected', (e) => {
+      const g = (e as GamepadEvent).gamepad;
+      if (this.gpIndex !== g.index) return;
+      this.gpEndHeat();
+      this.gp.reset();
+      this.gpIndex = null;
+      this.gpUsed = false;
+      this.gpOverlay?.hideCursor();
+      this.toast('Controller disconnected.', 'warn');
+    });
+  }
+
+  private ensureGpOverlay(): GamepadOverlay {
+    if (!this.gpOverlay) {
+      this.gpOverlay = new GamepadOverlay(this.gp, {
+        save: () => saveGamepadSettings(PcbApp.storage(), this.gp.settings),
+        rumbleTest: () => this.gpRumble(0.8, 0.5, 250),
+      });
+    }
+    return this.gpOverlay;
+  }
+
+  private gpPad(): Gamepad | null {
+    let pads: (Gamepad | null)[] = [];
+    try { pads = Array.from(navigator.getGamepads?.() ?? []); } catch { return null; }
+    const cur = this.gpIndex !== null ? pads[this.gpIndex] : null;
+    if (cur && cur.connected !== false) return cur;
+    const any = pads.find((p) => p && p.connected !== false) ?? null;
+    this.gpIndex = any ? any.index : null;
+    return any;
+  }
+
+  /** One haptic pulse on the pad (or the device on Android); returns the channel used. */
+  private gpRumble(strong: number, weak: number, ms: number): string {
+    const p = this.gpPad();
+    const act = (p as (Gamepad & { vibrationActuator?: unknown }) | null)?.vibrationActuator as Parameters<typeof hapticPulse>[0];
+    const vib = typeof navigator.vibrate === 'function' ? (n: number) => navigator.vibrate(n) : undefined;
+    return hapticPulse(act, vib, strong, weak, ms);
+  }
+
+  private gpModalOpen(): boolean { return this.showBoards || this.showHelp || this.showFeedback || this.showMods; }
+
+  /** Menus: D-pad moves focus through the dialog's controls, A presses, B / Menu close. */
+  private gpModalNav(f: PadFrame) {
+    const root = this.modalRootEl;
+    const items = Array.from(root.querySelectorAll<HTMLElement>('button, a[href], input, select, [tabindex]:not([tabindex="-1"])'))
+      .filter((el) => !(el as HTMLButtonElement).disabled && el.offsetParent !== null);
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    const move = (d: number) => { if (!items.length) return; const n = at < 0 ? (d > 0 ? 0 : items.length - 1) : (at + d + items.length) % items.length; items[n].focus(); items[n].scrollIntoView({ block: 'nearest' }); };
+    for (const a of f.actions) {
+      if (a === 'down' || a === 'right') move(1);
+      else if (a === 'up' || a === 'left') move(-1);
+      else if (a === 'act') { if (at >= 0) items[at].click(); else move(1); }
+      else if (a === 'cancel' || a === 'menu') { this.onKeyDown(new KeyboardEvent('keydown', { key: 'Escape' })); return; }
+      else if (a === 'help') this.ensureGpOverlay().toggleHint();
+    }
+  }
+
+  private gpCycleTool(dir: number) {
+    const btns = Array.from(this.mount.querySelectorAll<HTMLButtonElement>('.tool-btn[data-tool]')).filter((b) => !b.disabled && b.offsetParent !== null);
+    const ids = [...new Set(btns.map((b) => b.dataset.tool as ToolId))];
+    if (!ids.length) return;
+    const i = ids.indexOf(this.activeTool);
+    const next = ids[(i + dir + ids.length) % ids.length];
+    this.setTool(next);
+    const tool = TOOLS.find((x) => x.id === next);
+    this.gpOverlay?.flash(tool ? translate(tool.lbl) : next);
+  }
+
+  /** Poll the controller once per frame and drive the bench. */
+  private pollGamepad(dt: number) {
+    if (typeof navigator === 'undefined' || typeof navigator.getGamepads !== 'function') return;
+    const p = this.gpPad();
+    if (!p) { if (this.gpHeat) this.gpEndHeat(); return; }
+    const f = this.gp.update(p, dt);
+    if (!this.gpUsed && !f.active) return;
+    const ov = this.ensureGpOverlay();
+    if (ov.calOpen) { ov.calFrame(p, f, dt); return; }
+    if (!this.gpUsed) { this.gpUsed = true; this.toast('Controller active. Press View for the controls.', 'info'); }
+    if (this.gpModalOpen()) { this.gpEndHeat(); ov.hideCursor(); this.gpModalNav(f); return; }
+
+    const r = this.canvas.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return;
+    if (!this.gpCursor) this.gpCursor = [r.width / 2, r.height / 2];
+    const c = this.gpCursor;
+    c[0] = Math.min(r.width - 1, Math.max(0, c[0] + f.cursor[0]));
+    c[1] = Math.min(r.height - 1, Math.max(0, c[1] + f.cursor[1]));
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const W = Math.max(1, r.width * dpr), H = Math.max(1, r.height * dpr);
+    // right stick and D-pad move the view
+    let panX = f.pan[0], panY = f.pan[1];
+    if (f.held.left) panX += 500 * dt;
+    if (f.held.right) panX -= 500 * dt;
+    if (panX || panY) this.camera.panScreen(panX, panY, Math.max(1, this.canvas.clientHeight));
+    if (f.held.up !== f.held.down) this.camera.zoomAt(Math.pow(f.held.up ? 0.3 : 3.3, dt), c[0] * dpr, c[1] * dpr, W, H, this.board.thickness);
+
+    const resolved = this.resolveBoardPt(this.camera.screenToBoard(c[0] * dpr, c[1] * dpr, W, H, this.board.thickness));
+    const prevHover = this.hovered;
+    this.cursorWorld = resolved?.pt ?? null;
+    this.cursorSide = resolved?.side ?? this.camera.side;
+    this.hovered = resolved ? pickAt(this.board, resolved.pt, resolved.side, this.vizMode === 'xray') : null;
+    this.gpHudClock += dt;
+    if (this.gpHudClock > 0.1 || prevHover?.kind !== this.hovered?.kind) { this.gpHudClock = 0; this.renderTopHud(); }
+
+    for (const a of f.actions) {
+      if (a === 'help') ov.toggleHint();
+      else if (a === 'calibrate') { ov.toggleHint(false); this.gpEndHeat(); ov.openCalibration(); return; }
+      else if (a === 'menu') { this.gpEndHeat(); this.openBoardCatalog(); return; }
+      else if (a === 'toolPrev') this.gpCycleTool(-1);
+      else if (a === 'toolNext') this.gpCycleTool(1);
+      else if (a === 'flip') this.flipSide();
+      else if (a === 'toggleFine') ov.flash(f.fine ? 'FINE' : 'COARSE');
+      else if (a === 'cancel') this.gpCancel();
+      else if (a === 'act' && resolved) this.applyToolAt(resolved.pt, resolved.side);
+      else if (a === 'feed' && resolved) this.gpFeed(resolved.pt, resolved.side);
+    }
+    this.gpHeatFrame(f, resolved, dt);
+    ov.showCursor(r.left + c[0], r.top + c[1], !!this.gpHeat?.src, f.fine);
+  }
+
+  private gpCancel() {
+    if (this.gpHeat) { this.gpEndHeat(); return; }
+    if (this.gpOverlay?.hintVisible) { this.gpOverlay.toggleHint(false); return; }
+    if (this.activeTool === 'dmm' && (this.probeRed || this.probeBlack)) { this.clearProbes(); return; }
+    if (this.jumperStart) { this.jumperStart = null; return; }
+    this.selectedCompId = null;
+    this.selectedNet = -1;
+    this.renderUI();
+  }
+
+  /**
+   * RT held with the iron: tip contact for as long as the trigger is pulled (replaces the fixed
+   * 1.5 s click). Trigger depth scales tip-to-joint conductance from 35 % to 100 % of the bench's
+   * wetted / dry values (an estimate of contact pressure). Instant (puzzle) rework also does the
+   * classic one-click action when contact starts.
+   */
+  private gpHeatFrame(f: PadFrame, at: { pt: V2; side: Side } | null, dt: number) {
+    const starting = f.actions.includes('heatStart');
+    if (this.gpHeat && (f.actions.includes('heatEnd') || this.activeTool !== 'iron' || !at || f.heat <= 0)) { this.gpEndHeat(); return; }
+    if (!this.gpHeat) {
+      if (!starting || this.activeTool !== 'iron' || !at) return;
+      if (!this.thermal) this.updateThermalPower();
+      if (this.reworkMode.realistic) this.pushUndo(); else this.applyToolAt(at.pt, at.side);
+      this.gpHeat = { src: null, smoke: 0, pulse: 0 };
+      this.gpRumble(0, 0.35, 70);
+    }
+    const th = this.thermal;
+    const h = this.gpHeat;
+    if (!th || !h || !at) return;
+    const hit = pickAt(this.board, at.pt, at.side, this.vizMode === 'xray');
+    if (hit?.kind === 'pad' && hit.comp.state.populated) {
+      const g = (this.reworkMode.flux ? IRON_G.flux : IRON_G.dry) * (0.35 + 0.65 * f.heat);
+      const s = h.src;
+      if (s && s.kind === 'iron' && s.partId === hit.comp.id && th.sources.includes(s)) {
+        s.x = hit.pos[0]; s.y = hit.pos[1]; s.g = g; s.temp = this.reworkMode.ironTemp; s.until = th.time + 0.25;
+      } else {
+        if (s) s.until = 0;
+        if (this.reworkMode.realistic && this.reworkMode.flux) this.rework?.applyFlux(hit.pos[0], hit.pos[1], 2);
+        const src: HeatSource = { kind: 'iron', x: hit.pos[0], y: hit.pos[1], temp: this.reworkMode.ironTemp, g, pmax: 60, until: th.time + 0.25, partId: hit.comp.id };
+        th.addSource(src);
+        h.src = src;
+      }
+      h.smoke -= dt;
+      if (h.smoke <= 0) { h.smoke = 0.35; this.renderer.spawnSmoke(hit.pos[0], hit.pos[1], at.side, this.board.thickness, 'flux'); }
+      h.pulse -= dt;
+      if (h.pulse <= 0) { h.pulse = 0.3; this.gpRumble(0, 0.12 + 0.3 * f.heat, 60); }
+    } else if (h.src) {
+      h.src.until = 0;
+      h.src = null;
+    }
+  }
+
+  private gpEndHeat() {
+    if (!this.gpHeat) return;
+    if (this.gpHeat.src) this.gpHeat.src.until = 0;
+    this.gpHeat = null;
+  }
+
+  /** LT: feed solder with the iron (a joint has to be molten to take it), else the tool's second action. */
+  private gpFeed(pt: V2, side: Side) {
+    if (this.activeTool === 'dmm') { this.placeProbe('black', pt, side); return; }
+    if (this.activeTool !== 'iron') { this.applyToolAt(pt, side); return; }
+    const hit = pickAt(this.board, pt, side, this.vizMode === 'xray');
+    if (hit?.kind === 'pad' && hit.comp.state.populated) {
+      if (!this.reworkMode.realistic) { this.applyToolAt(pt, side); return; }
+      const c = hit.comp, pad = c.pads[hit.padIndex]?.name ?? String(hit.padIndex + 1);
+      if (this.rework?.isMolten(c)) {
+        if (c.state.cold.includes(hit.padIndex)) {
+          this.pushUndo();
+          toggleCold(c, hit.padIndex);
+          this.recompute(false);
+          this.renderUI();
+          this.toast(`Fresh solder fed into ${c.ref} pad ${pad}: the joint wets.`, 'success');
+        } else this.toast(`Solder flows into ${c.ref} pad ${pad}.`, 'info');
+        sfxSolder();
+        this.gpRumble(0.6, 0.3, 90);
+      } else this.toast(`Solder won't flow on a cold joint: hold RT on ${c.ref} pad ${pad} to heat it first.`, 'warn');
+      return;
+    }
+    // bare copper or a gap: a blob of solder, like the iron click
+    this.pushUndo();
+    addBlob(this.board, pt, side, 0.75);
+    this.renderer.spawnSmoke(pt[0], pt[1], side, this.board.thickness, 'flux');
+    sfxSolder();
+    this.recompute(false);
+    this.renderUI();
+  }
 
   destroy() {
     cancelAnimationFrame(this.rafId);
