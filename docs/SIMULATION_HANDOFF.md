@@ -41,8 +41,14 @@ No reference hardware is available, so realism is validated against *design inte
   **Built and committed 11-23 (aa5407c); collector DEPLOYED 11-23** (Worker `deadboard-stats` at
   https://stats.deadboard.org/v1/attempt, D1 `deadboard-attempts` with `--jurisdiction=eu`, region EEUR;
   DAILY_CAP 15000 because one record writes ~5 rows and D1 Free fails queries above 100k writes/day
-  until midnight UTC). Live checks: preflight 204, other origin 403, junk 400, GET 405. **Sending
-  starts once the repo variable `ATTEMPTS_URL` is set and Pages redeploys.** Was: record format `src/attempts/record.ts` (fields +
+  until midnight UTC). Live checks: preflight 204, other origin 403, junk 400, GET 405. **Live since
+  2026-11-23 08:10 UTC** (repo variable `ATTEMPTS_URL` set; first 5 real records after ~8 min, all
+  valid). Tools (collector/README.md → Reading it): `attempts-report` (`--by`, first-visit funnel),
+  `attempts-difficulty` (Rasch fit, `src/attempts/difficulty.ts`, cross-validated against the
+  shown levels; needs ~60 engaged attempts), `attempts-compare` (parallel run vs Umami),
+  `umami` (the Umami recipe, now in the repo; browser profile `~/.deadboard/umami-profile`).
+  **Next:** after ~3 days run `attempts-compare` (steady per-board ratio → cut the Umami events
+  listed above) and `attempts-difficulty` (checkpoint 2). Was: record format `src/attempts/record.ts` (fields +
   `checkRecord`, shared by game and collector), tracker `src/attempts/client.ts` (one record per
   attempt: begins on `loadScenario`, ends fixed / switched / left; provisional "left" on tab hide,
   replaced via a per-attempt random token; skipped when < 10 s active and nothing done), hooks in
