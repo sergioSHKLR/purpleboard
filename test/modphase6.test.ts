@@ -153,7 +153,7 @@ async function run() {
     const store = new Map<string, string>([['local-coach/settings', JSON.stringify({ endpoint: `http://127.0.0.1:${port}/v1/chat/completions`, model: 'test-model' })]]);
     const dir = 'examples/mods/local-coach';
     const coach = await loadMod({ origin: 'test', name: dir, files: ['mod.json', 'main.js'], read: async (p) => new Uint8Array(fs.readFileSync(`${dir}/${p}`)) });
-    assert(coach.manifest.code?.permissions.join() === 'network:localhost,panel,storage', 'coach asks for local network, panel, storage');
+    assert(coach.manifest.code?.permissions.join() === 'network:localhost,network:https://openrouter.ai,panel,storage', 'coach asks for local network, openrouter.ai, panel, storage');
     const host = new CodeModHost(inProcessTransport(load), {
       onLog: () => {},
       onRequest: async (id, req) => (req.op === 'storage.get' ? store.get(`${id}/${req.key}`) ?? null : req.op === 'storage.set' ? (store.set(`${id}/${req.key}`, req.value ?? ''), null) : true),
