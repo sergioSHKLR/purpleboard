@@ -7,6 +7,20 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
+- **NEXT SESSION — start here (around 2026-11-26).** Everything from 11-23 is pushed and live
+  (last code commit `6aa8b35`). Reads to do, in this order:
+  1. `npm run umami -- home` (homepage: compare with the baseline in the homepage entry below).
+  2. `npm run attempts-compare` (collector vs Umami: a steady per-board ratio → cut the overlapping
+     Umami events listed under "Analytics direction"; December would otherwise pass the 100k cap).
+  3. `npm run attempts-report -- --by layout` and the first-visit funnel on deadboard.org/stats.html
+     (effect of the two bench UX rounds: lesson tool dock, task-first lessons, "Board fixed",
+     next repair card, solution video after real work, Author tab later).
+  4. `npm run attempts-difficulty` (checkpoint 2: fitted vs shown levels, needs ~60 engaged attempts).
+  **Open decisions for the user:** show the fitted "real" levels to players instead of the hand-set
+  ones (wait until most puzzles have one); which Umami events to cut; a homepage headline A/B (the
+  record's `ab` field exists, unused). Note: GitHub pauses scheduled workflows (the daily Pages
+  build that refreshes fitted levels) after 60 days without repo activity.
+
 - **Homepage round (2026-11-23, its own workstream).** Baseline before it (Umami `home left`,
   11-21 10:00 → 11-23): 638 homepage exits, 54 % to the bench, 41 % away; phones 54 % away
   (147/275) vs laptops 32 %; 40 % of exits < 5 s; 74 % without scrolling; Google 64 % to bench.
