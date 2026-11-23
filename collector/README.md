@@ -25,7 +25,7 @@ the live site). Report: `npm run attempts-report -- --local`.
 ## Deploy (once)
 
 1. `npx --yes wrangler@4 login` (the account that holds deadboard.org).
-2. `npx --yes wrangler@4 d1 create deadboard-attempts --location weur` and put the printed
+2. `npx --yes wrangler@4 d1 create deadboard-attempts --jurisdiction=eu` (data stays in the EU) and put the printed
    `database_id` into `wrangler.toml`.
 3. `npx --yes wrangler@4 d1 execute deadboard-attempts --remote --file schema.sql`
 4. `npx --yes wrangler@4 deploy` (creates `stats.deadboard.org` with its certificate).

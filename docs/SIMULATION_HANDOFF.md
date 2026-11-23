@@ -38,7 +38,11 @@ No reference hardware is available, so realism is validated against *design inte
   collector can run as a Worker custom domain (e.g. `stats.deadboard.org`; Cloudflare adds the DNS
   record and certificate). Don't change the GitHub Pages records. Deploy via `npx wrangler login`
   (the user clicks Allow).
-  **Built 11-23, not committed, not deployed:** record format `src/attempts/record.ts` (fields +
+  **Built and committed 11-23 (aa5407c); collector DEPLOYED 11-23** (Worker `deadboard-stats` at
+  https://stats.deadboard.org/v1/attempt, D1 `deadboard-attempts` with `--jurisdiction=eu`, region EEUR;
+  DAILY_CAP 15000 because one record writes ~5 rows and D1 Free fails queries above 100k writes/day
+  until midnight UTC). Live checks: preflight 204, other origin 403, junk 400, GET 405. **Sending
+  starts once the repo variable `ATTEMPTS_URL` is set and Pages redeploys.** Was: record format `src/attempts/record.ts` (fields +
   `checkRecord`, shared by game and collector), tracker `src/attempts/client.ts` (one record per
   attempt: begins on `loadScenario`, ends fixed / switched / left; provisional "left" on tab hide,
   replaced via a per-attempt random token; skipped when < 10 s active and nothing done), hooks in

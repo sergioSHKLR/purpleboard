@@ -7,14 +7,15 @@ routes = [{ pattern = "stats.deadboard.org", custom_domain = true }]
 
 [vars]
 ALLOWED_ORIGIN = "https://deadboard.org"
-# rows per UTC day at most (D1 free plan: 100k rows written per day; one record writes ~4)
-DAILY_CAP = "20000"
+# records per UTC day at most (D1 free plan: 100k rows written per day; one record writes ~5 rows
+# with its indexes and the day counter; above the limit D1 fails until midnight UTC)
+DAILY_CAP = "15000"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "deadboard-attempts"
-# filled in by `npx wrangler d1 create deadboard-attempts` (see README.md)
-database_id = "00000000-0000-0000-0000-000000000000"
+# created with --jurisdiction=eu (data stays in the EU; see README.md)
+database_id = "d444f252-622b-4ed9-9f67-c102c058450a"
 
 [triggers]
 crons = ["17 3 * * *"]
