@@ -7,6 +7,19 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
+- **Homepage round (2026-11-23, its own workstream).** Baseline before it (Umami `home left`,
+  11-21 10:00 → 11-23): 638 homepage exits, 54 % to the bench, 41 % away; phones 54 % away
+  (147/275) vs laptops 32 %; 40 % of exits < 5 s; 74 % without scrolling; Google 64 % to bench.
+  Shipped: beginner-first hero copy ("Find the fault … first repair takes two minutes", "Fix your
+  first board", "Free · no sign-up · runs in your browser · beginners welcome"), secondary button
+  → learn.html; phones (≤ 820 px) get a playable SVG teaser instead of the 3D board picture (tap
+  SW1 → LED stays dark, 0.0 mA → hero button becomes "Find the fault →"); ≤ 640 px the hero is
+  ordered headline → line → teaser → button; a live "N boards fixed … last 30 days" line from the
+  public summary once ≥ 100. `home left` gained seen (deepest section), touched (first input),
+  via (data-cta: hero / nav / final / footer / guide), shown (LCP range), teaser (none / pressed /
+  went), lang, exit (to · seen · touched), and is not sent from automated browsers.
+  **Read it with `npm run umami -- home`** after ~2–3 days and compare with the baseline above.
+
 - **Analytics direction (decided by the user, 2026-11-23).** Build our own small **attempt-record
   collector for DEADBOARD only**, optimised for this game; no generic platform for now (keep the
   record schema clean so it could be split out later). Rules: no IDs (not even a random install
