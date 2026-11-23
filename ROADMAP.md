@@ -24,6 +24,7 @@ of 10 improvements.
 | # | Improvement | Scope | Days |
 |---|---|---|---|
 | 4 | **Held-iron dwell grading** | Measure how long the held iron (RT) stays on each joint and grade it against a target of about 1.5 s per joint. Show an overdwell warning (and a too-short hint) at the cursor and in the results, with rumble on overdwell. Keep per-joint history. Later: link to the SteadyIron dwell timer's data so bench and sim dwell times can be compared. | 3–5 |
+| 4a | **Held-iron sway / aim instability** | Held-iron sway / aim instability (software only): small low-amplitude drift or breathing-style oscillation on the cursor while the RT iron is held. Scale with trigger pressure or time-on-joint; suppress in fine mode (LB/L3). Optional mild rumble. Hooks in the gamepad cursor update / iron contact handler. ~0.5–1 day. Simulates the physical difficulty of a held soldering iron versus a mouse on a flat surface. No hardware gyro required (Xbox controllers have none; Gamepad API has no pose). | 0.5–1 |
 
 ## Backlog (from the proposal, not built yet)
 
