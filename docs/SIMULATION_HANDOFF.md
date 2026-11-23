@@ -65,6 +65,16 @@ No reference hardware is available, so realism is validated against *design inte
   `public/fitted-levels.json` before every Pages build; Pages also builds daily (cron 04:30 UTC);
   the shown level is NOT changed (user decision pending: show fitted levels to players?).
   `test/adaptive.test.ts`.
+  **UX round 11-23 (from a first-time walkthrough + Umami + research):** after a fix, a "Next repair"
+  card is the first thing in the Overview panel (the hidden system's pick, one tap; `nextRepairHtml`);
+  help ladder: "How to approach" is no longer the green primary button and "Show solution" appears
+  only after real work (tests after ≥ 60 s active, or ≥ 180 s) or once solved (`triedEnough`);
+  desktop lesson card shows the task first, the explanation behind "Why?" (as on phones).
+  **Proposed, not built (ask the user):** progressive tool reveal for new players (dock shows the
+  tools learned + the board's new ones; 51 buttons on the first screen today), a calmer first screen
+  (Author tab, view/render controls and solver chips after the first fix), a short win moment on a
+  fix (LED lights, sound, "fixed in 3:12"), phone homepage → bench straight into First Light, and
+  measuring all of it with the collector (first-visit funnel on stats.html).
   **Next:** after ~3 days run `attempts-compare` (steady per-board ratio → cut the Umami events
   listed above) and `attempts-difficulty` (checkpoint 2). Was: record format `src/attempts/record.ts` (fields +
   `checkRecord`, shared by game and collector), tracker `src/attempts/client.ts` (one record per
