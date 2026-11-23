@@ -67,7 +67,7 @@ import { shortHash } from '../attempts/record';
 import { attemptScore, loadSkill, puzzleLevel, saveSkill, setFittedLevels, update as updateSkill, type Skill } from '../scenarios/adaptive';
 import { boardDiff, encodeSnapshot, type BenchSnapshot } from '../snapshot';
 import { BRAND, markSvg } from './logo';
-import { beginnerPrimerHtml, CHALLENGE_TRACK_IDS, TUTORIAL_SCENARIO_IDS, TUTORIAL_TOPICS, getTutorialSteps, isTutorialScenario, nextTutorialScenarioId, type TutorialStep } from './tutorial';
+import { beginnerPrimerHtml, CHALLENGE_TRACK_IDS, lessonDock, TUTORIAL_SCENARIO_IDS, TUTORIAL_TOPICS, getTutorialSteps, isTutorialScenario, nextTutorialScenarioId, type TutorialStep } from './tutorial';
 import { TOOL_SHORT, TOOL_TIP_PHONE, TouchGestures, splitLead, touchCopy, wantsMobileLayout } from './touch';
 
 type ToolId = 'inspect' | 'dmm' | 'iron' | 'wick' | 'flip180' | 'jumper' | 'knife' | 'replace' | 'freeze' | 'ipa' | 'press' | 'hotair' | 'scope' | 'rosin';
@@ -427,6 +427,8 @@ export class PcbApp {
   private statsAvailable = browserSender() !== null;
   private firstPlayDays = 0;
   private puzzleVersions = new WeakMap<Scenario, string>();
+  /** "More tools" pressed once: the full dock from then on (also after all lessons are solved). */
+  private allTools = (() => { try { return localStorage.getItem('pcbfix_all_tools') === '1'; } catch { return false; } })();
   /** The hidden difficulty estimate (src/scenarios/adaptive.ts): on this device only, never shown. */
   private skill: Skill = loadSkill();
   /** The attempt the hidden estimate will learn from (any build: website and apps alike). */
@@ -858,6 +860,7 @@ export class PcbApp {
               <span class="key">${tl.key}</span>
             </button>
           `).join('')}
+          <button class="tool-btn more-tools" id="btn-more-tools" data-tip="${t('More tools')}" hidden>${icon('plus', 18)}</button>
           <div class="dock-spacer"></div>
           <div class="dock-sep"></div>
           <button class="tool-btn" id="btn-undo" data-tip="${t('Undo')} · ⌘Z">${icon('undo', 18)}</button>
@@ -935,6 +938,7 @@ export class PcbApp {
                 <span class="tool-lbl">${t(TOOL_SHORT[tl.id] ?? tl.lbl)}</span>
               </button>
             `).join('')}
+            <button class="tool-btn more-tools" id="btn-more-tools" aria-label="${t('More tools')}" hidden>${icon('plus', 20)}<span class="tool-lbl">${t('More')}</span></button>
           </div>
           <div class="tool-pinned">
             <button class="tool-btn" id="btn-undo" aria-label="${t('Undo')}">${icon('undo', 20)}<span class="tool-lbl">${t('Undo')}</span></button>
@@ -1766,6 +1770,30 @@ export class PcbApp {
   }
 
   /**
+   * The moment a board is fixed: a short banner over the board ("Board fixed", active time and
+   * moves, the flag on a challenge) that leaves on its own after a few seconds; the Overview panel
+   * opens on the next repair meanwhile. Nothing to dismiss; no motion when the system asks for less.
+   */
+  private celebrate(flag: string | null) {
+    const vp = this.mount.querySelector<HTMLElement>('#viewport');
+    if (!vp) { this.toast(flag ? t('Flag captured: {flag}', { flag }) : t('All checks green. The board is alive.'), 'success'); return; }
+    vp.querySelector('.win-banner')?.remove();
+    this.mount.querySelectorAll('.toast-stack .toast').forEach((x) => x.remove()); // old hints ("jumper start set") would sit under the banner
+    const sec = Math.round(this.rated?.activeSec ?? 0);
+    const facts = [
+      sec >= 15 ? t('fixed in {time}', { time: `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` }) : '',
+      this.moves > 0 ? t('{n} move|{n} moves', { n: this.moves }) : '',
+    ].filter(Boolean).join(' · ');
+    const el = document.createElement('div');
+    el.className = 'win-banner';
+    el.setAttribute('role', 'status');
+    el.innerHTML = `<span class="win-ico">${icon('check', 22)}</span><span class="win-body"><b>${t('Board fixed')}</b>${facts ? `<span>${this.esc(facts)}</span>` : ''}${flag ? `<code>${this.esc(flag)}</code>` : ''}</span>`;
+    vp.appendChild(el);
+    setTimeout(() => el.classList.add('out'), 3200);
+    setTimeout(() => el.remove(), 3700);
+  }
+
+  /**
    * Help ladder: the solution video waits until the player has really tried (tests run after a
    * minute of work, or three minutes on the board), or solved it before. The board, the notes and
    * "How to approach" come first.
@@ -2565,12 +2593,12 @@ export class PcbApp {
       }
       this.refreshScenarioSelect();
       sfxWin();
-      this.toast(t('Flag captured: {flag}', { flag: res.flag }), 'success');
+      this.celebrate(res.flag);
     } else if (res.allPassed && res.topologyMismatch) {
       this.toast(t('Checks pass, but the circuit is not the reference design — a fault is still hiding in there.'), 'warn');
     } else if (res.allPassed && !this.activeScenario.lock) {
       sfxWin();
-      this.toast(t('All checks green. The board is alive.'), 'success');
+      this.celebrate(null);
     } else {
       sfxClick();
       this.toast(t('Bench checks failed — details in the Overview tab.'), 'warn');
@@ -2740,6 +2768,11 @@ export class PcbApp {
         this.setTool(btn.dataset.tool as ToolId);
         if (this.mobile && this.panelOpen) this.setPanel(false); // back to the board
       });
+    });
+    this.mount.querySelector('#btn-more-tools')?.addEventListener('click', () => {
+      try { localStorage.setItem('pcbfix_all_tools', '1'); } catch { /* private mode: for this visit only */ }
+      this.allTools = true;
+      this.updateToolDock();
     });
     if (this.mobile) this.bindMobile();
 
@@ -3583,7 +3616,26 @@ export class PcbApp {
     let timer = setTimeout(() => el.remove(), rest ? 6000 : 4500);
   }
 
+  /**
+   * Tools appear as they are needed: on a beginner lesson, while the lessons are not all solved, the
+   * dock shows Select and the tools of this lesson and the ones before it (its new ones marked), plus
+   * a "More tools" button. Every other board, and every player who finished the lessons or pressed
+   * "More tools", gets the full dock. Keyboard shortcuts always work; a tool in use is always shown.
+   */
+  private updateToolDock() {
+    const lessonsDone = TUTORIAL_SCENARIO_IDS.every((id) => this.solvedIds.has(id));
+    const dock = this.allTools || lessonsDone ? null : lessonDock(this.activeScenario.id);
+    this.mount.querySelectorAll<HTMLButtonElement>('.tool-btn[data-tool]').forEach((b) => {
+      const id = b.dataset.tool!;
+      b.hidden = !!dock && !dock.tools.has(id) && id !== this.activeTool;
+      b.classList.toggle('fresh', !!dock?.fresh.has(id));
+    });
+    const more = this.mount.querySelector<HTMLButtonElement>('#btn-more-tools');
+    if (more) more.hidden = !dock;
+  }
+
   private updateTopButtons() {
+    this.updateToolDock();
     this.mount.querySelectorAll<HTMLButtonElement>('#seg-view button').forEach((b) => {
       b.classList.toggle('on', b.dataset.view === this.camera.mode);
     });

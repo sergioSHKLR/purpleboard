@@ -195,6 +195,31 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
 ];
 
+/**
+ * Tools each beginner lesson brings to the dock (src/ui/app.ts `updateToolDock`): on a lesson the dock
+ * shows Select plus the tools of this lesson and the ones before it, so a new player meets one or two
+ * tools at a time. test/catalog.test.ts checks every tool a lesson's steps mention is on its dock.
+ */
+export const LESSON_TOOLS: Record<(typeof TUTORIAL_SCENARIO_IDS)[number], readonly string[]> = {
+  'builtin-first-light': ['dmm', 'jumper', 'iron'],
+  'builtin-tut-cold-joint': ['iron'],
+  'builtin-tut-solder-bridge': ['wick'],
+  'builtin-tut-polarity': ['flip180'],
+  'builtin-tut-resistor': ['replace'],
+  'builtin-tut-divider': [],
+};
+
+/** The dock on a lesson: every tool up to this lesson, and the ones it introduces (shown as new). Null off the lessons. */
+export function lessonDock(id: string): { tools: Set<string>; fresh: Set<string> } | null {
+  const at = (TUTORIAL_SCENARIO_IDS as readonly string[]).indexOf(id);
+  if (at < 0) return null;
+  const tools = new Set<string>(['inspect']);
+  for (const l of TUTORIAL_SCENARIO_IDS.slice(0, at + 1)) for (const tl of LESSON_TOOLS[l]) tools.add(tl);
+  const before = new Set<string>(['inspect']);
+  for (const l of TUTORIAL_SCENARIO_IDS.slice(0, at)) for (const tl of LESSON_TOOLS[l]) before.add(tl);
+  return { tools, fresh: at === 0 ? new Set() : new Set(LESSON_TOOLS[TUTORIAL_SCENARIO_IDS[at]].filter((x) => !before.has(x))) };
+}
+
 export const TUTORIALS_BY_SCENARIO: Record<string, TutorialStep[]> = {
   'builtin-first-light': TUTORIAL_STEPS,
   'builtin-tut-cold-joint': [

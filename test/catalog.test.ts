@@ -3,6 +3,7 @@
 // bands cut like CVSS; Today's picks follow the path and offer a skip-ahead choice.
 import { builtinScenarios } from '../src/scenarios/builtin';
 import { BOARD_INFO, LEVEL_BANDS, PATH_ORDER, boardLevel, learnedSkills, levelBand, newSkillsFor, skillLabel, splitTitle, todayPicks, type SkillKey } from '../src/scenarios/catalog';
+import { getTutorialSteps, lessonDock, TUTORIAL_SCENARIO_IDS } from '../src/ui/tutorial';
 
 function assert(c: unknown, m: string): asserts c { if (!c) throw new Error(m); }
 
@@ -65,5 +66,22 @@ const seen = new Set<SkillKey>(learned);
 assert(newSkillsFor('builtin-smoke-test', seen).includes('tool:thermal'), 'smoke test brings the thermal camera');
 assert(!newSkillsFor('builtin-smoke-test', seen).some((k) => k.startsWith('fault:')), 'challenge fault kinds stay hidden');
 assert(newSkillsFor('builtin-tut-solder-bridge', seen).includes('fault:bridge'), 'tutorials show their fault kind');
+
+// tools appear as they are needed: every tool a lesson's steps name or check is on that lesson's dock
+{
+  const NAMED: Record<string, string> = { Select: 'inspect', Multimeter: 'dmm', 'Soldering iron': 'iron', 'Desolder wick': 'wick', 'Rotate 180°': 'flip180', 'Jumper wire': 'jumper', 'Trace cutter': 'knife', 'Parts bin': 'replace' };
+  for (const id of TUTORIAL_SCENARIO_IDS) {
+    const dock = lessonDock(id)!;
+    for (const step of getTutorialSteps(id) ?? []) {
+      const text = [step.task, step.phone ?? '', step.quickAction?.label ?? ''].join(' ');
+      for (const [name, tool] of Object.entries(NAMED)) {
+        if (new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^()]{0,16}\\(\\w\\)`).test(text)) assert(dock.tools.has(tool), `${id}: "${step.title}" names ${name}, which is not on the lesson dock`);
+      }
+      for (const m of String(step.isDone).matchAll(/activeTool === '(\w+)'/g)) assert(dock.tools.has(m[1]), `${id}: "${step.title}" needs ${m[1]}`);
+    }
+  }
+  assert(lessonDock('builtin-first-light')!.fresh.size === 0 && lessonDock('builtin-tut-solder-bridge')!.fresh.has('wick'), 'new tools marked from lesson 2 on');
+  assert(lessonDock('builtin-bridge-troll') === null, 'challenge boards: full dock');
+}
 
 console.log(`catalog: ${shipped.length} boards, path of ${PATH_ORDER.length}, all checks passed`);

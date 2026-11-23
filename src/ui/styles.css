@@ -1680,3 +1680,23 @@ body.is-mobile .loadout-bar select { flex: 1 1 auto; width: auto; max-width: non
 .mp-input textarea { width: 100%; resize: vertical; font: inherit; }
 .mp-input .btn { justify-self: start; }
 .mp-hr { border: none; border-top: 1px solid var(--border); margin: 2px 0; width: 100%; }
+
+/* tools appear as they are needed (updateToolDock): a lesson's new tools carry a dot until used */
+.tool-btn.fresh { position: relative; }
+.tool-btn.fresh::after { content: ''; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--bg); }
+.tool-btn.fresh.active::after { display: none; }
+.tool-btn.more-tools { color: var(--muted); }
+
+/* the moment a board is fixed (celebrate): a short banner over the board, gone after ~3 s */
+.win-banner { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 14px; padding: 14px 22px 14px 16px; background: rgba(9, 12, 10, 0.92); border: 1px solid var(--accent); border-radius: 14px; box-shadow: 0 0 0 6px rgba(75, 227, 138, 0.12), 0 12px 40px rgba(0, 0, 0, 0.5); pointer-events: none; animation: win-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.3) both; }
+.win-banner.out { animation: win-out 0.45s ease both; }
+.win-ico { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); flex-shrink: 0; }
+.win-body { display: grid; gap: 2px; }
+.win-body b { font-size: 18px; color: var(--text); }
+.win-body span { font: 13px var(--mono); color: var(--text-2); }
+.win-body code { font: 12px var(--mono); color: var(--accent); }
+@keyframes win-in { from { opacity: 0; transform: translate(-50%, 12px) scale(0.92); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+@keyframes win-out { to { opacity: 0; transform: translate(-50%, -8px); } }
+@media (prefers-reduced-motion: reduce) { .win-banner, .win-banner.out { animation: none; } .win-banner.out { opacity: 0; } }
+.layout.mobile .win-banner { top: 12px; max-width: calc(100% - 24px); }
+.tool-btn[hidden] { display: none !important; }
