@@ -11,8 +11,9 @@
 
 export const SITE_HOST = 'deadboard.org';
 const SCRIPT = 'https://cloud.umami.is/script.js';
-/** Active-time milestones in minutes. Sparse on purpose: a 4-hour session costs 13 events. */
-export const MILESTONES = [1, 2, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240];
+/** Active-time milestones in minutes. Sparse on purpose: Umami stays on its free plan (100k events a
+ *  month), and active time per attempt is in DEADBOARD's own puzzle statistics. */
+export const MILESTONES = [1, 5, 15, 60];
 const IDLE_MS = 2 * 60_000;
 const TICK_MS = 15_000;
 
@@ -33,21 +34,14 @@ const send = (...c: Call) => {
 };
 
 /**
- * The bench's own events: which board was opened and fixed, how far the first lesson got, and
- * finishing the tutorial. Ids only for boards that ship with the game; anything the player imported
+ * The few events Umami keeps (it stays on its free plan): whether the bench started, errors, early
+ * leaves, the homepage leave, mods installed. Everything about puzzles (which board, tools, tests,
+ * fixes, lessons) is in DEADBOARD's own puzzle statistics (src/attempts/). Ids only for boards that ship with the game; anything the player imported
  * or made is just "custom". No-ops wherever analytics is off (the Umami script never loads): dev,
  * forks, the apps. Events fired before the script loaded (the first seconds) are sent once it has.
  */
 export function trackEvent(name: string, data?: Record<string, string | number>): void {
   send(name, data);
-}
-
-/**
- * Opening another board counts as a page view ("/board/<id>"): the bench is one page, so without
- * this Umami calls every visit that stays on the bench a bounce, however long the player stays.
- */
-export function trackBoardView(boardId: string, title: string): void {
-  send((p) => ({ ...p, url: `/board/${boardId}`, title }));
 }
 
 /** Visible seconds as a range for the leave events: ranges answer "left at once or after trying". */

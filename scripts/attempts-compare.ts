@@ -5,6 +5,9 @@
 //   npm run attempts-compare                 since the collector went live (or the last 7 days)
 //   npm run attempts-compare -- --days 3
 // Needs `npx wrangler login` and a logged-in Umami browser (scripts/umami.ts).
+// Only meaningful for 2026-11-23 08:10 → the Umami cut later that day (commit after 17a5b1b):
+// since then Umami no longer gets board fixed / tests run / tutorial step (the user chose to keep
+// Umami on its free plan and move puzzle data to the collector).
 import { d1Query, MIN_GROUP } from './attempts-db';
 import { eventCounts, eventValues } from './umami';
 

@@ -38,8 +38,8 @@ the live site). Report: `npm run attempts-report -- --local`.
 | --- | --- |
 | `npm run attempts-report` | Puzzle health (last 7 days; `--days 30`, `--by layout\|lang\|pv\|build\|nth`): tries, fixed, left, no test, notes, «Where to look?», phone fix rate, flags; First Light by furthest guide step; the first-visit funnel per layout. |
 | `npm run attempts-difficulty` | Fitted difficulty per puzzle (`src/attempts/difficulty.ts`: Rasch model with player bands = boards solved before) on the level scale, next to the level the puzzle shows, and whether it predicts held-out attempts better than the shown levels. Needs ~60 engaged attempts. |
-| `npm run attempts-compare` | The parallel run: our numbers next to Umami's for the same window (fixes per board, test runs, First Light guide). A steady ratio across boards means the collector can replace the overlapping Umami events. |
-| `npm run umami -- stats\|events\|values "<event>" <prop>` | Umami Cloud numbers through a logged-in browser (profile in `~/.deadboard/umami-profile`). |
+| `npm run attempts-compare` | The parallel run of 2026-11-23 only: our numbers next to Umami's. Umami no longer receives puzzle events (it stays on its free plan), so this no longer applies to later dates. |
+| `npm run umami -- stats\|events\|home\|values "<event>" <prop>` | Umami Cloud numbers through a logged-in browser (profile in `~/.deadboard/umami-profile`). |
 
 Groups under 10 attempts show as "<10". All read with the Cloudflare login of this machine
 (`npx wrangler login`); `--local` reads the `wrangler dev` database.

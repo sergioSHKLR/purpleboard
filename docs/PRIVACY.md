@@ -32,12 +32,10 @@ replying to the developer's answer, or through the contact below.
 records the page, the referring site, the country, the browser, the operating system, the device type
 and the screen size. It also records how long you used the bench, as milestones such as "active 5
 min". Active time only counts while the tab is visible and you have used the mouse, keyboard or screen
-in the last two minutes. On the bench it also records which of the boards that come with DEADBOARD
-you open and fix, when you generate a new problem on one, and when you finish the tutorial. To see where
-new players get stuck, it also records whether the bench's graphics started (and which kind, on a
-phone or a computer; when the bench is slow to start or fails, at which start-up step), how far the first lesson's guide was followed or where it was closed, which
-tool was used first, and whether the first test run on each board passed (a board you imported or made yourself is only
-counted as "custom", never by name). When you leave the homepage, it records roughly how long it was on screen (as a
+in the last two minutes. On the bench it also records whether its graphics started (which kind, on a phone or
+a computer; when the bench is slow to start or fails, at which start-up step), and when you install a mod.
+Which puzzles you play and how they go are not sent to Umami: they are in the puzzle statistics below.
+When you leave the homepage, it records roughly how long it was on screen (as a
 range such as "5–15 s"), how far you scrolled (in quarters) and which part of the page was the furthest you
 saw, whether and roughly when you first touched or scrolled anything, roughly how long the page took to
 show, whether you went to the bench, another page or another site and through which button, whether the 3D

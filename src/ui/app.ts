@@ -43,7 +43,7 @@ import { builtinScenarios } from '../scenarios/builtin';
 import { generateProblem } from '../scenarios/generate';
 import { Builder } from '../scenarios/builder';
 import { dailyKey, dailyPlan, dailyLevel, makeDaily, msToNextDaily } from '../scenarios/daily';
-import { BOARD_INFO, LEVEL_BANDS, PATH_ORDER, SKILLS, SKILL_GROUPS, boardLevel, learnedSkills, levelBand, newSkillsFor, skillLabel, splitTitle, todayPicks, type BandId, type PickReason, type SkillKey } from '../scenarios/catalog';
+import { BOARD_INFO, LEVEL_BANDS, PATH_ORDER, SKILLS, SKILL_GROUPS, boardLevel, levelFromPlayers, shownLevel, learnedSkills, levelBand, newSkillsFor, skillLabel, splitTitle, todayPicks, type BandId, type PickReason, type SkillKey } from '../scenarios/catalog';
 import { BOTH_GAP, Camera } from '../render/camera';
 import { EMISSIVITY, ThermalModel, apparentTemp } from '../thermal';
 import { FlexField, settleIntermittents, updateIntermittents } from '../intermittent';
@@ -60,11 +60,11 @@ import { setSoundEnabled, sfxBeep, sfxBlow, sfxClick, sfxCut, sfxSolder, sfxWin,
 import { icon } from './icons';
 import { chromeIntentUrl, inAppBrowser } from './inapp';
 import { LANGUAGES, lang, saveLanguage, t, t as translate, tk } from '../i18n';
-import { onFirstHide, secondsBucket, trackBoardView, trackEvent, visibleClock } from '../analytics';
+import { onFirstHide, secondsBucket, trackEvent, visibleClock } from '../analytics';
 import { APP_BUILD, mountFeedbackForm, type FeedbackContext } from './feedback';
 import { AttemptTracker, browserSender, daysSinceFirstPlay, setStatsSwitch, startActiveClock, statsSwitchOn, type PuzzleInfo } from '../attempts/client';
 import { shortHash } from '../attempts/record';
-import { attemptScore, loadSkill, puzzleLevel, saveSkill, setFittedLevels, update as updateSkill, type Skill } from '../scenarios/adaptive';
+import { attemptScore, loadSkill, saveSkill, setFittedLevels, update as updateSkill, type Skill } from '../scenarios/adaptive';
 import { boardDiff, encodeSnapshot, type BenchSnapshot } from '../snapshot';
 import { BRAND, markSvg } from './logo';
 import { beginnerPrimerHtml, CHALLENGE_TRACK_IDS, lessonDock, TUTORIAL_SCENARIO_IDS, TUTORIAL_TOPICS, getTutorialSteps, isTutorialScenario, nextTutorialScenarioId, type TutorialStep } from './tutorial';
@@ -433,8 +433,6 @@ export class PcbApp {
   private skill: Skill = loadSkill();
   /** The attempt the hidden estimate will learn from (any build: website and apps alike). */
   private rated: { level: number; weight: number; tests: number; notes: number; solution: boolean; activeSec: number; moves: number; done: boolean } | null = null;
-  /** Whether the step the player just left with Next had its task done (analytics). */
-  private tutPrevDone: boolean | null = null;
 
   /** How far this page load got, for "bench left early". */
   private reachedSoFar(): string {
@@ -1722,10 +1720,6 @@ export class PcbApp {
     const sc = await this.ensureLoaded(idx);
     if (!sc) return;
     this.loadScenario(sc);
-    if (this.started) {
-      const id = this.analyticsId(sc);
-      trackBoardView(id, id === 'custom' ? 'Custom board' : sc.meta.title);
-    }
   }
 
   /** The full scenario at `idx`: a demo is fetched and a mod board loaded on first use (patches
@@ -1867,7 +1861,6 @@ export class PcbApp {
     if (prev >= 0) this.scenarios[prev] = sc;
     else this.scenarios.push(sc);
     this.loadScenario(sc);
-    trackEvent('problem generated', { board: this.shippedIds.has(sc.generated!.from) ? sc.generated!.from : 'custom', faults: n });
     this.toast(n < this.genFaults
       ? t('New problem: only {n} fault could be hidden so that it shows on the bench.|New problem: only {n} faults could be hidden so that they show on the bench.', { n })
       : t('New problem: {n} fault is hidden on the board.|New problem: {n} faults are hidden on the board.', { n }), n < this.genFaults ? 'info' : 'success');
@@ -1877,7 +1870,7 @@ export class PcbApp {
     const sel = this.mount.querySelector<HTMLSelectElement>('#sc-select')!;
     const renderOpt = (s: Scenario, i: number) => {
       const solved = this.solvedIds.has(s.id) ? ` — ${t('solved')}` : '';
-      return `<option value="${i}">${this.esc(t(s.meta.title))} · ${this.fmtLevel(boardLevel(s))}${solved}</option>`;
+      return `<option value="${i}">${this.esc(t(s.meta.title))} · ${this.fmtLevel(shownLevel(s))}${solved}</option>`;
     };
     const tuts: string[] = [];
     const main: string[] = [];
@@ -1896,8 +1889,8 @@ export class PcbApp {
     const chk = this.mount.querySelector<HTMLElement>('#bp-check');
     if (s && badge && title && chk) {
       const tutIdx = TUTORIAL_SCENARIO_IDS.indexOf(s.id as (typeof TUTORIAL_SCENARIO_IDS)[number]);
-      badge.textContent = tutIdx >= 0 ? `T${tutIdx + 1}` : this.fmtLevel(boardLevel(s));
-      badge.title = tutIdx >= 0 ? t('Tutorial {n}', { n: tutIdx + 1 }) : t('Level {n} of 10 · {band} (estimate)', { n: this.fmtLevel(boardLevel(s)), band: t(levelBand(boardLevel(s)).name) });
+      badge.textContent = tutIdx >= 0 ? `T${tutIdx + 1}` : this.fmtLevel(shownLevel(s));
+      badge.title = tutIdx >= 0 ? t('Tutorial {n}', { n: tutIdx + 1 }) : (levelFromPlayers(s) ? t('Level {n} of 10 · {band} (from players\' results)', { n: this.fmtLevel(shownLevel(s)), band: t(levelBand(shownLevel(s)).name) }) : t('Level {n} of 10 · {band} (estimate)', { n: this.fmtLevel(shownLevel(s)), band: t(levelBand(shownLevel(s)).name) }));
       badge.classList.toggle('tut', tutIdx >= 0);
       title.textContent = t(s.meta.title);
       chk.hidden = !this.solvedIds.has(s.id);
@@ -2479,6 +2472,12 @@ export class PcbApp {
     trackEvent(name, data);
   }
 
+  /** How far this page load got (for "bench left early"), without an event of its own: per-board
+   *  tools, tests and fixes are in DEADBOARD's own puzzle statistics, not in Umami. */
+  private noteOnce(key: string) {
+    this.trackedOnce.add(key);
+  }
+
   /**
    * A calmer first screen: the Author tab (the board editor) waits until the player has finished the
    * beginner lessons or solved any other board. On an imported, mod or blank board it is always
@@ -2495,7 +2494,11 @@ export class PcbApp {
   private startAttempts() {
     // active play time feeds both the hidden estimate (everywhere) and the puzzle stats (website)
     startActiveClock((sec) => { this.attempts?.active(sec); if (this.rated) this.rated.activeSec += sec; });
-    void fetch('./fitted-levels.json').then((r) => (r.ok ? r.json() : null)).then(setFittedLevels).catch(() => {});
+    void fetch('./fitted-levels.json').then((r) => (r.ok ? r.json() : null)).then((d) => {
+      setFittedLevels(d);
+      this.refreshScenarioSelect();
+      this.renderUI();
+    }).catch(() => {});
     const send = browserSender();
     if (!send) return;
     this.attempts = new AttemptTracker(send, APP_BUILD);
@@ -2544,7 +2547,7 @@ export class PcbApp {
     this.rateAttempt(false);
     const shipped = (id: string) => this.shippedIds.has(id) && /^(builtin|demo)-/.test(id);
     if (!(shipped(sc.id) || (sc.generated && shipped(sc.generated.from)))) { this.rated = null; return; }
-    const level = shipped(sc.id) ? puzzleLevel(sc.id, boardLevel(sc)) : boardLevel(sc);
+    const level = shownLevel(sc);
     this.rated = { level, weight: isTutorialScenario(sc.id) ? 0.5 : 1, tests: 0, notes: 0, solution: false, activeSec: 0, moves: 0, done: false };
   }
 
@@ -2560,13 +2563,9 @@ export class PcbApp {
     });
   }
 
-  /** Analytics: a board fixed (once per board per page load); fixing the last lesson finishes the tutorial. */
+  /** A board fixed in this page load (for "bench left early": how far the visit got). */
   private trackFix() {
-    const id = this.analyticsId(this.activeScenario);
-    if (this.trackedFixes.has(this.activeScenario.id)) return;
     this.trackedFixes.add(this.activeScenario.id);
-    trackEvent('board fixed', { board: id });
-    if (this.activeScenario.id === TUTORIAL_SCENARIO_IDS[TUTORIAL_SCENARIO_IDS.length - 1]) trackEvent('tutorial finished');
   }
 
   private async runVerify() {
@@ -2587,7 +2586,7 @@ export class PcbApp {
       res = await verifyScenario(this.activeScenario, this.board, this.solver);
     }
     this.lastVerify = res;
-    this.trackOnce(`tests:${this.activeScenario.id}`, 'tests run', { board: this.analyticsId(this.activeScenario), result: res.flag || (res.allPassed && !res.topologyMismatch) ? 'pass' : 'fail' });
+    this.noteOnce(`tests:${this.activeScenario.id}`);
     const fixed = !!res.flag || (res.allPassed && !res.topologyMismatch && !this.activeScenario.lock);
     this.attempts?.tests(!!res.flag || (res.allPassed && !res.topologyMismatch), fixed);
     if (this.rated) this.rated.tests++;
@@ -2741,7 +2740,6 @@ export class PcbApp {
     q('#btn-verify').addEventListener('click', () => void this.runVerify());
     q('#btn-tutorial').addEventListener('click', () => {
       if (this.tutorialOpen && isTutorialScenario(this.activeScenario.id)) {
-        this.trackOnce(`tutclose:${this.activeScenario.id}`, 'tutorial closed', { board: this.analyticsId(this.activeScenario), step: this.tutorialStep + 1 });
         this.tutorialOpen = false;
         localStorage.setItem('pcbfix_tut_dismissed', '1');
         this.renderUI();
@@ -3307,7 +3305,7 @@ export class PcbApp {
   }
 
   private placeProbe(which: 'red' | 'black', pt: V2, side: Side) {
-    this.trackOnce('tool', 'first tool', { tool: 'dmm', board: this.analyticsId(this.activeScenario) });
+    this.noteOnce('tool');
     this.attempts?.tool('dmm');
     this.attempts?.probe();
     const hit = netAt(this.board, this.conn, pt, side, this.vizMode === 'xray');
@@ -3336,7 +3334,7 @@ export class PcbApp {
   }
 
   private applyToolAt(pt: V2, side: Side) {
-    if (this.activeTool !== 'inspect') this.trackOnce('tool', 'first tool', { tool: this.activeTool, board: this.analyticsId(this.activeScenario) });
+    if (this.activeTool !== 'inspect') this.noteOnce('tool');
     if (this.activeTool !== 'inspect') this.attempts?.tool(this.activeTool);
     const xray = this.vizMode === 'xray';
     const hit = pickAt(this.board, pt, side, xray);
@@ -4018,8 +4016,6 @@ export class PcbApp {
     this.attempts?.tutStep(idx + 1);
     if (this.activeScenario.id === TUTORIAL_SCENARIO_IDS[0]) {
       this.tutMax = Math.max(this.tutMax, idx + 1);
-      // prev: was the step before done when Next was pressed, or skipped?
-      this.trackOnce(`tut:${idx}`, 'tutorial step', { step: idx + 1, of: total, prev: idx === 0 ? 'none' : this.tutPrevDone === null ? 'back' : this.tutPrevDone ? 'done' : 'skipped' });
     }
     const done = step.isDone({
       scenarioId: this.activeScenario.id,
@@ -4095,7 +4091,6 @@ export class PcbApp {
       });
     }
     this.tutBoxEl.querySelector('#tut-close')?.addEventListener('click', () => {
-      this.trackOnce(`tutclose:${this.activeScenario.id}`, 'tutorial closed', { board: this.analyticsId(this.activeScenario), step: idx + 1, of: total });
       this.tutorialOpen = false;
       localStorage.setItem('pcbfix_tut_dismissed', '1');
       this.renderUI();
@@ -4115,10 +4110,8 @@ export class PcbApp {
         localStorage.setItem('pcbfix_tut_dismissed', '1');
         this.renderUI();
       } else {
-        this.tutPrevDone = done;
         this.tutorialStep = Math.min(total - 1, idx + 1);
         showStep();
-        this.tutPrevDone = null;
       }
     });
     this.tutBoxEl.querySelector('#tut-next-board')?.addEventListener('click', () => {
@@ -5046,12 +5039,13 @@ export class PcbApp {
   }
 
   private levelPill(s: Scenario, opts: { big?: boolean; named?: boolean } = {}): string {
-    return this.levelPillOf(boardLevel(s), opts);
+    return this.levelPillOf(shownLevel(s), { ...opts, players: levelFromPlayers(s) });
   }
 
-  private levelPillOf(v: number, opts: { big?: boolean; named?: boolean } = {}): string {
+  private levelPillOf(v: number, opts: { big?: boolean; named?: boolean; players?: boolean } = {}): string {
     const b = levelBand(v);
-    const tip = t('Level {n} of 10 · {band} (estimate)', { n: this.fmtLevel(v), band: t(b.name) });
+    const vars = { n: this.fmtLevel(v), band: t(b.name) };
+    const tip = opts.players ? t('Level {n} of 10 · {band} (from players\' results)', vars) : t('Level {n} of 10 · {band} (estimate)', vars);
     return `<span class="bp-lv ${b.id}${opts.big ? ' big' : ''}" title="${this.esc(tip)}"><b>${this.fmtLevel(v)}</b>${opts.named ? `<em>${t(b.name)}</em>` : ''}</span>`;
   }
 
@@ -5248,13 +5242,13 @@ export class PcbApp {
       .map((s, idx) => ({ s, idx }))
       .filter(({ s }) => {
         if (s === this.dailyScenario) return false;
-        if (this.bpBand !== 'all' && levelBand(boardLevel(s)).id !== this.bpBand) return false;
+        if (this.bpBand !== 'all' && levelBand(shownLevel(s)).id !== this.bpBand) return false;
         if (this.bpKind !== 'all' && this.boardKind(s) !== this.bpKind) return false;
         if (this.bpSkill !== 'all' && !(BOARD_INFO[s.id]?.teaches ?? []).includes(this.bpSkill)) return false;
         if (this.bpHideSolved && this.solvedIds.has(s.id)) return false;
         return !q || this.pickerSearchText(s).includes(q);
       })
-      .sort((a, b) => boardLevel(a.s) - boardLevel(b.s) || order(a.s.id) - order(b.s.id) || a.s.meta.title.localeCompare(b.s.meta.title));
+      .sort((a, b) => shownLevel(a.s) - shownLevel(b.s) || order(a.s.id) - order(b.s.id) || a.s.meta.title.localeCompare(b.s.meta.title));
   }
 
   private pickerLibrary(): string {
@@ -5264,7 +5258,7 @@ export class PcbApp {
     const skillKeys = [...new Set(this.scenarios.flatMap((s) => BOARD_INFO[s.id]?.teaches ?? []))].filter((k) => !k.startsWith('fault:'));
     const extra = (this.bpKind !== 'all' ? 1 : 0) + (this.bpSkill !== 'all' ? 1 : 0) + (this.mobile && this.bpHideSolved ? 1 : 0);
     const bandBtn = (id: 'all' | BandId, label: string) => {
-      const n = id === 'all' ? 0 : this.scenarios.filter((s) => levelBand(boardLevel(s)).id === id).length;
+      const n = id === 'all' ? 0 : this.scenarios.filter((s) => levelBand(shownLevel(s)).id === id).length;
       return `<button class="${this.bpBand === id ? 'on' : ''}" data-bp-band="${id}">${id === 'all' ? '' : `<i class="bp-dot ${id}"></i>`}${label}${n && !this.mobile ? ` <small>${n}</small>` : ''}</button>`;
     };
     const hideSolved = `<button class="bp-switch ${this.bpHideSolved ? 'on' : ''}" data-bp-act="hidesolved" role="switch" aria-checked="${this.bpHideSolved}"><i></i>${t('Hide solved')}</button>`;
@@ -5274,7 +5268,7 @@ export class PcbApp {
         <label>${t('Type')}<select id="bp-kind"><option value="all">${t('All types')}</option>${kinds.map((k) => `<option value="${k}" ${this.bpKind === k ? 'selected' : ''}>${t(KIND_LABEL[k])}</option>`).join('')}</select></label>
         <label>${t('Uses a tool or part')}<select id="bp-skill"><option value="all">${t('Any')}</option>${SKILL_GROUPS.filter((g) => g.kind !== 'fault').map((g) => `<optgroup label="${this.esc(t(g.label))}">${skillKeys.filter((k) => k.startsWith(`${g.kind}:`)).map((k) => `<option value="${k}" ${this.bpSkill === k ? 'selected' : ''}>${this.esc(t(skillLabel(k)))}</option>`).join('')}</optgroup>`).join('')}</select></label>
       </div>` : '';
-    const groups = LEVEL_BANDS.map((b) => ({ b, items: list.filter(({ s }) => levelBand(boardLevel(s)).id === b.id) })).filter((g) => g.items.length);
+    const groups = LEVEL_BANDS.map((b) => ({ b, items: list.filter(({ s }) => levelBand(shownLevel(s)).id === b.id) })).filter((g) => g.items.length);
     const body = groups.map(({ b, items }) => {
       const solved = items.filter(({ s }) => this.solvedIds.has(s.id)).length;
       const head = `<div class="bp-band ${b.id}"><b>${t(b.name)}</b><span>${this.fmtLevel(b.from)}–${this.fmtLevel(b.to)} · ${t('{n} board|{n} boards', { n: items.length })}${solved ? ` · ${t('{n} solved', { n: solved })}` : ''}</span></div>`;
@@ -5339,7 +5333,7 @@ export class PcbApp {
       ...(parts > 1 ? [[t('Parts'), String(parts)] as [string, string]] : []),
       ...(s.meta.par ? [[t('Par'), t('{n} move|{n} moves', { n: s.meta.par })] as [string, string]] : []),
       [t('Solver'), s.solver === 'spice-power' ? 'SPICE + PWR' : 'DC'],
-      [t('Level'), t('{n} of 10 (estimate)', { n: this.fmtLevel(boardLevel(s)) })],
+      [t('Level'), levelFromPlayers(s) ? t('{n} of 10 (from players\' results)', { n: this.fmtLevel(shownLevel(s)) }) : t('{n} of 10 (estimate)', { n: this.fmtLevel(shownLevel(s)) })],
       ...(this.videos[s.id] ? [[t('Video guide'), t('In the board\'s Overview tab')] as [string, string]] : []),
       ...(mb?.schematic ? [[t('Schematic'), t('Included')] as [string, string]] : []),
       ...(s.meta.license ? [[t('Licence'), s.meta.license] as [string, string]] : []),
