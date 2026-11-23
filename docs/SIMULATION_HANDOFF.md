@@ -76,8 +76,8 @@ No reference hardware is available, so realism is validated against *design inte
   (`lessonDock` in tutorial.ts, `updateToolDock` in app.ts; test in catalog.test.ts that every tool a
   lesson names is on its dock). Fix moment: `celebrate()` banner over the board ("Board fixed", time,
   moves, flag) for ~3 s, replaces the flag / "all green" toasts and clears stale hints. The phone
-  homepage already opens First Light with its lesson: unchanged. Next idea: A/B the hero button
-  wording with the record's `ab` field.
+  homepage already opens First Light with its lesson: unchanged. **The homepage is its own
+  workstream (user, 11-23): don't change it as part of bench UX work.**
   **Still proposed (ask the user):** a calmer first screen
   (Author tab, view/render controls and solver chips after the first fix), and measuring all of it
   with the collector (first-visit funnel on stats.html).
