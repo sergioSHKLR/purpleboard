@@ -406,3 +406,24 @@ export class NavRepeat {
     return 0;
   }
 }
+
+/**
+ * Hold-to-exit for the controller test: a quick press of the button still shows as a normal
+ * press; only holding it for `holdS` exits. Returns progress 0..1 and whether to exit.
+ */
+export class HoldToExit {
+  private t = 0;
+  private armed = false;
+  constructor(readonly button: number = BTN.B, readonly holdS = 1) {}
+  /** `pressed` is the pad's button state this frame. Waits for a release first (the press that opened the view does not count). */
+  feed(pressed: readonly boolean[], dt: number): { progress: number; exit: boolean } {
+    const down = !!pressed[this.button];
+    if (!this.armed) { if (!down) this.armed = true; return { progress: 0, exit: false }; }
+    this.t = down ? this.t + dt : 0;
+    return { progress: Math.min(1, this.t / this.holdS), exit: this.t >= this.holdS };
+  }
+}
+
+declare const __FORK_VERSION__: string | undefined;
+/** Fork version shown in Settings → Controller and the controls help: "v<semver> · <commit>" (set at build time). */
+export const FORK_VERSION = typeof __FORK_VERSION__ === 'string' ? __FORK_VERSION__ : 'dev';

@@ -7,7 +7,7 @@ import { buttonName, controlHints, deadzonesFromRest, type GamepadMapper, type P
 const CSS = `
 .gp-cursor{position:fixed;left:0;top:0;width:34px;height:34px;margin:-17px 0 0 -17px;pointer-events:none;z-index:60;display:none}
 .gp-cursor svg{width:100%;height:100%;overflow:visible}
-.gp-cursor .ring{fill:none;stroke:#7ee2a8;stroke-width:2}
+.gp-cursor .ring{fill:none;stroke:#b3a1ff;stroke-width:2}
 .gp-cursor.fine .ring{stroke:#6cb8ff;stroke-dasharray:3 3}
 .gp-cursor.hot .ring{stroke:#ff8a1f;stroke-width:3}
 .gp-cursor .tick{stroke:#fff;stroke-width:1.5}
@@ -15,7 +15,7 @@ const CSS = `
 .gp-cursor .lbl:empty{display:none}
 .gp-panel{position:fixed;z-index:70;background:rgba(18,20,22,.94);color:#e8e8e8;border:1px solid #3a3d41;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.45);font:13px/1.4 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
 .gp-hint{left:12px;bottom:40px;padding:10px 12px;max-width:min(420px,calc(100vw - 24px))}
-.gp-hint h4,.gp-cal h4{margin:0 0 6px;font:700 12px/1.2 system-ui,sans-serif;letter-spacing:.06em;color:#7ee2a8;text-transform:uppercase}
+.gp-hint h4,.gp-cal h4{margin:0 0 6px;font:700 12px/1.2 system-ui,sans-serif;letter-spacing:.06em;color:#b3a1ff;text-transform:uppercase}
 .gp-hint table{border-collapse:collapse}
 .gp-hint td{padding:2px 8px 2px 0;vertical-align:top}
 .gp-hint td:first-child{font-weight:700;color:#fff;white-space:nowrap}
@@ -33,7 +33,7 @@ function stickSvg(id: string): string {
   return `<svg viewBox="-60 -60 120 120" aria-label="${id} stick"><circle r="56" fill="#1d1f21" stroke="#4a4e53" stroke-width="2"/>
   <circle class="dz" r="7" fill="rgba(255,210,122,.18)" stroke="#ffd27a" stroke-width="1"/>
   <line x1="-56" y1="0" x2="56" y2="0" stroke="#33363a"/><line x1="0" y1="-56" x2="0" y2="56" stroke="#33363a"/>
-  <circle class="dot" r="6" fill="#7ee2a8"/></svg>`;
+  <circle class="dot" r="6" fill="#b3a1ff"/></svg>`;
 }
 
 export class GamepadOverlay {

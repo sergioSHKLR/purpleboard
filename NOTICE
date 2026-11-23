@@ -19,5 +19,7 @@ Third-party material distributed with it keeps its own licence:
 Jetson is a trademark of NVIDIA. MNT Reform is a trademark of MNT Research GmbH. ESP32 is a
 trademark of Espressif Systems. No endorsement by any of these parties is implied.
 
-Gamepad mod (Xbox controller support: src/ui/gamepad.ts, src/ui/gamepad-ui.ts, src/ui/gamepad-settings.ts and the gamepad
-section of src/ui/app.ts) by sergioSHKLR, 2026. Modified files are marked; Apache License 2.0.
+Gamepad mod (Xbox controller support: src/ui/gamepad.ts, src/ui/gamepad-ui.ts, src/ui/gamepad-settings.ts, src/ui/gamepad-outline.ts
+and the gamepad section of src/ui/app.ts), the fork version (vite.config.ts) and the blue-violet
+accent (src/ui/styles.css, src/home/home.css, app.html, public/app.webmanifest) by sergioSHKLR, 2026.
+Modified files are marked; Apache License 2.0. The gamepad outline is an original generic drawing.

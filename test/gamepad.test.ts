@@ -275,3 +275,35 @@ console.log('gamepad: ok');
 }
 
 console.log('gamepad settings: ok');
+
+// ---- controller test view (hold B to exit) and the outline button map ----
+{
+  const { HoldToExit, DEFAULT_KEYMAP, KEYMAP_ROWS, defaultSettings } = await import('../src/ui/gamepad');
+  const { LEFT_CALLOUTS, RIGHT_CALLOUTS, actionsOn, mapOutlineHtml, outlineSvg, SHORT } = await import('../src/ui/gamepad-outline');
+  const none = Array(17).fill(false);
+  const b = none.map((_, i) => i === BTN.B);
+  const h = new HoldToExit(BTN.B, 1);
+  assert(!h.feed(b, 0.5).exit, 'B held when the view opened is ignored');
+  h.feed(none, 0.016);
+  for (let i = 0; i < 5; i++) assert(!h.feed(b, 0.1).exit, 'quick B is only a test press');
+  assert(h.feed(none, 0.016).progress === 0, 'release resets the hold');
+  let exit = false;
+  for (let t = 0; t < 1.1 && !exit; t += 0.1) exit = h.feed(b, 0.1).exit;
+  assert(exit, 'holding B ~1 s exits');
+
+  const all: number[] = [...LEFT_CALLOUTS, ...RIGHT_CALLOUTS].sort((x, y) => x - y);
+  assert(all.length === 16 && all.every((v, i) => v === i), 'one callout for every standard button except Guide');
+  const svg = outlineSvg();
+  for (let i = 0; i <= 16; i++) assert(svg.includes(`data-btn="${i}"`), `outline draws button ${i}`);
+  const km = { ...DEFAULT_KEYMAP };
+  for (const [a] of KEYMAP_ROWS) assert((all as number[]).includes(km[a]) && SHORT[a], `action ${a} lands on a callout`);
+  assert(actionsOn(km, BTN.VIEW).join() === 'help,calibrate', 'View carries help (tap) and calibrate (hold)');
+  const html = mapOutlineHtml(defaultSettings(), 'flip', new Set(['act', 'flip']));
+  assert((html.match(/data-co="/g) ?? []).length === 16, '16 callouts');
+  assert((html.match(/data-bind="/g) ?? []).length === KEYMAP_ROWS.length, 'every action has a clickable chip');
+  assert(/gpo-co bad" data-co="0"/.test(html) && /data-bind="flip"[^>]*>Press a button/.test(html), 'amber conflicts and listening state');
+  const k2 = defaultSettings(); k2.keymap.flip = BTN.A;
+  assert(/data-co="5"[^]*?not used/.test(mapOutlineHtml(k2, null, new Set())), 'a button with no action says not used');
+}
+
+console.log('gamepad outline + test view: ok');

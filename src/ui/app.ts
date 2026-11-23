@@ -47,7 +47,7 @@ import { dailyKey, dailyPlan, dailyLevel, makeDaily, msToNextDaily } from '../sc
 import { BOARD_INFO, LEVEL_BANDS, PATH_ORDER, SKILLS, SKILL_GROUPS, boardLevel, levelFromPlayers, shownLevel, learnedSkills, levelBand, newSkillsFor, skillLabel, splitTitle, todayPicks, type BandId, type PickReason, type SkillKey } from '../scenarios/catalog';
 import { BOTH_GAP, Camera } from '../render/camera';
 import { EMISSIVITY, ThermalModel, apparentTemp, type HeatSource } from '../thermal';
-import { GamepadMapper, buttonName, hapticPulse, heatScale, loadGamepadSettings, saveGamepadSettings, type HeatMode, type PadFrame } from './gamepad';
+import { FORK_VERSION, GamepadMapper, buttonName, hapticPulse, heatScale, loadGamepadSettings, saveGamepadSettings, type HeatMode, type PadFrame } from './gamepad';
 import { GamepadOverlay } from './gamepad-ui';
 import { GamepadSettingsPanel } from './gamepad-settings';
 import { FlexField, settleIntermittents, updateIntermittents } from '../intermittent';
@@ -356,6 +356,8 @@ export class PcbApp {
   private gpIndex: number | null = null;
   private gpOverlay: GamepadOverlay | null = null;
   private gpPanel: GamepadSettingsPanel | null = null;
+  /** After the settings panel closes, the pad is ignored until everything is released. */
+  private gpSuppress = false;
   /** Controller cursor in CSS px relative to the canvas; null until the pad is first used. */
   private gpCursor: [number, number] | null = null;
   private gpUsed = false;
@@ -892,7 +894,7 @@ export class PcbApp {
             <button class="m-vbtn" id="m-mode" title="2D / 3D"></button>
             <button class="m-vbtn" id="m-flip" title="${t('Top / Bottom side')}"></button>
           </div>
-          <div class="m-hud">${this.rotateHintHtml()}<div id="scope-box"></div><div id="psu-box"></div><div id="dmm-box"></div></div>` : `
+          <div class="m-hud">${this.rotateHintHtml()}<div id="scope-box"></div><div id="psu-box"></div><div id="dmm-box"></div><span class="fork-ver-m" title="Fork version">${FORK_VERSION}</span></div>` : `
           <div class="hud-bottom-left"><div id="dmm-box"></div></div>
           <div class="hud-bottom-right"><div id="scope-box"></div><div id="psu-box"></div></div>`}
           <div class="toast-stack" id="toasts"></div>
@@ -918,6 +920,7 @@ export class PcbApp {
             <span class="sb-item"><span class="kbd">MMB</span>${t('Pan')}</span>
             <span class="sb-item"><span class="kbd">F</span>${t('Flip')}</span>
             <span class="sb-item"><span class="kbd">Tab</span>2D/3D</span>
+            <span class="sb-item sb-ver" id="fork-version" title="Fork version (sergioSHKLR/deadboard)">${FORK_VERSION}</span>
           </div>
         </footer>
       </div>
@@ -1140,6 +1143,8 @@ export class PcbApp {
       ironSources: () => (this.thermal?.sources ?? []).filter((x) => x.kind === 'iron').map((x) => ({ ...x })),
       gamepadSettings: () => JSON.parse(JSON.stringify(this.gp.settings)),
       gamepadPanelOpen: () => !!this.gpPanel?.isOpen,
+      gamepadTestOpen: () => !!this.gpPanel?.test.isOpen,
+      cameraState: () => ({ tx: this.camera.tx, ty: this.camera.ty, dist: this.camera.dist, orthoHalfH: this.camera.orthoHalfH, yaw: this.camera.yaw, pitch: this.camera.pitch }),
       gamepad: () => ({ index: this.gpIndex, used: this.gpUsed, cursor: this.gpCursor, world: this.cursorWorld, hovered: this.hovered ? { kind: this.hovered.kind, ref: 'comp' in this.hovered ? this.hovered.comp.ref : null } : null, heating: !!this.gpHeat?.src, fine: this.gp.fine }),
       /** Board point (mm) → page pixel (CSS px), on the given side's copper surface. */
       toScreen: (x: number, y: number, side: Side = this.camera.side) => {
@@ -6342,6 +6347,7 @@ export class PcbApp {
         },
         openCalibration: () => { this.gpEndHeat(); this.ensureGpOverlay().openCalibration(); },
         applyHeatMode: (m) => this.gpApplyHeatMode(m),
+        closed: () => { this.gpSuppress = true; },
         download: (name, text) => {
           const a = document.createElement('a');
           a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
@@ -6439,6 +6445,7 @@ export class PcbApp {
     }
     if (!p) { if (this.gpHeat) this.gpEndHeat(); return; }
     const f = this.gp.update(p, dt);
+    if (this.gpSuppress) { if (f.active) return; this.gpSuppress = false; }
     if (!this.gpUsed && !f.active) return;
     const ov = this.ensureGpOverlay();
     if (ov.calOpen) { ov.calFrame(p, f, dt); return; }

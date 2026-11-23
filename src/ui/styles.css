@@ -1,3 +1,4 @@
+/* Modified by sergioSHKLR (2026): blue-violet accent for the fork (was green #4be38a). */
 /* DEADBOARD — terminal-instrument theme.
    Phosphor green is the one brand accent (on dark: text/lines; as a fill: dark text on it).
    Instrument signal colours keep their bench meaning: probe red, scope yellow, supply amber/green.
@@ -12,11 +13,11 @@
   --text: #e3eae5;
   --text-2: #aeb9b1;
   --muted: #7d8a82;
-  --accent: #4be38a;
-  --accent-ink: #04140a;
-  --accent-weak: rgba(75, 227, 138, 0.12);
-  --accent-line: rgba(75, 227, 138, 0.45);
-  --brand-signal: #4be38a;
+  --accent: #8c72ff; /* fork (sergioSHKLR): blue-violet accent; upstream #4be38a */
+  --accent-ink: #0b0620;
+  --accent-weak: rgba(140, 114, 255, 0.14);
+  --accent-line: rgba(140, 114, 255, 0.5);
+  --brand-signal: #8c72ff;
   --ok: #34c77b;
   --ok-weak: rgba(52, 199, 123, 0.12);
   --warn: #f2b33d;
@@ -941,7 +942,7 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); }
 
 /* Today */
 .bp-today { flex: 1; padding: 18px; display: flex; flex-direction: column; gap: 16px; }
-.bp-hero { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 24px; align-items: start; padding: 16px; border: 1px solid var(--accent-line); border-radius: 10px; background: linear-gradient(135deg, rgba(75, 227, 138, 0.07), transparent 55%), var(--surface-2); }
+.bp-hero { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 24px; align-items: start; padding: 16px; border: 1px solid var(--accent-line); border-radius: 10px; background: linear-gradient(135deg, rgba(140, 114, 255, 0.08), transparent 55%), var(--surface-2); }
 .bp-hero-pic { display: block; padding: 0; border: 0; background: none; border-radius: 6px; cursor: pointer; }
 .bp-hero-pic:hover img, .bp-alt:hover img, .bp-card:hover img { transform: scale(1.03); }
 .bp-hero-body { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding-top: 4px; }
@@ -1688,7 +1689,7 @@ body.is-mobile .loadout-bar select { flex: 1 1 auto; width: auto; max-width: non
 .tool-btn.more-tools { color: var(--muted); }
 
 /* the moment a board is fixed (celebrate): a short banner over the board, gone after ~3 s */
-.win-banner { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 14px; padding: 14px 22px 14px 16px; background: rgba(9, 12, 10, 0.92); border: 1px solid var(--accent); border-radius: 14px; box-shadow: 0 0 0 6px rgba(75, 227, 138, 0.12), 0 12px 40px rgba(0, 0, 0, 0.5); pointer-events: none; animation: win-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.3) both; }
+.win-banner { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 14px; padding: 14px 22px 14px 16px; background: rgba(9, 12, 10, 0.92); border: 1px solid var(--accent); border-radius: 14px; box-shadow: 0 0 0 6px rgba(140, 114, 255, 0.14), 0 12px 40px rgba(0, 0, 0, 0.5); pointer-events: none; animation: win-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.3) both; }
 .win-banner.out { animation: win-out 0.45s ease both; }
 .win-ico { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); flex-shrink: 0; }
 .win-body { display: grid; gap: 2px; }
@@ -1700,3 +1701,8 @@ body.is-mobile .loadout-bar select { flex: 1 1 auto; width: auto; max-width: non
 @media (prefers-reduced-motion: reduce) { .win-banner, .win-banner.out { animation: none; } .win-banner.out { opacity: 0; } }
 .layout.mobile .win-banner { top: 12px; max-width: calc(100% - 24px); }
 .tool-btn[hidden] { display: none !important; }
+
+/* fork version (sergioSHKLR): lower-right of the status bar; phones (no status bar): under the bench readouts, lower right */
+.sb-ver { color: var(--muted); font: 10.5px/1 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; opacity: 0.85; padding-left: 6px; border-left: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.statusbar .sb-right { flex-shrink: 0; }
+.m-hud > .fork-ver-m { align-self: flex-end; pointer-events: none; color: var(--muted); background: rgba(9, 12, 10, 0.72); border-radius: 4px; padding: 1px 5px; font: 9px/1.2 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-variant-numeric: tabular-nums; }

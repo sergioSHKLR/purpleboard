@@ -11,6 +11,11 @@ const version = (JSON.parse(readFileSync('package.json', 'utf8')) as { version: 
 let commit = '';
 try { commit = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { /* not a checkout */ }
 
+// Modified by sergioSHKLR (2026): fork version for the gamepad mod, shown as "v<forkVersion> · <commit>"
+const forkVersion = (JSON.parse(readFileSync('package.json', 'utf8')) as { forkVersion?: string }).forkVersion ?? '0.0.0';
+const forkCommit = commit || (process.env.GITHUB_SHA ?? '').slice(0, 7);
+const forkLabel = `v${forkVersion}${forkCommit ? ` · ${forkCommit}` : ''}`;
+
 // GitHub-style heading anchors, so links like #where-mods-live work on the site as on GitHub
 const slug = (s: string) => s.toLowerCase().replace(/<[^>]+>/g, '').replace(/&[a-z#0-9]+;/g, '').replace(/[^\w\- ]/g, '').trim().replace(/ /g, '-');
 
@@ -190,7 +195,7 @@ function ruHomePage(): Plugin {
 export default defineConfig({
   plugins: [ruHomePage(), moddingGuide(), modRuntime()],
   base: './',
-  define: { __APP_BUILD__: JSON.stringify(commit ? `${version}+${commit}` : version) },
+  define: { __APP_BUILD__: JSON.stringify(commit ? `${version}+${commit}` : version), __FORK_VERSION__: JSON.stringify(forkLabel) },
   build: {
     target: 'es2022',
     sourcemap: false,

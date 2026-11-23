@@ -2,6 +2,7 @@
   "name": "deadboard",
   "private": true,
   "version": "0.1.0",
+  "forkVersion": "0.3.0",
   "description": "Board-level repair trainer: diagnose and fix simulated circuit boards on a realistic bench, in the browser.",
   "license": "Apache-2.0",
   "repository": {
