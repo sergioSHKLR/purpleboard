@@ -47,6 +47,15 @@ No reference hardware is available, so realism is validated against *design inte
   `attempts-difficulty` (Rasch fit, `src/attempts/difficulty.ts`, cross-validated against the
   shown levels; needs ~60 engaged attempts), `attempts-compare` (parallel run vs Umami),
   `umami` (the Umami recipe, now in the repo; browser profile `~/.deadboard/umami-profile`).
+  **Automatic public report (user, 11-23: no player input anywhere, no commands to run):**
+  the collector rebuilds a public summary every 6 h (cron `47 */6 * * *`, plus the 03:17 upkeep)
+  into D1 table `summary`; `GET https://stats.deadboard.org/v1/summary` (CORS *, cached 15 min,
+  built on first request); `src/attempts/summary.ts` (`buildSummary`, groups < 10 → null, fitted
+  levels via `fitRaschCells` on puzzle × band totals: inside the free plan's 10 ms CPU); page
+  `deadboard.org/stats.html` (`src/home/stats.ts`, styles "Puzzle stats page" in home.css; phones
+  fold Attempts / phone / notes / time, keep Level + Real + Fixed). Players are never asked
+  anything: stuck / too hard / too easy are inferred from the record (notes, look, failed tests,
+  time, fix rate). Next in this line: feed fitted levels into the hidden adaptive picker (D).
   **Next:** after ~3 days run `attempts-compare` (steady per-board ratio → cut the Umami events
   listed above) and `attempts-difficulty` (checkpoint 2). Was: record format `src/attempts/record.ts` (fields +
   `checkRecord`, shared by game and collector), tracker `src/attempts/client.ts` (one record per
