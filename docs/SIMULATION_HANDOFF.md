@@ -78,9 +78,10 @@ No reference hardware is available, so realism is validated against *design inte
   moves, flag) for ~3 s, replaces the flag / "all green" toasts and clears stale hints. The phone
   homepage already opens First Light with its lesson: unchanged. **The homepage is its own
   workstream (user, 11-23): don't change it as part of bench UX work.**
-  **Still proposed (ask the user):** a calmer first screen
-  (Author tab, view/render controls and solver chips after the first fix), and measuring all of it
-  with the collector (first-visit funnel on stats.html).
+  Calmer first screen: the Author tab (board editor) appears once the lessons are all solved or
+  any other board is solved; always on imported / mod / blank / generated boards (`authorShown`).
+  Lessons reference the Inspector, Voltage map, Top/Both/Bottom and the bench supply, so those stay.
+  **Next:** measure the UX rounds with the collector (first-visit funnel on stats.html) ~11-26.
   **Next:** after ~3 days run `attempts-compare` (steady per-board ratio → cut the Umami events
   listed above) and `attempts-difficulty` (checkpoint 2). Was: record format `src/attempts/record.ts` (fields +
   `checkRecord`, shared by game and collector), tracker `src/attempts/client.ts` (one record per

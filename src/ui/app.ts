@@ -2479,6 +2479,18 @@ export class PcbApp {
     trackEvent(name, data);
   }
 
+  /**
+   * A calmer first screen: the Author tab (the board editor) waits until the player has finished the
+   * beginner lessons or solved any other board. On an imported, mod or blank board it is always
+   * there, since editing is the point; the author mode, once on, keeps it.
+   */
+  private authorShown(): boolean {
+    const sc = this.activeScenario;
+    if (this.authorMode || !sc || !this.shippedIds.has(sc.id) || sc.generated) return true;
+    if (TUTORIAL_SCENARIO_IDS.every((id) => this.solvedIds.has(id))) return true;
+    return [...this.solvedIds].some((id) => !(TUTORIAL_SCENARIO_IDS as readonly string[]).includes(id));
+  }
+
   /** Puzzle statistics: one anonymous record per attempt (src/attempts/client.ts), website only. */
   private startAttempts() {
     // active play time feeds both the hidden estimate (everywhere) and the puzzle stats (website)
@@ -3951,9 +3963,12 @@ export class PcbApp {
     this.renderTutorial();
     const hasPanels = this.codeHost.panels().length > 0;
     if (!hasPanels && this.activeTab === 'mods') this.activeTab = 'mission';
+    const author = this.authorShown();
+    if (!author && this.activeTab === 'studio') this.activeTab = 'mission';
     this.mount.querySelectorAll<HTMLButtonElement>('.tab[data-tab]').forEach((b) => {
       b.classList.toggle('active', b.dataset.tab === this.activeTab);
       if (b.dataset.tab === 'mods') b.hidden = !hasPanels;
+      if (b.dataset.tab === 'studio') b.hidden = !author;
     });
     this.renderSideBody();
   }
