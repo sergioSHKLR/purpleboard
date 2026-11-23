@@ -1,4 +1,4 @@
-# DEADBOARD — handoff (updated late evening of 2026-11-21: learning-journey plan agreed — adaptive difficulty, concept boards, analytics, board-picker redesign)
+# DEADBOARD — handoff (updated 2026-11-23: own analytics live, hidden difficulty, bench + homepage UX rounds; next: read the data ~11-26)
 
 Goal: make DEADBOARD (formerly PCB//FIX) a realistic board-repair trainer, as close to a real bench as possible,
 **universal** (any board, not just the MacBook), with honest provenance for every value.
@@ -7,24 +7,42 @@ No reference hardware is available, so realism is validated against *design inte
 
 ## Status (start here)
 
-- **NEXT SESSION — start here (around 2026-11-26).** Everything from 11-23 is pushed and live
-  (last code commit `6aa8b35`). Reads to do, in this order:
-  1. `npm run umami -- home` (homepage: compare with the baseline in the homepage entry below).
-  2. **Umami cut done 11-23 (user: Umami only on its free plan from now on).** Umami keeps page views,
-     `home left`, `bench ready` / `bench failed` / `bench error`, `bench left early`, `mod installed`
-     and active milestones 1 / 5 / 15 / 60 min. Gone (in the collector instead): `tutorial step`,
-     `tutorial closed`, `tutorial finished`, `first tool`, `tests run`, `board fixed`, `problem
-     generated`, `/board/<id>` virtual page views. Estimate ≈ 2.3k events/day ≈ 70k/month at
-     11-22 traffic. Check the month's total with `npm run umami -- events --days 30`.
-     `attempts-compare` only covers the morning of 11-23.
-  3. `npm run attempts-report -- --by layout` and the first-visit funnel on deadboard.org/stats.html
-     (effect of the two bench UX rounds: lesson tool dock, task-first lessons, "Board fixed",
-     next repair card, solution video after real work, Author tab later).
-  4. `npm run attempts-difficulty` (checkpoint 2: fitted vs shown levels, needs ~60 engaged attempts).
-  **Decided 11-23:** players see the fitted "real" level as soon as a puzzle has one (`shownLevel` in
-  catalog.ts; tooltips say "from players' results"); `boardLevel` stays hand-set and is what the
-  records carry, so the fit keeps a fixed scale. No homepage A/B for now: gather analytics first. Note: GitHub pauses scheduled workflows (the daily Pages
-  build that refreshes fitted levels) after 60 days without repo activity.
+- **NEXT SESSION — start here (around 2026-11-26).** Session of 2026-11-23 is fully pushed and live
+  (last commit `1828a0b` + handoff). It was an analytics + engagement day; nothing of the earlier
+  learning-journey work (below) changed. **First job: read the data, change nothing until then**
+  (user: "gather analytics first").
+  - **Live since 11-23, where it lives:**
+    | What | Where |
+    | --- | --- |
+    | Own anonymous puzzle stats: one record per attempt, website only, no IDs / IPs, EU D1 | `src/attempts/` (record, client, difficulty, summary), `collector/` (Cloudflare Worker `deadboard-stats` at https://stats.deadboard.org, D1 `deadboard-attempts`, README with deploy + reads) |
+    | Public stats page, summary rebuilt every 6 h (groups < 10 hidden, fitted "Real" level) | https://deadboard.org/stats.html, `src/home/stats.ts`, `GET /v1/summary` |
+    | Hidden difficulty system: private level estimate on the device picks Today / Next repair (≈ 70 % success) | `src/scenarios/adaptive.ts`, `todayPicks(…, skill)` in catalog.ts, app.ts `beginRated` / `rateAttempt` |
+    | Fitted levels shipped to the game daily (Pages build + cron 04:30 UTC) and **shown to players** once known | `scripts/fetch-levels.ts` → `public/fitted-levels.json`, `shownLevel` / `levelFromPlayers` (catalog.ts); `boardLevel` stays hand-set (records carry it) |
+    | Bench UX: lesson tool dock + "More tools", task-first lessons ("Why?"), solution video after real work, "Board fixed" banner, "Next repair" card, Author tab after the lessons | app.ts `updateToolDock`, `celebrate`, `nextRepairHtml`, `triedEnough`, `authorShown`; `LESSON_TOOLS` / `lessonDock` in tutorial.ts |
+    | Homepage: beginner hero, playable phone teaser, rich `home left` (see the homepage entry below) | `index.html`, `src/home/main.ts` |
+    | Umami: free plan only. Keeps page views, `home left`, `bench ready` / `failed` / `error`, `bench left early`, `mod installed`, active 1 / 5 / 15 / 60 min. Removed (collector has them): tutorial step / closed / finished, first tool, tests run, board fixed, problem generated, `/board/<id>` views | `src/analytics.ts`, docs/PRIVACY.md |
+  - **Reads, in this order:**
+    1. `npm run umami -- home` → homepage exits by device (`exit` = to · deepest section · touched),
+       compare with the baseline in the homepage entry below.
+    2. deadboard.org/stats.html first-visit funnel + `npm run attempts-report -- --by layout` →
+       effect of the bench UX rounds; flags per puzzle.
+    3. `npm run attempts-difficulty` → checkpoint 2 (needs ≈ 60 engaged attempts; a puzzle needs 20
+       for a "Real" level and the scale needs 3 such puzzles).
+    4. `npm run umami -- events --days 30` → Umami budget (estimate ≈ 70k/month, cap 100k).
+  - **Needs on this machine:** Cloudflare login for wrangler (done 11-23; `npx wrangler login` again
+    if it expired); Umami login kept in `~/.deadboard/umami-profile` (`npm run umami` opens Chrome on
+    port 9333 and waits for a login if needed). The old scratchpad profiles are temporary.
+  - **Decided by the user 11-23:** no player input anywhere (stuck / too hard are inferred); Umami
+    only on its free plan; players see fitted levels; DEADBOARD-only analytics (no generic product
+    yet); website collects, apps stay "Data Not Collected" (opt-in via Apple's Product Improvement
+    exception only if ever needed); homepage is its own workstream; **no A/B test for now.**
+  - **Watch out:** D1 Free fails queries above 100k rows written/day until midnight UTC (one record ≈ 5
+    rows; Worker `DAILY_CAP` 15000); Worker CPU limit 10 ms (summary fits on puzzle × band totals);
+    GitHub pauses the daily scheduled Pages build after 60 days without repo activity;
+    `attempts-compare` only covers the morning of 11-23 (Umami lost the puzzle events after that).
+  - **Possible next work after the reads:** whatever the numbers point at (e.g. a puzzle flagged HARD,
+    phones dropping after the first tool, homepage exits at the hero); later: richer adaptive picks
+    (generated follow-ups at the right level), the part card / debrief / pick-by-spec from E.
 
 - **Homepage round (2026-11-23, its own workstream).** Baseline before it (Umami `home left`,
   11-21 10:00 → 11-23): 638 homepage exits, 54 % to the bench, 41 % away; phones 54 % away
@@ -130,7 +148,7 @@ No reference hardware is available, so realism is validated against *design inte
   built game served as https://deadboard.org in headless Chrome (records on switch / hide, nothing
   after the switch is off, no page errors). **Waiting on the user:** approve the field list, then
   commit; deploy = `wrangler login` + README steps + repo variable `ATTEMPTS_URL`.
-- **NEXT SESSION — start here (2026-11-22): workstreams A and B built, NOT committed yet.** The board
+- **Earlier — 2026-11-22: workstreams A and B (since committed and live: `b444e0f`, `1b3e2ad`).** The board
   picker is now **Today + Library** (`renderBoardsModal` in `src/ui/app.ts`, styles under
   "Board picker" in `styles.css`). Data in `src/scenarios/catalog.ts`: level estimates 0.0–10.0
   per shipped board (CVSS-style bands Low / Medium / High / Critical), a symptom line for the
@@ -165,7 +183,7 @@ No reference hardware is available, so realism is validated against *design inte
   must carry current, no `low` below 0.3 V): recall 139/139. Board notes 1.5.0 (19 packs).
   Not done yet from E's slice: part card, "What happened" debrief, pick-by-spec, teaches/needs drills.
   Next: user review, then merge `learning-journey` + `bike-light`; then the rest of E's slice, or C.
-- **NEXT SESSION — start here (late evening of 2026-11-21).** Everything is pushed. Last code
+- **Earlier — late evening of 2026-11-21.** Everything is pushed. Last code
   commit `ca478ec` (issue #4: the multimeter's clear-probes button was clipped outside the
   280 px card; card now 336 px, title ellipsizes, **Esc clears probes**; no open issues left).
   The rest of the session was a **discussion with the user about the learning journey; nothing
@@ -706,7 +724,7 @@ No reference hardware is available, so realism is validated against *design inte
      src/ui/feedback.ts `.catch(() => undefined)`); duplicate sends (same report 3–5× within
      seconds) suggest the Send button needs clearer "sent" feedback.
 
-- **NEXT SESSION (simulation thread) — start here (written end of 2026-11-19).**
+- **Earlier (simulation thread), written end of 2026-11-19.**
   The user's direction: **1:1 realistic testing of any board people upload**. Nothing is
   redistributed, so datasheets and vendor SPICE models may be downloaded and used **locally**
   (`.parts-cache/`, git-ignored), never committed.
