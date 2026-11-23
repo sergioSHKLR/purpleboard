@@ -4,6 +4,7 @@ import { AttemptTracker, attemptsEnabled, browserOptedOut, MIN_ACTIVE_SEC, type 
 import { checkRecord, FIELDS, inRange, ACTIVE_RANGES, COUNT_RANGES, shortHash, type AttemptRecord } from '../src/attempts/record';
 import { d1Store, dayBefore, handle, KEEP_DAYS, type Store } from '../collector/core';
 import { SITE_HOST } from '../src/analytics';
+import { crossValidate, engaged, fitRasch, levelScale, type Obs } from '../src/attempts/difficulty';
 
 function assert(c: unknown, m: string): asserts c { if (!c) throw new Error(m); }
 
@@ -137,4 +138,33 @@ assert(totals.length === 1 && totals[0].n === 1 && totals[0].puzzle === 'builtin
 await store.maintain(today); // running twice changes nothing
 assert((db.prepare('SELECT SUM(n) s FROM totals').get() as { s: number }).s === 1, 'maintenance is idempotent');
 
-console.log('attempts: ok (record rules, tracker, collector requests + SQL)');
+// ---- fitted difficulty (src/attempts/difficulty.ts) on synthetic players with known truth
+{
+  let seed = 7;
+  const rnd = () => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 2 ** 32);
+  const truth: Record<string, number> = { easy: -1.5, mid: 0, hard: 1.5, harder: 2.5 };
+  const bandAbility: Record<string, number> = { '0': 0, '3-5': 1, '11+': 2 };
+  const obs: Obs[] = [];
+  for (let i = 0; i < 6000; i++) {
+    const puzzle = Object.keys(truth)[i % 4], band = Object.keys(bandAbility)[Math.floor(rnd() * 3)];
+    obs.push({ puzzle, band, fixed: rnd() < 1 / (1 + Math.exp(-(bandAbility[band] - truth[puzzle]))) });
+  }
+  const fit = fitRasch(obs, { l2: 0.01 });
+  const d = (p: string) => fit.puzzles.get(p)!.difficulty;
+  assert(d('easy') < d('mid') && d('mid') < d('hard') && d('hard') < d('harder'), 'difficulty order recovered');
+  for (const p of Object.keys(truth)) assert(Math.abs(d(p) - truth[p]) < 0.25, `${p}: fitted ${d(p).toFixed(2)} vs true ${truth[p]}`);
+  assert(Math.abs(fit.bands.get('11+')! - 2) < 0.25 && fit.bands.get('0') === 0, `band abilities: ${[...fit.bands].join(' ')}`);
+  // a puzzle nobody fixed is hard, not infinite
+  const none = fitRasch([...obs.slice(0, 200), ...Array.from({ length: 5 }, () => ({ puzzle: 'wall', band: '0', fixed: false }))]);
+  assert(Number.isFinite(none.puzzles.get('wall')!.difficulty) && none.puzzles.get('wall')!.difficulty > 1, 'unsolved puzzle: finite and hard');
+  assert(engaged({ tests: '1', active: '<1m' }) && engaged({ tests: '0', active: '1-2m' }) && !engaged({ tests: '0', active: '<1m' }), 'engaged attempts');
+  // hand-set levels: right order → the level model is as good; one level wrong → the fitted model predicts better
+  const right = new Map([['easy', 1], ['mid', 2.5], ['hard', 4], ['harder', 5]]);
+  const scale = levelScale(fit, right);
+  assert(scale && scale.b > 0 && scale.used === 4, `level scale: ${JSON.stringify(scale)}`);
+  const cvRight = crossValidate(obs, right), cvWrong = crossValidate(obs, new Map([...right, ['harder', 1]]));
+  assert(cvRight.fitted - cvRight.level < 0.01, `levels right: no real gain (${cvRight.level.toFixed(3)} vs ${cvRight.fitted.toFixed(3)})`);
+  assert(cvWrong.level - cvWrong.fitted > 0.03, `a wrong level shows (${cvWrong.level.toFixed(3)} vs ${cvWrong.fitted.toFixed(3)})`);
+}
+
+console.log('attempts: ok (record rules, tracker, collector requests + SQL, fitted difficulty)');

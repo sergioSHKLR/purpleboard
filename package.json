@@ -30,7 +30,10 @@
     "showcase": "tsx scripts/promo/showcase.ts",
     "parts": "tsx scripts/parts.ts",
     "feedback": "tsx scripts/feedback.ts",
-    "attempts-report": "tsx scripts/attempts-report.ts"
+    "attempts-report": "tsx scripts/attempts-report.ts",
+    "attempts-difficulty": "tsx scripts/attempts-difficulty.ts",
+    "attempts-compare": "tsx scripts/attempts-compare.ts",
+    "umami": "tsx scripts/umami.ts"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.51",
