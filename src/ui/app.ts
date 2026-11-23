@@ -47,8 +47,9 @@ import { dailyKey, dailyPlan, dailyLevel, makeDaily, msToNextDaily } from '../sc
 import { BOARD_INFO, LEVEL_BANDS, PATH_ORDER, SKILLS, SKILL_GROUPS, boardLevel, levelFromPlayers, shownLevel, learnedSkills, levelBand, newSkillsFor, skillLabel, splitTitle, todayPicks, type BandId, type PickReason, type SkillKey } from '../scenarios/catalog';
 import { BOTH_GAP, Camera } from '../render/camera';
 import { EMISSIVITY, ThermalModel, apparentTemp, type HeatSource } from '../thermal';
-import { GamepadMapper, hapticPulse, loadGamepadSettings, saveGamepadSettings, type PadFrame } from './gamepad';
+import { GamepadMapper, buttonName, hapticPulse, heatScale, loadGamepadSettings, saveGamepadSettings, type HeatMode, type PadFrame } from './gamepad';
 import { GamepadOverlay } from './gamepad-ui';
+import { GamepadSettingsPanel } from './gamepad-settings';
 import { FlexField, settleIntermittents, updateIntermittents } from '../intermittent';
 import { BootController, requiredRails, type RequiredRail } from '../boot';
 import { cleanWithIpa, residueNear } from '../residue';
@@ -354,6 +355,7 @@ export class PcbApp {
   private gp = new GamepadMapper(loadGamepadSettings(PcbApp.storage()));
   private gpIndex: number | null = null;
   private gpOverlay: GamepadOverlay | null = null;
+  private gpPanel: GamepadSettingsPanel | null = null;
   /** Controller cursor in CSS px relative to the canvas; null until the pad is first used. */
   private gpCursor: [number, number] | null = null;
   private gpUsed = false;
@@ -857,6 +859,8 @@ export class PcbApp {
                 <div class="bench-row"><span>${t('3D orbit')}</span><button class="btn sm" id="btn-invert-orbit"></button></div>
                 ${this.statsAvailable ? `<div class="bench-row"><span>${t('Puzzle stats')}</span><button class="btn sm" id="btn-stats"></button></div>` : ''}
                 <label class="bench-row"><span>${lang() === 'en' ? 'Language' : `${t('Language')} · Language`}</span>${this.langPickerHtml('full')}</label>
+                <div class="bench-row gp-settings-row"><span>Controller</span><button class="btn sm" id="btn-gp-settings" title="Controller settings: buttons, sticks, iron trigger, rumble">Buttons, sticks, rumble…</button></div>
+                <div class="bench-row gp-settings-row"><span></span><span id="gp-status" class="gp-status">No controller connected</span></div>
               </div>
             </div>
             <button class="btn ghost icon" id="btn-panel-toggle" title="${m ? t('Mission, inspector and author') : t('Toggle panel')}">${icon(m ? 'flag' : 'sidebar')}</button>
@@ -980,6 +984,7 @@ export class PcbApp {
               ${this.langPickerHtml('row')}
               <button class="m-row" data-proxy="#btn-sound"><span id="m-sound-ico"></span><span id="m-sound-lbl"></span></button>
               ${this.statsAvailable ? '<button class="m-row" data-proxy="#btn-stats"><span id="m-stats-ico"></span><span id="m-stats-lbl"></span></button>' : ''}
+              ${row('#btn-gp-settings', 'settings', 'Controller settings')}
               ${row('#btn-feedback', 'message', t('Feedback'))}
               ${row('#btn-help', 'help', t('Help'))}
             </div>
@@ -1133,6 +1138,8 @@ export class PcbApp {
       partTemp: (ref: string) => { const c = find(ref); return c && this.thermal ? this.thermal.partTemp(c.id) ?? null : null; },
       tool: () => this.activeTool,
       ironSources: () => (this.thermal?.sources ?? []).filter((x) => x.kind === 'iron').map((x) => ({ ...x })),
+      gamepadSettings: () => JSON.parse(JSON.stringify(this.gp.settings)),
+      gamepadPanelOpen: () => !!this.gpPanel?.isOpen,
       gamepad: () => ({ index: this.gpIndex, used: this.gpUsed, cursor: this.gpCursor, world: this.cursorWorld, hovered: this.hovered ? { kind: this.hovered.kind, ref: 'comp' in this.hovered ? this.hovered.comp.ref : null } : null, heating: !!this.gpHeat?.src, fine: this.gp.fine }),
       /** Board point (mm) → page pixel (CSS px), on the given side's copper surface. */
       toScreen: (x: number, y: number, side: Side = this.camera.side) => {
@@ -2765,6 +2772,11 @@ export class PcbApp {
       } else {
         this.startTutorial();
       }
+    });
+    q('#btn-gp-settings').addEventListener('click', () => {
+      (q('#settings-pop') as HTMLElement).hidden = true;
+      q('#btn-settings').classList.remove('active');
+      this.openGpSettings();
     });
     q('#btn-invert-orbit').addEventListener('click', () => {
       this.camera.invertOrbit = !this.camera.invertOrbit;
@@ -6287,8 +6299,11 @@ export class PcbApp {
       const g = (e as GamepadEvent).gamepad;
       if (this.gpIndex === null) this.gpIndex = g.index;
       const name = g.id.replace(/\s*\(.*$/, '').slice(0, 40) || 'Controller';
-      this.toast(`${name} connected. Press View for the controls, hold View to calibrate.`, 'success');
-      this.ensureGpOverlay().toggleHint(true, 9000);
+      const km = this.gp.settings.keymap;
+      this.toast(`${name} connected. Press ${buttonName(km.help)} for the controls, ${buttonName(km.settings)} for controller settings.`, 'success');
+      if (this.gp.settings.hintOnConnect) this.ensureGpOverlay().toggleHint(true, 9000);
+      this.gpApplyHeatMode(this.gp.settings.heatMode);
+      this.gpStatus();
     });
     window.addEventListener('gamepaddisconnected', (e) => {
       const g = (e as GamepadEvent).gamepad;
@@ -6299,6 +6314,7 @@ export class PcbApp {
       this.gpUsed = false;
       this.gpOverlay?.hideCursor();
       this.toast('Controller disconnected.', 'warn');
+      this.gpStatus();
     });
   }
 
@@ -6307,9 +6323,57 @@ export class PcbApp {
       this.gpOverlay = new GamepadOverlay(this.gp, {
         save: () => saveGamepadSettings(PcbApp.storage(), this.gp.settings),
         rumbleTest: () => this.gpRumble(0.8, 0.5, 250),
+        openSettings: () => this.openGpSettings(true),
+        calClosed: () => this.gpPanel?.refresh(),
       });
     }
     return this.gpOverlay;
+  }
+
+  /** Settings → Controller panel (mouse, touch, keyboard or the pad). */
+  private openGpSettings(focusFirst = false) {
+    if (!this.gpPanel) {
+      this.gpPanel = new GamepadSettingsPanel(this.gp, {
+        save: () => saveGamepadSettings(PcbApp.storage(), this.gp.settings),
+        changed: () => this.gpOverlay?.renderHints(),
+        rumbleTest: () => {
+          const ch = this.gpRumble(0.8, 0.5, 250);
+          return ch === 'pad' ? 'Rumble sent to the controller.' : ch === 'device' ? 'No controller rumble here; the device vibrated instead.' : ch === 'off' ? 'Rumble is off.' : 'No rumble available (no controller, Bluetooth on Android, or the page needs a tap first).';
+        },
+        openCalibration: () => { this.gpEndHeat(); this.ensureGpOverlay().openCalibration(); },
+        applyHeatMode: (m) => this.gpApplyHeatMode(m),
+        download: (name, text) => {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+          a.download = name;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        },
+      });
+    }
+    this.gpEndHeat();
+    this.gpOverlay?.toggleHint(false);
+    this.gpOverlay?.hideCursor();
+    this.gpPanel.open(focusFirst);
+  }
+
+  /** Switch the bench's rework mode (Bench → Rework) to the controller default, unless "keep". */
+  private gpApplyHeatMode(m: HeatMode) {
+    if (m === 'keep') return;
+    const sel = this.mount.querySelector<HTMLSelectElement>('#rework-mode');
+    if (!sel || sel.value === m) return;
+    sel.value = m;
+    sel.dispatchEvent(new Event('change'));
+  }
+
+  /** The connected pad's name in Settings → Controller. */
+  private gpStatus() {
+    const el = this.mount.querySelector('#gp-status');
+    if (!el) return;
+    const p = this.gpPad();
+    el.textContent = p ? `Connected: ${p.id.replace(/\s*\(.*$/, '').slice(0, 36) || 'controller'}` : 'No controller connected';
   }
 
   private gpPad(): Gamepad | null {
@@ -6324,9 +6388,12 @@ export class PcbApp {
 
   /** One haptic pulse on the pad (or the device on Android); returns the channel used. */
   private gpRumble(strong: number, weak: number, ms: number): string {
+    const st = this.gp.settings;
+    if (!st.rumble || st.rumbleIntensity <= 0) return 'off';
+    strong *= st.rumbleIntensity; weak *= st.rumbleIntensity;
     const p = this.gpPad();
     const act = (p as (Gamepad & { vibrationActuator?: unknown }) | null)?.vibrationActuator as Parameters<typeof hapticPulse>[0];
-    const vib = typeof navigator.vibrate === 'function' ? (n: number) => navigator.vibrate(n) : undefined;
+    const vib = st.deviceVibrate && typeof navigator.vibrate === 'function' ? (n: number) => navigator.vibrate(n) : undefined;
     return hapticPulse(act, vib, strong, weak, ms);
   }
 
@@ -6363,6 +6430,13 @@ export class PcbApp {
   private pollGamepad(dt: number) {
     if (typeof navigator === 'undefined' || typeof navigator.getGamepads !== 'function') return;
     const p = this.gpPad();
+    if (this.gpPanel?.isOpen) {
+      const f0 = p ? this.gp.update(p, dt) : null;
+      if (this.gpHeat) this.gpEndHeat();
+      if (p && f0 && this.gpOverlay?.calOpen) { this.gpOverlay.calFrame(p, f0, dt); return; }
+      this.gpPanel.frame(p, dt);
+      return;
+    }
     if (!p) { if (this.gpHeat) this.gpEndHeat(); return; }
     const f = this.gp.update(p, dt);
     if (!this.gpUsed && !f.active) return;
@@ -6398,6 +6472,7 @@ export class PcbApp {
       if (a === 'help') ov.toggleHint();
       else if (a === 'calibrate') { ov.toggleHint(false); this.gpEndHeat(); ov.openCalibration(); return; }
       else if (a === 'menu') { this.gpEndHeat(); this.openBoardCatalog(); return; }
+      else if (a === 'settings') { this.openGpSettings(true); return; }
       else if (a === 'toolPrev') this.gpCycleTool(-1);
       else if (a === 'toolNext') this.gpCycleTool(1);
       else if (a === 'flip') this.flipSide();
@@ -6422,7 +6497,7 @@ export class PcbApp {
 
   /**
    * RT held with the iron: tip contact for as long as the trigger is pulled (replaces the fixed
-   * 1.5 s click). Trigger depth scales tip-to-joint conductance from 35 % to 100 % of the bench's
+   * 1.5 s click). Trigger depth scales tip-to-joint conductance (default 35 % to 100 %, Settings → Controller) of the bench's
    * wetted / dry values (an estimate of contact pressure). Instant (puzzle) rework also does the
    * classic one-click action when contact starts.
    */
@@ -6441,7 +6516,7 @@ export class PcbApp {
     if (!th || !h || !at) return;
     const hit = pickAt(this.board, at.pt, at.side, this.vizMode === 'xray');
     if (hit?.kind === 'pad' && hit.comp.state.populated) {
-      const g = (this.reworkMode.flux ? IRON_G.flux : IRON_G.dry) * (0.35 + 0.65 * f.heat);
+      const g = (this.reworkMode.flux ? IRON_G.flux : IRON_G.dry) * heatScale(f.heat, this.gp.settings);
       const s = h.src;
       if (s && s.kind === 'iron' && s.partId === hit.comp.id && th.sources.includes(s)) {
         s.x = hit.pos[0]; s.y = hit.pos[1]; s.g = g; s.temp = this.reworkMode.ironTemp; s.until = th.time + 0.25;
