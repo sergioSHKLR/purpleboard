@@ -211,6 +211,9 @@ function netHue(net: number): [number, number, number] {
 /** A label is drawn only when at least this tall on screen (CSS px). */
 const LABEL_MIN_PX = 9;
 
+/** Silkscreen height above the copper face (centre of a 0.02 mm layer): over the tracks (top +0.055), under exposed pads (top +0.065). */
+const SILK_Z = 0.05;
+
 interface Label { at: V2; text: string; size: number; side: Side; rot: number; z: number; rgb: [number, number, number]; prio: number; w: number; h: number }
 
 /** Stroke-font width of `text` at `size` (matches textStrokes: 0.62 glyph + 0.22 gap). */
@@ -479,7 +482,9 @@ export class Renderer {
     const ht = board.thickness / 2;
     const xray = vizMode === 'xray';
     const thermal = vizMode === 'thermal';
-    const dense = board.components.length > 150;
+    // dense: many parts, or parts packed tightly (a 50-part ESP32 board is 3–5 parts/cm²; the
+    // hand-made teaching boards stay under 0.3): labels then fit inside bodies and give way to each other
+    const dense = board.components.length > 150 || board.components.length / Math.max(1, board.w * board.h / 100) > 0.5;
     // dense 2D view shows one side at a time (the other side's copper would only add clutter)
     const is2DBoardview = dense && camera.mode === '2d';
     const both = camera.bothSides;
@@ -657,9 +662,10 @@ export class Renderer {
       if (both ? false : (is2DBoardview && !xray && tr.layer !== camera.side && net !== selectedNet)) continue;
       const isHov = hovered?.kind === 'trace' && hovered.trace === tr;
       const tint = netTint(net, isHov ? cuHover : cuDefault);
-      const z = effSide(tr.layer) === 'F' ? ht + 0.032 : -ht - 0.032;
+      // copper stack from the surface up: tracks (top +0.055) < silkscreen (+0.04…0.06) < exposed pads (+0.065)
+      const z = effSide(tr.layer) === 'F' ? ht + 0.03 : -ht - 0.03;
       pushTraceSeg(
-        mpt(tr.a, tr.layer), mpt(tr.b, tr.layer), tr.w, z, 0.055,
+        mpt(tr.a, tr.layer), mpt(tr.b, tr.layer), tr.w, z, 0.05,
         tint.rgb[0], tint.rgb[1], tint.rgb[2], xray ? 0.85 : 1,
         isHov ? 0.35 : tint.emissive, 0.65, 0.28, isHov ? -1 : tint.special,
       );
@@ -725,7 +731,7 @@ export class Renderer {
       const tint = netTint(net, isHov ? [1, 0.85, 0.35] : defaultViaRgb, EMISSIVITY.via);
       if (v.side) {
         const p = mpt(v.at, v.side);
-        const vz = effSide(v.side) === 'F' ? ht + 0.034 : -ht - 0.034;
+        const vz = effSide(v.side) === 'F' ? ht + 0.03 : -ht - 0.03;
         op.cyl.pushTRS(p[0], p[1], vz, v.d, v.d, 0.05, 0, tint.rgb[0], tint.rgb[1], tint.rgb[2], 1, isHov ? 0.35 : tint.emissive, 0.85, 0.24, isHov ? -1 : tint.special);
       } else {
         const pushThruVia = (pos: V2) => {
@@ -812,20 +818,20 @@ export class Renderer {
     const pushSilkSeg = (
       a: V2, b: V2, w: number, side: Side,
       rgb: [number, number, number] = [0.92, 0.94, 0.90],
-      zOff = 0.045,
+      zOff = SILK_Z,
     ) => {
       const z = side === 'F' ? ht + zOff : -ht - zOff;
       const dx = b[0] - a[0], dy = b[1] - a[1];
       const len = Math.hypot(dx, dy);
       if (len < 1e-4) return;
       const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
-      op.box.pushTRS((a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5, z, len, w, 0.025, ang, rgb[0], rgb[1], rgb[2], 1, 0.05, 0.05, 0.6);
+      op.box.pushTRS((a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5, z, len, w, 0.02, ang, rgb[0], rgb[1], rgb[2], 1, 0.05, 0.05, 0.6);
     };
 
     const pushSilkText = (
       at: V2, text: string, size: number, side: Side, rotDeg = 0,
       rgb: [number, number, number] = [0.92, 0.94, 0.90],
-      zOff = 0.045,
+      zOff = SILK_Z,
     ) => {
       const segs = textStrokes(text, size);
       const rad = rotDeg * DEG;
@@ -860,7 +866,7 @@ export class Renderer {
       if (t.size < minLabelMm || !inView(at)) continue;
       const vert = Math.abs(Math.sin((t.rot ?? 0) * DEG)) > 0.7;
       const tw = textWidth(t.text, t.size);
-      labels.push({ at, text: t.text, size: t.size, side: effSide(t.side), rot: t.rot ?? 0, z: 0.045, rgb: boardSilkCol, prio: t.size, w: vert ? t.size : tw, h: vert ? tw : t.size });
+      labels.push({ at, text: t.text, size: t.size, side: effSide(t.side), rot: t.rot ?? 0, z: SILK_Z, rgb: boardSilkCol, prio: t.size, w: vert ? t.size : tw, h: vert ? tw : t.size });
     }
 
     // 8. Components, Pads, Solder Joints, and Silkscreen Courtyards
@@ -889,7 +895,7 @@ export class Renderer {
         const dPadSide: Side = both ? 'F' : p.layers === 'FB' ? 'FB' as unknown as Side : padSide;
         const hasF = p.layers === 'F' || p.layers === 'FB';
         const hasB = p.layers === 'B' || p.layers === 'FB';
-        const zOff = is2DBoardview ? 0.038 : 0.036;
+        const zOff = is2DBoardview ? 0.042 : 0.04; // pad top +0.065: exposed copper, above the silkscreen
         const zCenter = (!both && p.layers === 'FB') ? 0 : dPadSide === 'F' ? ht + zOff : -ht - zOff;
         const padH = (!both && p.layers === 'FB') ? board.thickness + 0.08 : 0.05;
         const padPos = mpt(pw.at, c.side);
@@ -948,6 +954,9 @@ export class Renderer {
         }
       }
 
+      // no body (a fiducial; the bench supply's clips on the board's own pads): no outline, name or body
+      if (c.body.shape === 'none') continue;
+
       // Silkscreen reference + polarity indicator
       const rad = c.rot * DEG;
       const cs = Math.cos(rad), sn = Math.sin(rad);
@@ -964,12 +973,13 @@ export class Renderer {
         const oy = c.body.off?.[1] ?? 0, rx = c.body.w * 0.5 + 0.3, ry = c.body.h * 0.5 + 0.3;
         const pts: V2[] = [[-rx, oy], [-rx, oy - ry], [rx, oy - ry], [rx, oy]];
         for (let i = 1; i <= 10; i++) { const a = (i / 10) * Math.PI; pts.push([rx * Math.cos(a), oy + ry * Math.sin(a)]); }
-        for (let i = 0; i + 1 < pts.length; i++) pushSilkSeg(localToWorld(...pts[i]), localToWorld(...pts[i + 1]), 0.14, dSide, [0.92, 0.94, 0.90], 0.045);
+        for (let i = 0; i + 1 < pts.length; i++) pushSilkSeg(localToWorld(...pts[i]), localToWorld(...pts[i + 1]), 0.14, dSide, [0.92, 0.94, 0.90], SILK_Z);
       } else if (!dense || focus) {
-        const c0 = localToWorld(-hw, -hh), c1 = localToWorld(hw, -hh), c2 = localToWorld(hw, hh), c3 = localToWorld(-hw, hh);
+        const [bx, by] = c.body.off ?? [0, 0]; // around the body, which may sit off the footprint origin
+        const c0 = localToWorld(bx - hw, by - hh), c1 = localToWorld(bx + hw, by - hh), c2 = localToWorld(bx + hw, by + hh), c3 = localToWorld(bx - hw, by + hh);
         const outlineCol: [number, number, number] = dense ? [0.98, 0.85, 0.30] : [0.92, 0.94, 0.90];
         const outlineW = dense ? 0.09 : 0.12;
-        const outlineZ = dense ? 0.062 : 0.045;
+        const outlineZ = dense ? 0.062 : SILK_Z;
         pushSilkSeg(c0, c1, outlineW, dSide, outlineCol, outlineZ);
         pushSilkSeg(c1, c2, outlineW, dSide, outlineCol, outlineZ);
         pushSilkSeg(c2, c3, outlineW, dSide, outlineCol, outlineZ);
@@ -977,12 +987,19 @@ export class Renderer {
       }
 
       const dispPos = mpt(c.at, c.side);
+      // the body's centre; on a long switch the plate beside its plunger (which stands in the middle)
+      const [ox, oy] = c.body.off ?? [0, 0];
+      const longSwitch = c.body.shape === 'tactile' && Math.max(c.body.w, c.body.h) >= 1.5 * Math.min(c.body.w, c.body.h);
+      const along = longSwitch ? Math.max(c.body.w, c.body.h) * 0.27 : 0;
+      const labelPos = ox || oy || along ? localToWorld(ox + (c.body.w >= c.body.h ? along : 0), oy + (c.body.w >= c.body.h ? 0 : along)) : dispPos;
       if (dense) {
         // Fit the reference inside the body (screen-aligned extent), turned 90° on tall parts.
-        if (focus || inView(dispPos)) {
+        if (focus || inView(labelPos)) {
           const r = c.rot * DEG;
-          const ex = Math.abs(c.body.w * Math.cos(r)) + Math.abs(c.body.h * Math.sin(r));
-          const ey = Math.abs(c.body.w * Math.sin(r)) + Math.abs(c.body.h * Math.cos(r));
+          const lw = longSwitch && c.body.w >= c.body.h ? c.body.w * 0.3 : c.body.w * (longSwitch ? 0.86 : 1);
+          const lh = longSwitch && c.body.h > c.body.w ? c.body.h * 0.3 : c.body.h * (longSwitch ? 0.86 : 1);
+          const ex = Math.abs(lw * Math.cos(r)) + Math.abs(lh * Math.sin(r));
+          const ey = Math.abs(lw * Math.sin(r)) + Math.abs(lh * Math.cos(r));
           const per = textWidth(c.ref, 1);
           const fit = c.body.shape === 'box' && c.pads.length === 2 ? 0.62 : 0.95; // between the end caps
           const hSize = Math.min(2.4, ey * 0.6, (ex * fit) / per);
@@ -992,14 +1009,16 @@ export class Renderer {
           if (focus) size = Math.max(size, Math.min(minLabelMm * 1.1, 3)); // the part in focus is always named
           if (focus || size >= minLabelMm) {
             const tw = per * size;
-            const z = c.state.populated ? c.body.z + 0.05 : 0.085;
-            labels.push({ at: dispPos, text: c.ref, size, side: dSide, rot: vert ? 90 : 0, z, rgb: focus ? [1, 0.9, 0.4] : [0.95, 0.97, 1.0], prio: focus ? Infinity : ex * ey, w: vert ? size : tw, h: vert ? tw : size });
+            const z = !c.state.populated ? 0.085 : longSwitch ? c.body.z * 0.66 + 0.17 : c.body.z + 0.05; // a long switch: on its plate
+            // a switch has a light top plate: dark lettering there
+            labels.push({ at: labelPos, text: c.ref, size, side: dSide, rot: vert ? 90 : 0, z, rgb: focus ? [1, 0.9, 0.4] : c.body.shape === 'tactile' ? [0.1, 0.11, 0.13] : [0.95, 0.97, 1.0], prio: focus ? Infinity : ex * ey, w: vert ? size : tw, h: vert ? tw : size });
           }
         }
       } else {
         const refOff = c.body.shape === 'coin' ? -c.body.h * 0.5 - 1.6 : c.body.h * 0.5 + 1.3;
         // a TO-92 stands in front of its pads, with traces leaving behind them: its reference goes beside the body
-        const refAt = c.body.shape === 'to92' ? localToWorld(-(c.body.w * 0.5 + 2), c.body.off?.[1] ?? 0) : localToWorld(0, refOff);
+        const [bx, by] = c.body.off ?? [0, 0]; // beside the body, which may sit off the footprint origin
+        const refAt = c.body.shape === 'to92' ? localToWorld(-(c.body.w * 0.5 + 2), by) : localToWorld(bx, by + refOff);
         pushSilkText(refAt, c.ref, 1.25, dSide, 0);
 
         // Polarity mark on silkscreen (fixed to footprint, does NOT rotate when reversed!)
@@ -1155,11 +1174,15 @@ export class Renderer {
     const effRot = displayRot + (c.state.reversed ? 180 : 0);
     const rad = effRot * DEG;
     const cs = Math.cos(rad), sn = Math.sin(rad);
-    // body outline may sit off the footprint origin (asymmetric connectors, modules)
-    const [ox, oy] = c.body.off ?? [0, 0];
+    // body outline may sit off the footprint origin (asymmetric connectors, modules, pin-1-origin
+    // through-hole parts). A part fitted backwards turns in place over its own pads; only the TO-92
+    // swings to the other side of its pad row (its flat face then faces the other way).
+    const [ox0, oy0] = c.body.off ?? [0, 0];
+    const offRad = (c.body.shape === 'to92' ? effRot : displayRot) * DEG;
+    const ox = ox0 * Math.cos(offRad) - oy0 * Math.sin(offRad), oy = ox0 * Math.sin(offRad) + oy0 * Math.cos(offRad);
     const toW = (lx: number, ly: number, lz: number): V3 => [
-      displayAt[0] + (lx + ox) * cs - (ly + oy) * sn,
-      displayAt[1] + (lx + ox) * sn + (ly + oy) * cs,
+      displayAt[0] + ox + lx * cs - ly * sn,
+      displayAt[1] + oy + lx * sn + ly * cs,
       baseZ + sgn * lz,
     ];
     const padRad = displayRot * DEG;
@@ -1339,7 +1362,12 @@ export class Renderer {
       const pBox = toW(0, 0, c.body.z * 0.32);
       const hc = thermCol ?? [0.12, 0.13, 0.16];
       op.box.pushTRS(pBox[0], pBox[1], pBox[2], c.body.w, c.body.h, c.body.z * 0.64, effRot, hc[0], hc[1], hc[2], 1, thermEm, 0.05, 0.65, spec);
-      for (const p of c.pads) {
+      // Pins stand out of the housing on a pin header (every pad drilled). A socket mixing SMD
+      // contacts with drilled shell legs (micro-USB, USB-C) has none on top. No drill data
+      // at all (boardviews): pins as before.
+      const drilled = c.pads.filter((p) => p.drill).length;
+      const pinsOnTop = drilled === 0 || drilled === c.pads.length;
+      for (const p of pinsOnTop ? c.pads : []) {
         const pw = toPadW(p.at[0], p.at[1], c.body.z * 0.55);
         op.box.pushTRS(pw[0], pw[1], pw[2], 0.64, 0.64, c.body.z * 0.95, effRot, 0.92, 0.74, 0.24, 1, 0, 0.95, 0.2);
       }
@@ -1355,7 +1383,17 @@ export class Renderer {
       const bc = thermCol ?? [0.16, 0.17, 0.20];
       op.box.pushTRS(pBody[0], pBody[1], pBody[2], c.body.w, c.body.h, c.body.z * 0.68, effRot, bc[0], bc[1], bc[2], 1, thermEm, 0.1, 0.6, spec);
       op.box.pushTRS(pTop[0], pTop[1], pTop[2], c.body.w * 0.86, c.body.h * 0.86, 0.3, effRot, 0.76, 0.78, 0.82, 1, 0, 0.9, 0.25, spec);
-      op.cyl.pushTRS(pBtn[0], pBtn[1], pBtn[2], c.body.w * 0.52, c.body.h * 0.52, btnH, effRot, pressed ? 0.22 : 0.12, pressed ? 0.75 : 0.13, pressed ? 0.45 : 0.16, 1, pressed ? 0.2 : 0, 0.1, 0.45, spec);
+      const capCol: [number, number, number] = [pressed ? 0.22 : 0.12, pressed ? 0.75 : 0.13, pressed ? 0.45 : 0.16];
+      const short = Math.min(c.body.w, c.body.h), long = Math.max(c.body.w, c.body.h);
+      if (long / short >= 1.5) {
+        // long microswitch: a small rectangular plunger, not a round cap stretched along the body
+        const along = long * 0.16, across = short * 0.4;
+        const [pw, ph] = c.body.w >= c.body.h ? [along, across] : [across, along];
+        op.box.pushTRS(pBtn[0], pBtn[1], pBtn[2], pw, ph, btnH, effRot, capCol[0], capCol[1], capCol[2], 1, pressed ? 0.2 : 0, 0.1, 0.45, spec);
+      } else {
+        // round cap, kept round on a slightly oblong body
+        op.cyl.pushTRS(pBtn[0], pBtn[1], pBtn[2], short * 0.52, short * 0.52, btnH, effRot, capCol[0], capCol[1], capCol[2], 1, pressed ? 0.2 : 0, 0.1, 0.45, spec);
+      }
       return;
     }
 
