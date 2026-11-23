@@ -1336,6 +1336,20 @@ const ru: Catalog = {
   "Learn": "Обучение",
   "Repair guide": "Учебник",
   "Boardview viewer": "Просмотр boardview",
+  "Soldering iron on a powered board": "Паяльник на плате под питанием",
+  "Desolder wick on a powered board": "Оплётка на плате под питанием",
+  "Isopropyl on a powered board": "Изопропанол на плате под питанием",
+  "Short made on a live board": "Замыкание на плате под питанием",
+  "Overheat damage (iron or hot air held too long)": "Повреждение перегревом (паяльник или фен держали слишком долго)",
+  "Safety: −{n} pts": "Безопасность: −{n} очк.",
+  "Safety violation: {what} (−{n} pts)": "Нарушение техники безопасности: {what} (−{n} очк.)",
+  "Safety": "Безопасность",
+  "{score}/100": "{score}/100",
+  "No safety violations on this board.": "На этой плате нарушений техники безопасности нет.",
+  "Power off before the iron, wick or isopropyl touch the board.": "Выключайте питание, прежде чем касаться платы паяльником, оплёткой или изопропанолом.",
+  "safety {score}/100": "безопасность {score}/100",
+  "Safety buzzer": "Сигнал нарушения",
+  "Buzz when a safety rule is broken (the points are taken either way).": "Звуковой сигнал при нарушении техники безопасности (очки снимаются в любом случае).",
 };
 
 export default ru;

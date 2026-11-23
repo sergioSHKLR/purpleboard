@@ -40,3 +40,8 @@ export const sfxWin = () => {
   setTimeout(() => playTone(783.99, 200, 'triangle', 0.05), 180);
 };
 export const sfxBlow = () => playTone(110, 220, 'sawtooth', 0.05);
+/** Safety-violation buzzer: two short, harsh low pulses (Web Audio, no asset). */
+export const sfxBuzz = () => {
+  playTone(196, 140, 'square', 0.05);
+  setTimeout(() => playTone(196, 160, 'square', 0.05), 190);
+};

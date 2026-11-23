@@ -1708,3 +1708,8 @@ body.is-mobile .loadout-bar select { flex: 1 1 auto; width: auto; max-width: non
 .sb-ver { color: var(--muted); font: 10.5px/1 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; opacity: 0.85; padding-left: 6px; border-left: 1px solid var(--border); font-variant-numeric: tabular-nums; }
 .statusbar .sb-right { flex-shrink: 0; }
 .m-hud > .fork-ver-m { align-self: flex-end; pointer-events: none; color: var(--muted); background: rgba(9, 12, 10, 0.72); border-radius: 4px; padding: 1px 5px; font: 9px/1.2 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-variant-numeric: tabular-nums; }
+
+/* safety violation (PurpleBoard): a short red flash around the bench */
+.viewport.safety-flash::after { content: ''; position: absolute; inset: 0; z-index: 40; pointer-events: none; box-shadow: inset 0 0 0 4px var(--danger), inset 0 0 70px rgba(255, 95, 87, 0.4); animation: safety-flash 0.7s ease-out both; }
+@keyframes safety-flash { 0%, 35% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .viewport.safety-flash::after { animation: none; opacity: 0.6; } }

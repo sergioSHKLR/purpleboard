@@ -60,7 +60,8 @@ import { HOTAIR_H, IRON_G, PREHEAT_H, ReworkMonitor, type ReworkEvent } from '..
 import { Renderer, type RendererKind, type VizMode } from '../render/renderer';
 import { NoAdapterError, gpuDiagnosis, webGlInfo } from '../render/gpuprobe';
 import { gpuHelp } from './gpuhelp';
-import { setSoundEnabled, sfxBeep, sfxBlow, sfxClick, sfxCut, sfxSolder, sfxWin, soundEnabled } from './audio';
+import { setSoundEnabled, sfxBeep, sfxBlow, sfxBuzz, sfxClick, sfxCut, sfxSolder, sfxWin, soundEnabled } from './audio';
+import { SAFETY_LABELS, SafetyLog, isOverheatEvent, liveToolViolation, loadBuzzerOn, saveBuzzerOn, type SafetyKind } from '../safety';
 import { icon } from './icons';
 import { chromeIntentUrl, inAppBrowser } from './inapp';
 import { LANGUAGES, lang, saveLanguage, t, t as translate, tk } from '../i18n';
@@ -363,6 +364,12 @@ export class PcbApp {
   private gpUsed = false;
   private gpHudClock = 0;
   private gpHeat: { src: HeatSource | null; smoke: number; pulse: number } | null = null;
+  // ---- safety violations (PurpleBoard): buzzer + a 100-point safety score per board ----
+  private safety = new SafetyLog();
+  private buzzerOn = loadBuzzerOn(PcbApp.storage());
+  /** performance.now() until which a new short counts as made by the last live edit. */
+  private liveEditUntil = 0;
+  private wasShorted = false;
 
   // Floating window & sidepanel drag state
   private tutPos: V2 = [0, 0];
@@ -858,6 +865,7 @@ export class PcbApp {
               <button class="btn ghost icon" id="btn-settings" title="${t('Settings')}">${icon('settings')}</button>
               <div class="bench-pop settings-pop" id="settings-pop" hidden>
                 <div class="bench-row"><span>${t('Sound')}</span><button class="btn sm" id="btn-sound"></button></div>
+                <div class="bench-row"><span>${t('Safety buzzer')}</span><button class="btn sm" id="btn-buzzer"></button></div>
                 <div class="bench-row"><span>${t('3D orbit')}</span><button class="btn sm" id="btn-invert-orbit"></button></div>
                 ${this.statsAvailable ? `<div class="bench-row"><span>${t('Puzzle stats')}</span><button class="btn sm" id="btn-stats"></button></div>` : ''}
                 <label class="bench-row"><span>${lang() === 'en' ? 'Language' : `${t('Language')} · Language`}</span>${this.langPickerHtml('full')}</label>
@@ -1807,6 +1815,7 @@ export class PcbApp {
     const facts = [
       sec >= 15 ? t('fixed in {time}', { time: `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` }) : '',
       this.moves > 0 ? t('{n} move|{n} moves', { n: this.moves }) : '',
+      this.safety.list.length ? t('safety {score}/100', { score: this.safety.score }) : '',
     ].filter(Boolean).join(' · ');
     const el = document.createElement('div');
     el.className = 'win-banner';
@@ -1935,6 +1944,9 @@ export class PcbApp {
     this.undoStack = [];
     this.redoStack = [];
     this.moves = 0;
+    this.safety.reset();
+    this.liveEditUntil = 0;
+    this.wasShorted = false;
     this.hintsShown = 0;
     this.selectedNet = -1;
     this.selectedCompId = null;
@@ -2031,6 +2043,7 @@ export class PcbApp {
       this.applySim(silentOverloads);
     } else {
       this.sim = null;
+      this.wasShorted = false;
     }
     this.refreshProbes();
     this.updateThermalPower();
@@ -2040,8 +2053,8 @@ export class PcbApp {
   /** Consequences of a fresh solve: parts that overloaded burn out (then re-solve). */
   private applySim(silentOverloads: boolean) {
     if (!this.sim) return;
+    let anyBlew = false;
     {
-      let anyBlew = false;
       for (const c of this.board.components) {
         const r = this.sim.comps.get(c.id);
         if (r?.over && !c.state.burnt) {
@@ -2060,6 +2073,12 @@ export class PcbApp {
         this.sim = this.solve();
       }
     }
+    // safety: a short (supply in current limit, >5 A from a battery, or a part burning out) that a
+    // live iron / wick / jumper edit made in the last few seconds
+    const sim = this.sim;
+    const shorted = !!sim && (!!sim.ccLimited || this.board.components.some((c) => c.kind === 'battery' && (sim.comps.get(c.id)?.i ?? 0) > 5));
+    if ((anyBlew || (shorted && !this.wasShorted)) && this.powerOn && performance.now() < this.liveEditUntil) this.safetyViolation('live-short', 'short');
+    this.wasShorted = shorted;
   }
 
   private solveWorker: Worker | null | undefined;
@@ -2113,7 +2132,8 @@ export class PcbApp {
       if (e.kind === 'molten') continue;
       changed = true;
       const bad = e.kind === 'pad-lifted' || e.kind === 'part-overheated' || e.kind === 'mlcc-cracked' || e.kind === 'part-displaced' || e.kind === 'dull-joint';
-      this.toast(e.detail, bad ? 'danger' : 'success');
+      const pts = isOverheatEvent(e.kind) ? this.safetyViolation('overheat', `${e.kind}:${e.ref}:${e.pad ?? ''}`, false) : 0;
+      this.toast(pts ? `${e.detail} · ${t('Safety: −{n} pts', { n: pts })}` : e.detail, bad ? 'danger' : 'success');
       if (e.kind === 'reflowed') sfxSolder();
       if (this.gpUsed) this.gpRumble(bad ? 1 : 0.6, bad ? 0.6 : 0.3, bad ? 320 : 110);
     }
@@ -2792,6 +2812,12 @@ export class PcbApp {
       setSoundEnabled(!soundEnabled);
       this.renderUI();
     });
+    q('#btn-buzzer').addEventListener('click', () => {
+      this.buzzerOn = !this.buzzerOn;
+      saveBuzzerOn(PcbApp.storage(), this.buzzerOn);
+      if (this.buzzerOn) sfxBuzz();
+      this.updateTopButtons();
+    });
     this.mount.querySelector('#btn-stats')?.addEventListener('click', () => {
       setStatsSwitch(!statsSwitchOn());
       this.updateTopButtons();
@@ -3375,6 +3401,7 @@ export class PcbApp {
     if (this.activeTool !== 'inspect') this.attempts?.tool(this.activeTool);
     const xray = this.vizMode === 'xray';
     const hit = pickAt(this.board, pt, side, xray);
+    this.safetyCheckTool();
 
     if (this.activeTool === 'dmm') {
       this.placeProbe('red', pt, side);
@@ -3703,6 +3730,11 @@ export class PcbApp {
 
     const sBtn = this.mount.querySelector('#btn-sound')!;
     sBtn.innerHTML = `${icon(soundEnabled ? 'volume' : 'mute', 13)}<span>${soundEnabled ? t('On') : t('Off')}</span>`;
+    const bzBtn = this.mount.querySelector<HTMLElement>('#btn-buzzer');
+    if (bzBtn) {
+      bzBtn.innerHTML = `${icon(this.buzzerOn ? 'volume' : 'mute', 13)}<span>${this.buzzerOn ? t('On') : t('Off')}</span>`;
+      bzBtn.title = t('Buzz when a safety rule is broken (the points are taken either way).');
+    }
     const statsOn = statsSwitchOn();
     const stBtn = this.mount.querySelector<HTMLElement>('#btn-stats');
     if (stBtn) {
@@ -4301,6 +4333,7 @@ export class PcbApp {
           <button class="btn sm block" id="btn-start-tut">${icon('book', 13)}<span>${t('Start interactive beginner tutorial')}</span></button>
         ` : ''}
       </div>
+      ${this.safetyCardHtml()}
 
       ${inTutTrack ? `
         <div class="card">
@@ -6520,6 +6553,7 @@ export class PcbApp {
     if (this.gpHeat && (f.actions.includes('heatEnd') || this.activeTool !== 'iron' || !at || f.heat <= 0)) { this.gpEndHeat(); return; }
     if (!this.gpHeat) {
       if (!starting || this.activeTool !== 'iron' || !at) return;
+      this.safetyCheckTool();
       if (!this.thermal) this.updateThermalPower();
       if (this.reworkMode.realistic) this.pushUndo(); else this.applyToolAt(at.pt, at.side);
       this.gpHeat = { src: null, smoke: 0, pulse: 0 };
@@ -6561,6 +6595,7 @@ export class PcbApp {
   private gpFeed(pt: V2, side: Side) {
     if (this.activeTool === 'dmm') return;
     if (this.activeTool !== 'iron') { this.applyToolAt(pt, side); return; }
+    this.safetyCheckTool();
     const hit = pickAt(this.board, pt, side, this.vizMode === 'xray');
     if (hit?.kind === 'pad' && hit.comp.state.populated) {
       if (!this.reworkMode.realistic) { this.applyToolAt(pt, side); return; }
@@ -6585,6 +6620,48 @@ export class PcbApp {
     sfxSolder();
     this.recompute(false);
     this.renderUI();
+  }
+
+  // ======================= safety violations (PurpleBoard) =======================
+  /**
+   * The one safety check for mouse, touch and controller: the iron, wick or isopropyl on the board
+   * with the supply on. Called before the tool acts (the tool still works: the sim shows what it does).
+   */
+  private safetyCheckTool() {
+    if (!this.powerOn) return;
+    const tool = this.activeTool;
+    if (tool === 'iron' || tool === 'wick' || tool === 'jumper') this.liveEditUntil = performance.now() + 3000;
+    const kind = liveToolViolation(tool);
+    if (kind) this.safetyViolation(kind, 'tool');
+  }
+
+  /** Count a violation (once per contact): buzzer, red flash, rumble, toast. Returns the points taken (0: same contact). */
+  private safetyViolation(kind: SafetyKind, key: string, toast = true): number {
+    const v = this.safety.record(kind, key, performance.now() / 1000);
+    if (!v) return 0;
+    if (this.buzzerOn) sfxBuzz();
+    if (this.gpUsed) this.gpRumble(1, 0.8, 280);
+    const vp = this.mount.querySelector<HTMLElement>('#viewport');
+    if (vp) { vp.classList.remove('safety-flash'); void vp.offsetWidth; vp.classList.add('safety-flash'); setTimeout(() => vp.classList.remove('safety-flash'), 700); }
+    if (toast) this.toast(t('Safety violation: {what} (−{n} pts)', { what: t(SAFETY_LABELS[kind]), n: v.points }), 'danger');
+    if (this.activeTab === 'mission') this.renderUI();
+    return v.points;
+  }
+
+  /** Mission tab: the board's safety score and what cost points. */
+  private safetyCardHtml(): string {
+    const rows = this.safety.breakdown();
+    const score = this.safety.score;
+    return `
+      <div class="card safety-card">
+        <div class="card-title">
+          <span>${t('Safety')}</span>
+          <span class="badge ${rows.length ? 'fail' : 'pass'}">${t('{score}/100', { score })}</span>
+        </div>
+        ${rows.length ? `<div class="stack">${rows.map((r) => `<div class="row" style="justify-content:space-between"><span>${t(SAFETY_LABELS[r.kind])}${r.count > 1 ? ` ×${r.count}` : ''}</span><span class="mono">−${r.points}</span></div>`).join('')}</div>`
+          : `<div class="muted">${t('No safety violations on this board.')}</div>`}
+        <div class="muted" style="font-size:12px">${t('Power off before the iron, wick or isopropyl touch the board.')}</div>
+      </div>`;
   }
 
   destroy() {
