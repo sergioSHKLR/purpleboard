@@ -10,15 +10,20 @@ No reference hardware is available, so realism is validated against *design inte
 - **NEXT SESSION — start here (around 2026-11-26).** Everything from 11-23 is pushed and live
   (last code commit `6aa8b35`). Reads to do, in this order:
   1. `npm run umami -- home` (homepage: compare with the baseline in the homepage entry below).
-  2. `npm run attempts-compare` (collector vs Umami: a steady per-board ratio → cut the overlapping
-     Umami events listed under "Analytics direction"; December would otherwise pass the 100k cap).
+  2. **Umami cut done 11-23 (user: Umami only on its free plan from now on).** Umami keeps page views,
+     `home left`, `bench ready` / `bench failed` / `bench error`, `bench left early`, `mod installed`
+     and active milestones 1 / 5 / 15 / 60 min. Gone (in the collector instead): `tutorial step`,
+     `tutorial closed`, `tutorial finished`, `first tool`, `tests run`, `board fixed`, `problem
+     generated`, `/board/<id>` virtual page views. Estimate ≈ 2.3k events/day ≈ 70k/month at
+     11-22 traffic. Check the month's total with `npm run umami -- events --days 30`.
+     `attempts-compare` only covers the morning of 11-23.
   3. `npm run attempts-report -- --by layout` and the first-visit funnel on deadboard.org/stats.html
      (effect of the two bench UX rounds: lesson tool dock, task-first lessons, "Board fixed",
      next repair card, solution video after real work, Author tab later).
   4. `npm run attempts-difficulty` (checkpoint 2: fitted vs shown levels, needs ~60 engaged attempts).
-  **Open decisions for the user:** show the fitted "real" levels to players instead of the hand-set
-  ones (wait until most puzzles have one); which Umami events to cut; a homepage headline A/B (the
-  record's `ab` field exists, unused). Note: GitHub pauses scheduled workflows (the daily Pages
+  **Decided 11-23:** players see the fitted "real" level as soon as a puzzle has one (`shownLevel` in
+  catalog.ts; tooltips say "from players' results"); `boardLevel` stays hand-set and is what the
+  records carry, so the fit keeps a fixed scale. No homepage A/B for now: gather analytics first. Note: GitHub pauses scheduled workflows (the daily Pages
   build that refreshes fitted levels) after 60 days without repo activity.
 
 - **Homepage round (2026-11-23, its own workstream).** Baseline before it (Umami `home left`,
