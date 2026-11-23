@@ -1,6 +1,6 @@
 // The hidden difficulty system (src/scenarios/adaptive.ts) and the Today picks it drives.
 import { attemptScore, expected, loadSkill, NEW_PLAYER, puzzleLevel, saveSkill, setFittedLevels, targetLevel, TARGET, update, type Skill } from '../src/scenarios/adaptive';
-import { BOARD_INFO, LESSON_SKIP_LEVEL, PATH_ORDER, todayPicks } from '../src/scenarios/catalog';
+import { BOARD_INFO, LESSON_SKIP_LEVEL, PATH_ORDER, boardLevel, levelFromPlayers, shownLevel, todayPicks } from '../src/scenarios/catalog';
 import { TUTORIAL_SCENARIO_IDS } from '../src/ui/tutorial';
 
 function assert(c: unknown, m: string): asserts c { if (!c) throw new Error(m); }
@@ -40,6 +40,15 @@ assert(loadSkill(store).n === 0, 'damaged → new player');
 assert(puzzleLevel('builtin-smoke-test', 3.2) === 3.2, 'no fit: shown level');
 setFittedLevels({ levels: { 'builtin-smoke-test': 4.4, 'evil<script>': 1, 'builtin-ghost-short': 99 } });
 assert(puzzleLevel('builtin-smoke-test', 3.2) === 4.4 && puzzleLevel('builtin-ghost-short', 3.6) === 3.6, 'fitted level used; out-of-range ignored');
+setFittedLevels(null);
+
+// the level players see: fitted once known; the hand-set one stays the records' fixed scale
+const smoke = { id: 'builtin-smoke-test', meta: {} as never };
+assert(shownLevel(smoke) === 3.2 && !levelFromPlayers(smoke), 'no fit: the hand-set level is shown');
+setFittedLevels({ levels: { 'builtin-smoke-test': 4.4 } });
+assert(shownLevel(smoke) === 4.4 && levelFromPlayers(smoke) && boardLevel(smoke) === 3.2, 'fit known: players see it, records keep 3.2');
+const daily2 = { id: 'gen-x', meta: { par: 2 } as never, generated: { from: 'builtin-smoke-test', title: '' } };
+assert(shownLevel(daily2) === 4.8 && levelFromPlayers(daily2), 'a daily on that board follows the fitted level');
 setFittedLevels(null);
 
 // Today picks

@@ -11,7 +11,7 @@
 import type { Board, Scenario } from '../types';
 import { seedOf } from '../faults';
 import { generateProblem, type Generated } from './generate';
-import { boardLevel } from './catalog';
+import { shownLevel } from './catalog';
 
 /** Hand-made challenge boards, in a fixed order (append only: reordering changes past dailies). */
 export const DAILY_POOL: readonly string[] = [
@@ -54,7 +54,7 @@ export function dailyPlan(key: string): DailyPlan {
 
 /** Level estimate of a daily: its board's level, plus a little for a second fault. */
 export function dailyLevel(plan: Pick<DailyPlan, 'boardId' | 'faults'>): number {
-  return boardLevel({ id: '', meta: { par: plan.faults } as Scenario['meta'], generated: { from: plan.boardId, title: '' } });
+  return shownLevel({ id: '', meta: { par: plan.faults } as Scenario['meta'], generated: { from: plan.boardId, title: '' } });
 }
 
 /** Builds the day's puzzle on the pool board's known-good reference. Null if nothing could be placed. */

@@ -60,7 +60,7 @@ function puzzles(s: PublicSummary, name: (p: PublicPuzzle) => string): string {
       <td class="st-opt st-n">${p.typicalTime ?? dash}</td></tr>`;
   }).join('');
   return `<h2>Puzzles</h2>
-    <p>Level is the number the puzzle shows (0–10).${fittedAny ? ' <strong>Real</strong> is how hard players actually found it, on the same scale, once a puzzle has 20 or more real attempts.' : ' Once puzzles have enough real attempts, a <strong>Real</strong> column shows how hard players actually found them.'}
+    <p>Level is our estimate (0–10) before anyone played.${fittedAny ? ' <strong>Real</strong> is how hard players actually found it, on the same scale, once a puzzle has 20 or more real attempts; the game shows that one.' : ' Once puzzles have enough real attempts, a <strong>Real</strong> column shows how hard players actually found them, and the game shows that level instead.'}
     Tap a puzzle to play it.</p>
     <div class="st-scroll"><table class="st-table"><thead><tr><th>Puzzle</th><th class="st-n">Level</th>${fittedAny ? '<th class="st-n">Real</th>' : ''}<th class="st-n st-opt">Attempts</th><th>Fixed</th><th class="st-opt">On phones</th><th class="st-opt">Used a note</th><th class="st-opt st-n">Typical time</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;

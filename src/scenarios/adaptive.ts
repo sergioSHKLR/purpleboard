@@ -96,6 +96,11 @@ export function setFittedLevels(data: unknown): void {
   fitted = next;
 }
 
+/** A fitted level is known for this puzzle. */
+export function hasFittedLevel(id: string): boolean {
+  return fitted.has(id);
+}
+
 /** The level the hidden system uses for a puzzle: fitted when known, else the shown level. */
 export function puzzleLevel(id: string, shown: number): number {
   return fitted.get(id) ?? shown;

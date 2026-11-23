@@ -15,7 +15,7 @@
 import { tk } from '../i18n';
 import type { Scenario } from '../types';
 import { CHALLENGE_TRACK_IDS, TUTORIAL_SCENARIO_IDS } from '../ui/tutorial';
-import { puzzleLevel, targetLevel, type Skill } from './adaptive';
+import { hasFittedLevel, puzzleLevel, targetLevel, type Skill } from './adaptive';
 
 /** Level bands, like CVSS scores: same cut points, colours from the brand's status colours. */
 export const LEVEL_BANDS = [
@@ -106,6 +106,25 @@ export function boardLevel(s: Pick<Scenario, 'id' | 'meta'> & Partial<Pick<Scena
   if (root) return Math.min(10, Math.round((root.level + 0.4 * Math.max(0, (s.meta.par ?? 1) - 1)) * 10) / 10);
   const d = Math.min(5, Math.max(1, Math.round(s.meta.difficulty || 1)));
   return [1.0, 2.5, 4.5, 6.5, 8.5][d - 1];
+}
+
+/**
+ * The level a puzzle shows players: the fitted "real" level from players' results once there is one
+ * (public stats → public/fitted-levels.json, src/scenarios/adaptive.ts), else the hand-set estimate.
+ * `boardLevel` stays the hand-set one: the attempt records carry it, so the fit is always measured
+ * against the same fixed scale.
+ */
+export function shownLevel(s: Pick<Scenario, 'id' | 'meta'> & Partial<Pick<Scenario, 'generated'>>): number {
+  const known = BOARD_INFO[s.id];
+  if (known) return puzzleLevel(s.id, known.level);
+  const root = s.generated && BOARD_INFO[s.generated.from];
+  if (root) return Math.min(10, Math.round((puzzleLevel(s.generated!.from, root.level) + 0.4 * Math.max(0, (s.meta.par ?? 1) - 1)) * 10) / 10);
+  return boardLevel(s);
+}
+
+/** The shown level comes from players' results (not the hand-set estimate). */
+export function levelFromPlayers(s: Pick<Scenario, 'id'> & Partial<Pick<Scenario, 'generated'>>): boolean {
+  return hasFittedLevel(s.id) || (!!s.generated && hasFittedLevel(s.generated.from));
 }
 
 /** "Name · symptom" titles split; other boards take the symptom from the table. Both untranslated. */

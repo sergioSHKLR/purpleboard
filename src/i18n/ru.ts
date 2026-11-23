@@ -325,6 +325,8 @@ const ru: Catalog = {
   "Sound on": "Звук вкл.",
   "Sound off": "Звук выкл.",
   "Next repair": "Следующий ремонт",
+  "Level {n} of 10 · {band} (from players' results)": "Уровень {n} из 10 · {band} (по результатам игроков)",
+  "{n} of 10 (from players' results)": "{n} из 10 (по результатам игроков)",
   "Board fixed": "Плата исправлена",
   "fixed in {time}": "за {time}",
   "More tools": "Больше инструментов",
