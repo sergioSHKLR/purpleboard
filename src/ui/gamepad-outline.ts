@@ -7,8 +7,8 @@ import { BTN, KEYMAP_ROWS, buttonName, type BindAction, type GamepadSettings, ty
 
 /** Short action names for the callouts. */
 export const SHORT: Record<BindAction, string> = {
-  fineToggle: 'Fine (toggle)', fineHold: 'Fine (hold)', heat: 'Iron (hold)', feed: 'Solder / black probe', act: 'Use / select',
-  cancel: 'Cancel / close', toolPrev: 'Prev tool', toolNext: 'Next tool', flip: 'Flip board', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
+  fineToggle: 'Fine (toggle)', fineHold: 'Fine (hold)', heat: 'Iron (hold)', feed: 'Feed solder', act: 'Use / red probe', blackProbe: 'Black probe (meter tap)',
+  cancel: 'Cancel (meter: hold)', toolPrev: 'Prev tool', toolNext: 'Next tool', flip: 'Flip board', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
   panLeft: 'Pan left', panRight: 'Pan right', menu: 'Boards menu', help: 'Help (tap)', calibrate: 'Calibrate (hold)', settings: 'Controller settings',
 };
 

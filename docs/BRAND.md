@@ -1,6 +1,6 @@
 # PurpleBoard — brand basics
 
-> PurpleBoard is a fork of [DEADBOARD by tholtman1-del](https://github.com/tholtman1-del/deadboard) (Apache-2.0). The fork has its own name, icon and blue-violet accent; the wordmark is Martian Mono Bold, condensed (font-stretch 75%), self-hosted from `@fontsource-variable/martian-mono`. The notes below the icon table are from the upstream brand guide.
+> PurpleBoard is a fork of [DEADBOARD by tholtman1-del](https://github.com/tholtman1-del/deadboard) (Apache-2.0). The fork follows the SHKLR brand kit (rev 4): own name and icon, wordmark PURPLEBOARD in uppercase Martian Mono Bold, condensed (wdth 75), tracking +0.02em, self-hosted from `@fontsource-variable/martian-mono`; UI text is not set in the brand font. The notes below the icon table are from the upstream brand guide.
 
 **Name:** DEADBOARD (always one word, all caps in the wordmark; "Deadboard" in running text is fine).
 Repair slang for a board that will not power on, with a nod to `0xDEADBEEF`.
@@ -13,8 +13,8 @@ challenge edge (CTF-style repair puzzles). Credibility first, personality second
 
 | Asset | File |
 |---|---|
-| PurpleBoard app icon (white soldering-iron tip on a pad + PCB traces, on a #8c72ff → #4f35c4 rounded tile) | [`brand/purpleboard-icon.svg`](brand/purpleboard-icon.svg), maskable: [`brand/purpleboard-icon-maskable.svg`](brand/purpleboard-icon-maskable.svg); source `src/ui/brand-icon.ts`, in-app: `markSvg()` in `src/ui/logo.ts` |
-| Favicon / app icons | `public/favicon.svg`, `public/favicon-32.png`, `public/icons/icon-{180,192,512}.png`, `public/icons/icon-maskable-512.png` |
+| PurpleBoard app icon (SHKLR brand kit rev 4 style: Lucide "square-activity" stroke glyph, a rounded square with a pulse line (ISC licence); violet #7c3aed on a #ffffff plate (light), #a78bfa on #1a1a1a (dark)) | [`brand/purpleboard-tile-light.svg`](brand/purpleboard-tile-light.svg), [`brand/purpleboard-tile-dark.svg`](brand/purpleboard-tile-dark.svg), square (apple-touch) and maskable variants in `docs/brand/`; source `src/ui/brand-icon.ts`; in-app (dark tile): `markSvg()` in `src/ui/logo.ts` |
+| Favicon / app icons | `public/favicon.svg` (bare glyph, swaps colour with `prefers-color-scheme`), `public/favicon-32{,-dark}.png`, `public/icons/icon-{180,192,512}{,-dark}.png`, `public/icons/icon-maskable-512{,-dark}.png` |
 
 - The wordmark is JetBrains Mono Bold, tracked +0.14 em, followed by a phosphor-green block cursor
   (blinks in the app; static in print and when reduced motion is on).

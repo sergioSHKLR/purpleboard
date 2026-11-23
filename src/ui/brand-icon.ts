@@ -1,29 +1,43 @@
-// PurpleBoard app icon: a white soldering-iron tip touching a pad, with a couple of PCB traces,
-// on a blue-violet (#8c72ff → #4f35c4) rounded tile. One source for the header mark (markSvg),
-// public/favicon.svg and docs/brand/ (regenerate with `node scripts/brand/icon.ts`).
+// PurpleBoard app icon, SHKLR brand kit rev 4 style: the Lucide "square-activity" stroke glyph
+// (a rounded square with a pulse line; 24 grid, stroke 2). Dual mode: violet #7c3aed on a white
+// plate (light) and #a78bfa on #1a1a1a (dark). Tile = rounded plate rx 5.25, glyph 80 %; square =
+// full-bleed plate, glyph 70 % (apple-touch); maskable = full-bleed, glyph 58 % (inside the 80 %
+// safe circle). The favicon is the bare glyph, switching colour with prefers-color-scheme.
+// One source for the header mark (markSvg), public/ icons and docs/brand/ (`node scripts/brand/icon.ts`).
 
-/** Icon artwork on a 512 grid. `id` keeps gradient/clip ids unique when inlined in a page. */
-export function iconSvg({ id = 'pb', maskable = false, size }: { id?: string; maskable?: boolean; size?: number } = {}): string {
+export type IconMode = 'light' | 'dark';
+export const ICON_COLORS = {
+  light: { plate: '#ffffff', glyph: '#7c3aed' },
+  dark: { plate: '#1a1a1a', glyph: '#a78bfa' },
+} as const;
+
+/** Glyph: Lucide "square-activity" (ISC licence), a rounded square with an activity / pulse line. 24×24, stroke 2. */
+const GLYPH = ['M17 12h-2l-2 5-2-10-2 5H7'];
+const FRAME = { x: 3, y: 3, w: 18, h: 18, rx: 2 };
+
+function glyph(color: string, cls = ''): string {
+  const c = cls ? ` class="${cls}"` : '';
+  return GLYPH.map((d) => `<path${c} d="${d}" stroke="${color}"/>`).join('')
+    + `<rect${c} x="${FRAME.x}" y="${FRAME.y}" width="${FRAME.w}" height="${FRAME.h}" rx="${FRAME.rx}" stroke="${color}"/>`;
+}
+const STROKE = 'fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+
+export type IconKind = 'tile' | 'square' | 'maskable';
+/** Plated icon. kind: tile (rounded), square (apple-touch), maskable. */
+export function iconSvg({ mode = 'dark', kind = 'tile', size }: { mode?: IconMode; kind?: IconKind; size?: number } = {}): string {
+  const { plate, glyph: g } = ICON_COLORS[mode];
+  const scale = kind === 'tile' ? 0.8 : kind === 'square' ? 0.7 : 0.58;
+  const off = (24 - 24 * scale) / 2;
   const sz = size ? ` width="${size}" height="${size}"` : '';
-  const tile = maskable ? '<rect width="512" height="512"' : '<rect width="512" height="512" rx="112"';
-  // maskable: artwork shrinks into the 80 % safe circle; the tile fills the whole square
-  const art = maskable ? 'translate(256 256) scale(0.74) translate(-256 -256)' : '';
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"${sz} fill="none" aria-hidden="true">`
-    + `<defs><linearGradient id="${id}-g" x1="0" y1="0" x2="1" y2="1">`
-    + `<stop offset="0" stop-color="#8c72ff"/><stop offset="1" stop-color="#4f35c4"/></linearGradient>`
-    + `<clipPath id="${id}-c">${tile}/></clipPath></defs>`
-    + `${tile} fill="url(#${id}-g)"/>`
-    + `<g clip-path="url(#${id}-c)"><g transform="${art}">`
-    // traces (copper, read as soft white lines) + one via
-    + `<g stroke="#fff" stroke-opacity=".55" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">`
-    + `<path d="M-160 400H112L170 342"/><path d="M226 392V430L264 468V700"/><path d="M-160 196H84L128 240"/></g>`
-    + `<circle cx="142" cy="254" r="20" stroke="#fff" stroke-opacity=".55" stroke-width="16"/>`
-    // the pad (annular ring with a hole) the iron is touching
-    + `<circle cx="226" cy="338" r="60" fill="#fff"/><circle cx="226" cy="338" r="20" fill="#5d43d6"/>`
-    // the iron: conical tip on the pad, shaft and grip running off to the top right
-    + `<g transform="translate(262 302) rotate(45)" fill="#fff">`
-    + `<path d="M-6 -6Q0 4 6 -6L32 -86H-32Z"/><rect x="-32" y="-206" width="64" height="124"/>`
-    + `<rect x="-36" y="-222" width="72" height="12" rx="4" fill-opacity=".6"/>`
-    + `<rect x="-54" y="-440" width="108" height="214" rx="26"/></g>`
-    + `</g></g></svg>`;
+  const rx = kind === 'tile' ? ' rx="5.25"' : '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"${sz} aria-hidden="true">`
+    + `<rect width="24" height="24"${rx} fill="${plate}"/>`
+    + `<g transform="translate(${off.toFixed(3)} ${off.toFixed(3)}) scale(${scale})" ${STROKE}>${glyph(g)}</g></svg>`;
+}
+
+/** Favicon: bare glyph on transparent, violet in light tabs, light violet in dark tabs. */
+export function faviconSvg(): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" ${STROKE}>`
+    + `<style>@media (prefers-color-scheme:dark){.sc0{stroke:${ICON_COLORS.dark.glyph}}}</style>`
+    + `${glyph(ICON_COLORS.light.glyph, 'sc0')}</svg>`;
 }

@@ -96,6 +96,52 @@ function pad(o: { axes?: number[]; down?: number[]; values?: Record<number, numb
   assert(!f.actions.includes('feed'), 'feed fires once per pull');
 }
 
+// ---- B: black probe with the meter (tap), cancel on a 0.6 s hold; plain cancel elsewhere ----
+{
+  const { CANCEL_HOLD_S, controlHints: hints, sanitizeSettings: san, keymapConflicts: kc, DEFAULT_KEYMAP: DK, defaultSettings } = await import('../src/ui/gamepad');
+  const m = new GamepadMapper();
+  const dt = 1 / 60;
+  let f = m.update(pad({ down: [BTN.B] }), dt);
+  assert(f.actions.includes('cancel') && !f.actions.includes('blackProbe'), 'no meter: B = cancel on press');
+  m.update(pad(), dt);
+  m.meterContext = true;
+  f = m.update(pad({ down: [BTN.B] }), dt);
+  assert(!f.actions.includes('cancel') && !f.actions.includes('blackProbe'), 'meter: nothing on B down yet');
+  f = m.update(pad(), dt);
+  assert(f.actions.includes('blackProbe') && !f.actions.includes('cancel'), 'meter: B tap = black probe');
+  let fired = 0, black = 0;
+  for (let t = 0; t < CANCEL_HOLD_S + 0.2; t += 0.05) { f = m.update(pad({ down: [BTN.B] }), 0.05); fired += f.actions.filter((a) => a === 'cancel').length; }
+  f = m.update(pad(), dt); black += f.actions.filter((a) => a === 'blackProbe').length;
+  assert(fired === 1 && black === 0, `meter: B held 0.6 s = one cancel, no probe (cancel ${fired}, black ${black})`);
+  f = m.update(pad({ values: { [BTN.LT]: 1 } }), dt);
+  assert(f.actions.includes('feed') && !f.actions.includes('blackProbe'), 'LT stays feed, never black probe');
+  m.update(pad(), dt);
+  f = m.update(pad({ down: [BTN.A] }), dt);
+  assert(f.actions.includes('act'), 'A still acts (red probe on the meter)');
+  // remapped black probe on its own button: only with the meter
+  const s2 = defaultSettings(); s2.keymap.blackProbe = BTN.X; s2.keymap.toolPrev = BTN.LEFT; s2.keymap.panLeft = BTN.Y; s2.keymap.toolNext = BTN.Y;
+  const m2 = new GamepadMapper(s2);
+  f = m2.update(pad({ down: [BTN.X] }), dt);
+  assert(!f.actions.includes('blackProbe'), 'separate black-probe button does nothing off the meter');
+  m2.update(pad(), dt); m2.meterContext = true;
+  f = m2.update(pad({ down: [BTN.X] }), dt);
+  assert(f.actions.includes('blackProbe'), 'separate black-probe button places black on press');
+  m2.update(pad(), dt);
+  f = m2.update(pad({ down: [BTN.B] }), dt);
+  assert(f.actions.includes('cancel'), 'then B is plain cancel even on the meter');
+  // B shared with cancel is not a conflict; on A it is
+  assert(kc({ ...DK }).length === 0, 'blackProbe + cancel on B is not a conflict');
+  assert(kc({ ...DK, blackProbe: BTN.A }).some((c) => c.actions.includes('blackProbe') && c.actions.includes('act')), 'blackProbe on A conflicts');
+  // migration: an old saved keymap without blackProbe follows its cancel button
+  const old = san({ keymap: { ...DK, cancel: BTN.Y, toolNext: BTN.B, blackProbe: undefined } });
+  assert(old.keymap?.blackProbe === BTN.Y, 'old keymap: blackProbe moves to the saved cancel button');
+  assert(san({ keymap: { act: BTN.A } }).keymap?.blackProbe === undefined, 'no saved cancel: default (B) applies');
+  // hints: LT no longer mentions the black probe
+  const h = hints(defaultSettings());
+  assert(!h.find(([k]) => k === 'LT')?.[1].includes('black'), 'LT label has no black probe');
+  assert(h.some(([k, v]) => k === 'B' && /black probe/.test(v) && /hold/.test(v)), 'B label: black probe + hold to cancel');
+}
+
 // ---- View: tap = help, hold = calibrate ----
 {
   const m = new GamepadMapper();

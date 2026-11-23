@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="docs/brand/purpleboard-icon.svg" alt="PurpleBoard icon: a soldering-iron tip on a PCB pad" width="112">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/purpleboard-tile-dark.svg">
+    <img src="docs/brand/purpleboard-tile-light.svg" alt="PurpleBoard icon: a rounded square with a pulse line" width="112">
+  </picture>
 </p>
 
 <h1 align="center">PurpleBoard</h1>
@@ -75,7 +78,7 @@ see [docs/TRANSLATING.md](docs/TRANSLATING.md).
 Found a bug or have an idea? Press the speech-bubble button in the bench (or **Feedback** on the
 homepage). No account needed: the message is emailed to the maintainer, with optional technical
 details (browser, GPU, board, view) so the problem can be reproduced. With a GitHub account you can
-also [open an issue](https://github.com/tholtman1-del/deadboard/issues/new/choose).
+also [open an issue](https://github.com/sergioSHKLR/purpleboard/issues/new).
 
 The form delivers through [FormSubmit](https://formsubmit.co). The destination is a build setting,
 `VITE_FEEDBACK_TO` (an address, or the alias FormSubmit sends after its one-time activation): put it

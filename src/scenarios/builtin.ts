@@ -44,7 +44,7 @@ function firstLight() {
   k.text([14, 2.2], 'FIRST LIGHT  rev A', 1.4);
   return finalize('builtin-first-light', {
     title: 'First Light',
-    author: 'DEADBOARD',
+    author: 'PurpleBoard',
     difficulty: 1,
     description: 'A tiny flashlight: coin cell, push button, resistor, red LED. Pressing SW1 should light D1 — but nothing happens. Find the fault, repair it, then run the test bench.',
     hints: [
@@ -61,7 +61,7 @@ function tutColdJoint() {
   const k = coinLedBoard('green', 'TUTORIAL 2  COLD JOINT');
   return finalize('builtin-tut-cold-joint', {
     title: 'Cold Joint 101',
-    author: 'DEADBOARD Academy',
+    author: 'PurpleBoard Academy',
     difficulty: 1,
     description: 'Beginner Tutorial 2: Only three parts — coin cell BT1, 100 Ω resistor R1, and green LED D1. Every trace on top is intact, yet no current flows and D1 is dark. Flip the board to inspect how through-hole parts are soldered underneath.',
     hints: [
@@ -78,7 +78,7 @@ function tutSolderBridge() {
   const k = coinLedBoard('red', 'TUTORIAL 3  SOLDER BRIDGE');
   return finalize('builtin-tut-solder-bridge', {
     title: 'Solder Bridge 101',
-    author: 'DEADBOARD Academy',
+    author: 'PurpleBoard Academy',
     difficulty: 1,
     description: 'Beginner Tutorial 3: The battery is delivering ~28 mA, yet red LED D1 is completely dark! Learn the difference between an open circuit and a short circuit, and clean up excess solder with Desolder wick.',
     hints: [
@@ -95,7 +95,7 @@ function tutPolarity() {
   const k = coinLedBoard('yellow', 'TUTORIAL 4  POLARITY');
   return finalize('builtin-tut-polarity', {
     title: 'One-Way LED',
-    author: 'DEADBOARD Academy',
+    author: 'PurpleBoard Academy',
     difficulty: 1,
     description: 'Beginner Tutorial 4: Resistors work either way round, but diodes and LEDs are one-way valves (Anode + to Cathode K). Use the silkscreen markings and Multimeter Diode mode to spot and fix a reversed LED.',
     hints: [
@@ -120,7 +120,7 @@ function tutResistor() {
   k.text([29, 2.5], 'TUTORIAL 5  OHMS LAW', 1.4);
   return finalize('builtin-tut-resistor', {
     title: 'Resistor & Ohm\'s Law',
-    author: 'DEADBOARD Academy',
+    author: 'PurpleBoard Academy',
     difficulty: 1,
     description: 'Beginner Tutorial 5: A 5 V USB supply feeds blue LED D1 through resistor R1. The design calls for R1 = 150 Ω (~12 mA), but someone fitted a 100 kΩ resistor from the wrong bin, starving D1 to 0.02 mA.',
     hints: [
@@ -148,7 +148,7 @@ function tutDivider() {
   k.text([29, 32.5], 'TUTORIAL 6  2.5V DIVIDER', 1.4);
   return finalize('builtin-tut-divider', {
     title: 'Voltage Divider 101',
-    author: 'DEADBOARD Academy',
+    author: 'PurpleBoard Academy',
     difficulty: 1,
     description: 'Beginner Tutorial 6: Not every circuit lights an LED — many split a supply rail to create a reference voltage on a Test Point (TP1). Learn how two 10 kΩ resistors divide 5.0 V in half to 2.50 V, and populate the missing R2 footprint.',
     hints: [
@@ -185,7 +185,7 @@ function bridgeTroll() {
   void sw;
   return finalize('builtin-bridge-troll', {
     title: 'Bridge Troll',
-    author: 'DEADBOARD',
+    author: 'PurpleBoard',
     difficulty: 2,
     description: 'Two indicator LEDs share one button. Hand-soldered in a hurry: D1 stays dark and D2 never lights. There is more than one fault. Hint: the interesting side of a through-hole board is the bottom.',
     hints: [
@@ -221,7 +221,7 @@ function backwardsDay() {
   k.text([30, 37.5], 'BACKWARDS DAY', 1.4);
   return finalize('builtin-backwards-day', {
     title: 'Backwards Day',
-    author: 'DEADBOARD',
+    author: 'PurpleBoard',
     difficulty: 3,
     description: 'A USB-powered status light with a yellow and a blue LED. The intern assembled it from the wrong reel and was not careful with orientation. Both LEDs must light when 5 V is applied.',
     hints: [
@@ -262,7 +262,7 @@ function ghostShort() {
   k.text([36, 2.5], 'GHOST SHORT  5V REF', 1.4);
   return finalize('builtin-ghost-short', {
     title: 'Ghost Short',
-    author: 'DEADBOARD',
+    author: 'PurpleBoard',
     difficulty: 4,
     description: 'A 5 V reference board: power LED D1 plus a divider that must put 2.5 V (±0.2 V) on TP1. It came back from the field dead with a blown fuse and a missing part. Replace the fuse without finding the cause and it will just blow again.',
     hints: [
@@ -319,7 +319,7 @@ async function transistorSwitch(): Promise<Scenario> {
   k.text([16, 41], 'TRANSISTOR SWITCH  rev A', 1.4);
   const sc = await finalize('builtin-transistor-switch', {
     title: 'Transistor Switch',
-    author: 'DEADBOARD',
+    author: 'PurpleBoard',
     difficulty: 2,
     description: 'A transistor switch, the circuit behind a bike\'s rear light: a small current from SW1 into the base of Q1 lets a much bigger one flow through two red LEDs. Pressed, both LEDs should light brightly. They only glow faintly.',
     hints: [

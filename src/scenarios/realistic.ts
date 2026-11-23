@@ -42,7 +42,7 @@ function smokeTest() {
     'builtin-smoke-test',
     {
       title: 'Smoke Test',
-      author: 'DEADBOARD Academy',
+      author: 'PurpleBoard Academy',
       difficulty: 3,
       description:
         'A 5V protected rail with a fuse (F1) and 1N4007 series diode (D1). The fuse is blown and the rail is dead. Use Bench OCP (100 mA) + Thermal IR or Multimeter Diode/Ω mode before replacing the fuse!',
@@ -96,7 +96,7 @@ function saggingRail() {
     'builtin-sagging-rail',
     {
       title: 'The Sagging Rail',
-      author: 'DEADBOARD Academy',
+      author: 'PurpleBoard Academy',
       difficulty: 4,
       description:
         'A 5 V voltage divider (TP1 must read 2.50 V ± 0.2 V) and a blue 5 V indicator LED (D1). Currently VREF sags below 0.5 V and D1 stays dark. Decode the resistor bands and trace both copper layers!',

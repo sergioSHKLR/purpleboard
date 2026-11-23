@@ -783,7 +783,7 @@ export class PcbApp {
         <header class="topbar">
           <div class="topbar-group">
             <a class="brand" href="./" title="${t('{name} — home', { name: BRAND.name })}">${markSvg(22)}</a>
-            <span class="brand-name" title="${t(BRAND.descriptor)}">${BRAND.name}</span>
+            <span class="brand-name" title="${t(BRAND.descriptor)}">${BRAND.wordmark}</span>
             <span class="topbar-divider"></span>
             <button class="board-picker-btn" id="btn-boards" title="${t('Browse all boards & tutorials')}">
               ${icon('grid', 14)}
@@ -1168,7 +1168,7 @@ export class PcbApp {
       for (const d of list) {
         const stub: Scenario = {
           format: 'pcbfix/1', id: d.id, solver: 'spice-power', objectives: [],
-          meta: { title: d.title, author: 'DEADBOARD', difficulty: d.difficulty, description: d.description, hints: [], credits: d.credits, license: d.license, source: d.source },
+          meta: { title: d.title, author: 'PurpleBoard', difficulty: d.difficulty, description: d.description, hints: [], credits: d.credits, license: d.license, source: d.source },
           board: new Builder(10, 10).b,
         };
         this.demoUrls.set(stub, `./demos/${d.file}`);
@@ -2468,7 +2468,7 @@ export class PcbApp {
     const nl = boardToCircuit(this.board, conn, {
       title,
       infer: this.activeScenario.meta.author.startsWith('Boardview'),
-      comments: [`Exported from DEADBOARD scenario "${title}" with its current faults and repairs.`],
+      comments: [`Exported from PurpleBoard scenario "${title}" with its current faults and repairs.`],
     });
     const blob = new Blob([writeSpice(nl.circuit)], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -6436,6 +6436,8 @@ export class PcbApp {
   private pollGamepad(dt: number) {
     if (typeof navigator === 'undefined' || typeof navigator.getGamepads !== 'function') return;
     const p = this.gpPad();
+    // B = black probe only on the bench with the meter selected (menus, help and panels: B cancels)
+    this.gp.meterContext = this.activeTool === 'dmm' && !this.gpPanel?.isOpen && !this.gpModalOpen() && !this.gpOverlay?.hintVisible;
     if (this.gpPanel?.isOpen) {
       const f0 = p ? this.gp.update(p, dt) : null;
       if (this.gpHeat) this.gpEndHeat();
@@ -6485,7 +6487,12 @@ export class PcbApp {
       else if (a === 'flip') this.flipSide();
       else if (a === 'toggleFine') ov.flash(f.fine ? 'FINE' : 'COARSE');
       else if (a === 'cancel') this.gpCancel();
-      else if (a === 'act' && resolved) this.applyToolAt(resolved.pt, resolved.side);
+      else if (a === 'act' && resolved) {
+        // meter: A always places the red probe (B places black)
+        if (this.activeTool === 'dmm') this.placeProbe('red', resolved.pt, resolved.side);
+        else this.applyToolAt(resolved.pt, resolved.side);
+      }
+      else if (a === 'blackProbe' && resolved && this.activeTool === 'dmm') this.placeProbe('black', resolved.pt, resolved.side);
       else if (a === 'feed' && resolved) this.gpFeed(resolved.pt, resolved.side);
     }
     this.gpHeatFrame(f, resolved, dt);
@@ -6550,9 +6557,9 @@ export class PcbApp {
     this.gpHeat = null;
   }
 
-  /** LT: feed solder with the iron (a joint has to be molten to take it), else the tool's second action. */
+  /** LT: feed solder with the iron (a joint has to be molten to take it), else the tool's second action (not the meter: B places black). */
   private gpFeed(pt: V2, side: Side) {
-    if (this.activeTool === 'dmm') { this.placeProbe('black', pt, side); return; }
+    if (this.activeTool === 'dmm') return;
     if (this.activeTool !== 'iron') { this.applyToolAt(pt, side); return; }
     const hit = pickAt(this.board, pt, side, this.vizMode === 'xray');
     if (hit?.kind === 'pad' && hit.comp.state.populated) {

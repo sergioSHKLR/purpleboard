@@ -145,7 +145,7 @@ export function parseManifest(text: string, warnings: string[] = []): ModManifes
   if (raw.format !== MOD_FORMAT && !v2) errs.push(`"format" must be "${MOD_FORMAT}" or "${MOD_FORMAT_2}"`);
   const id = str(raw.id, 64) ?? '';
   if (!ID_RE.test(id)) errs.push('"id" must be 2-64 characters: lowercase letters, digits, ".", "-" or "_" (e.g. "jane-audio-boards")');
-  else if (isOfficialId(id)) errs.push('"id": names starting with "official-" are reserved for the mods that ship with DEADBOARD');
+  else if (isOfficialId(id)) errs.push('"id": names starting with "official-" are reserved for the mods that ship with PurpleBoard');
   const name = str(raw.name, 80);
   if (!name) errs.push('"name" is required');
   const license = str(raw.license, 60);
@@ -202,7 +202,7 @@ export function parseManifest(text: string, warnings: string[] = []): ModManifes
       : a.type === 'faultTypes' ? (a.mod === OFFICIAL_FAULTS_MOD ? ['range'] : ['name', 'description', 'applies', 'effects'])
         : a.type === 'meters' ? METER_FIELDS
           : a.type === 'rules' ? ['when', 'suspect', 'weight', 'confirm', 'why'] : null;
-    if (!fields) { warnings.push(`${at}: patching "${a.type}" needs a newer version of DEADBOARD (ignored)`); return; }
+    if (!fields) { warnings.push(`${at}: patching "${a.type}" needs a newer version of PurpleBoard (ignored)`); return; }
     if (!r.set || typeof r.set !== 'object' || Array.isArray(r.set)) { errs.push(`${at}.set must be an object of fields to change`); return; }
     const set: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(r.set as Record<string, unknown>)) {
@@ -255,12 +255,12 @@ export function parseManifest(text: string, warnings: string[] = []): ModManifes
       if (!entry || !/\.m?js$/i.test(entry)) errs.push('"code.entry" must be the path of a .js or .mjs file inside the mod');
       const api = typeof c.api === 'string' ? c.api.trim() : '';
       if (!validRange(api)) errs.push('"code.api" must be the plug-in API range the mod was written for, e.g. "^1"');
-      else if (!satisfies(parseVersion(API_VERSION)!, api)) errs.push(`"code.api" asks for ${api}, but this version of DEADBOARD has plug-in API ${API_VERSION}: update DEADBOARD, or the mod`);
+      else if (!satisfies(parseVersion(API_VERSION)!, api)) errs.push(`"code.api" asks for ${api}, but this version of PurpleBoard has plug-in API ${API_VERSION}: update PurpleBoard, or the mod`);
       const permissions: string[] = [];
       if (c.permissions !== undefined && !Array.isArray(c.permissions)) errs.push('"code.permissions" must be a list');
       for (const p of Array.isArray(c.permissions) ? c.permissions : []) {
         if (p === PERMISSIONS.localhost || p === PERMISSIONS.panel || p === PERMISSIONS.storage || (typeof p === 'string' && NETWORK_ORIGIN.test(p))) { if (!permissions.includes(p)) permissions.push(p); }
-        else if (LATER_PERMISSIONS.includes(p as string)) warnings.push(`"code.permissions": "${p}" comes in a later version of DEADBOARD (not granted)`);
+        else if (LATER_PERMISSIONS.includes(p as string)) warnings.push(`"code.permissions": "${p}" comes in a later version of PurpleBoard (not granted)`);
         else errs.push(`"code.permissions": unknown permission ${JSON.stringify(p)} (known: "${PERMISSIONS.localhost}", "network:https://host", "panel", "storage")`);
       }
       for (const k of Object.keys(c)) if (!['entry', 'api', 'permissions'].includes(k)) warnings.push(`"code": unknown field "${k}" (ignored)`);
@@ -294,7 +294,7 @@ export function parseManifest(text: string, warnings: string[] = []): ModManifes
   if (v2) {
     for (const k of Object.keys(raw)) {
       if (KNOWN_KEYS.has(k)) continue;
-      warnings.push(FUTURE_KEYS.has(k) ? `"${k}" needs a newer version of DEADBOARD (ignored)` : `unknown field "${k}" (ignored)`);
+      warnings.push(FUTURE_KEYS.has(k) ? `"${k}" needs a newer version of PurpleBoard (ignored)` : `unknown field "${k}" (ignored)`);
     }
   }
 

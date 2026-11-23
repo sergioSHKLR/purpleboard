@@ -1,5 +1,4 @@
 // DEADBOARD homepage: fonts, brand mark, icons, the power-up log, legacy share links.
-import '@fontsource-variable/inter';
 import '@fontsource-variable/jetbrains-mono';
 import '@fontsource-variable/martian-mono/standard.css';
 import './home.css';

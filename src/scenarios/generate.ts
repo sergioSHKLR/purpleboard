@@ -369,7 +369,7 @@ export async function generateProblem(parent: Scenario, good: Board, opts: Gener
     id,
     meta: {
       title: `${t(root.title)} · #${tag}`,
-      author: t('DEADBOARD generator'),
+      author: t('PurpleBoard generator'),
       difficulty: Math.min(5, Math.max(parent.meta.difficulty, n + 1)),
       description: t('A new problem on the board you just fixed: same checks, {n} fresh fault.|A new problem on the board you just fixed: same checks, {n} fresh faults.', { n }),
       hints: [

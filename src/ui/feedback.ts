@@ -66,7 +66,7 @@ export async function sendFeedback(m: FeedbackMessage): Promise<void> {
   const label = m.kind === 'bug' ? 'Bug report' : 'Suggestion';
   const firstLine = m.message.trim().split('\n')[0].slice(0, 60);
   await postToMaintainer({
-    _subject: `[DEADBOARD] ${label}: ${firstLine}`,
+    _subject: `[PurpleBoard] ${label}: ${firstLine}`,
     ...(m.contact.includes('@') && { _replyto: m.contact.trim() }),
     type: label,
     message: m.message.trim(),

@@ -14,7 +14,7 @@ Third-party material distributed with it keeps its own licence:
 - src/io/tvw.ts: the Tebo-ICT (.tvw) record layout follows the reverse-engineered reader in
   eagleview (https://github.com/nitrocaster/eagleview), MIT License, Copyright (c) 2019-2020
   Pavel Kovalenko. Full licence text: licenses/eagleview-MIT.txt.
-- Fonts (JetBrains Mono, Inter, Martian Mono) are bundled at build time from npm under the SIL Open Font
+- Fonts (JetBrains Mono, Martian Mono) are bundled at build time from npm under the SIL Open Font
   License 1.1.
 
 Jetson is a trademark of NVIDIA. MNT Reform is a trademark of MNT Research GmbH. ESP32 is a
@@ -26,5 +26,6 @@ accent (src/ui/styles.css, src/home/home.css, app.html, public/app.webmanifest) 
 Modified files are marked; Apache License 2.0. The gamepad outline is an original generic drawing.
 PurpleBoard rename (v0.4.0) by sergioSHKLR, 2026: the PurpleBoard name, wordmark and app icon
 (src/ui/brand-icon.ts, src/ui/logo.ts, public/favicon.svg, public/favicon-32.png, public/icons/,
-docs/brand/purpleboard-icon*.svg) and the site URLs. The icon is an original drawing; the DEADBOARD
-name and mark are not used as this fork's branding.
+docs/brand/purpleboard-*.svg) and the site URLs. The icon glyph is Lucide "square-activity"
+(https://lucide.dev, ISC License, Copyright (c) Lucide Contributors); the DEADBOARD name and mark
+are not used as this fork's branding.

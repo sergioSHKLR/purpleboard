@@ -196,7 +196,7 @@ export class CommunityUi {
     return `
       <div class="card submit-card">
         <div class="mod-name">${t('Submit «{name}»', { name: this.h.esc(mf.name) })} <span class="muted mono">v${this.h.esc(mf.version)}</span></div>
-        <p class="text-2" style="margin:0">${t('It goes to the DEADBOARD maintainer for review. Once accepted, it is listed under Community for everyone, under its licence ({license}).', { license: this.h.esc(mf.license) })}</p>
+        <p class="text-2" style="margin:0">${t('It goes to the PurpleBoard maintainer for review. Once accepted, it is listed under Community for everyone, under its licence ({license}).', { license: this.h.esc(mf.license) })}</p>
         <div class="row wrap">
           ${running ? `<span class="muted">${t('Bench check…')} <span id="bench-step"></span></span>`
             : r ? `<span class="bench-sum"><span class="pass">✓ ${n('pass')}</span> <span class="warn">! ${n('warn')}</span> <span class="fail">✗ ${n('fail')}</span></span>` : ''}

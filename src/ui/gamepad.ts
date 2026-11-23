@@ -23,12 +23,12 @@ export interface PadSnapshot {
 
 /** Remappable button actions (each bound to one standard-mapping button index). */
 export type BindAction =
-  | 'fineToggle' | 'fineHold' | 'heat' | 'feed' | 'act' | 'cancel' | 'toolPrev' | 'toolNext'
+  | 'fineToggle' | 'fineHold' | 'heat' | 'feed' | 'act' | 'blackProbe' | 'cancel' | 'toolPrev' | 'toolNext'
   | 'flip' | 'zoomIn' | 'zoomOut' | 'panLeft' | 'panRight' | 'menu' | 'help' | 'calibrate' | 'settings';
 export type Keymap = Record<BindAction, number>;
 
 export const DEFAULT_KEYMAP: Readonly<Keymap> = {
-  fineToggle: BTN.L3, fineHold: BTN.LB, heat: BTN.RT, feed: BTN.LT, act: BTN.A, cancel: BTN.B,
+  fineToggle: BTN.L3, fineHold: BTN.LB, heat: BTN.RT, feed: BTN.LT, act: BTN.A, blackProbe: BTN.B, cancel: BTN.B,
   toolPrev: BTN.X, toolNext: BTN.Y, flip: BTN.RB, zoomIn: BTN.UP, zoomOut: BTN.DOWN,
   panLeft: BTN.LEFT, panRight: BTN.RIGHT, menu: BTN.MENU, help: BTN.VIEW, calibrate: BTN.VIEW, settings: BTN.R3,
 };
@@ -38,8 +38,9 @@ export const KEYMAP_ROWS: readonly [BindAction, string, string][] = [
   ['fineToggle', 'Fine cursor (toggle)', 'press'],
   ['fineHold', 'Fine cursor (hold)', 'hold'],
   ['heat', 'Iron on the joint', 'hold'],
-  ['feed', 'Feed solder / black probe', 'press'],
-  ['act', 'Use tool / select', 'press'],
+  ['feed', 'Feed solder (iron)', 'press'],
+  ['act', 'Use tool / select · red probe (meter)', 'press'],
+  ['blackProbe', 'Black probe (meter)', 'press'],
   ['cancel', 'Cancel / lift / close', 'press'],
   ['toolPrev', 'Previous tool', 'press'],
   ['toolNext', 'Next tool', 'press'],
@@ -58,7 +59,11 @@ export const KEYMAP_ROWS: readonly [BindAction, string, string][] = [
 export const BUTTON_NAMES: readonly string[] = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Menu', 'L3', 'R3', 'D-pad ↑', 'D-pad ↓', 'D-pad ←', 'D-pad →', 'Guide'];
 export const buttonName = (i: number) => BUTTON_NAMES[i] ?? `Button ${i}`;
 
-/** Buttons bound to more than one action. Help (tap) and calibrate (hold) may share a button. */
+/**
+ * Buttons bound to more than one action. Help (tap) and calibrate (hold) may share a button, and so
+ * may black probe and cancel: with the meter selected a tap places the black probe and a 0.6 s hold
+ * cancels; with any other tool the button is plain cancel.
+ */
 export function keymapConflicts(km: Keymap): { button: number; actions: BindAction[] }[] {
   const by = new Map<number, BindAction[]>();
   for (const [a] of KEYMAP_ROWS) { const b = km[a]; by.set(b, [...(by.get(b) ?? []), a]); }
@@ -66,6 +71,7 @@ export function keymapConflicts(km: Keymap): { button: number; actions: BindActi
   for (const [button, actions] of by) {
     if (actions.length < 2) continue;
     if (actions.length === 2 && actions.includes('help') && actions.includes('calibrate')) continue;
+    if (actions.length === 2 && actions.includes('blackProbe') && actions.includes('cancel')) continue;
     out.push({ button, actions });
   }
   return out;
@@ -158,7 +164,7 @@ export function trigger(b: PadButton | undefined, dz: number): number {
 export type PadAction =
   | 'act' | 'cancel' | 'toolPrev' | 'toolNext' | 'menu' | 'help' | 'calibrate'
   | 'toggleFine' | 'flip' | 'up' | 'down' | 'left' | 'right'
-  | 'heatStart' | 'heatEnd' | 'feed' | 'settings';
+  | 'heatStart' | 'heatEnd' | 'feed' | 'settings' | 'blackProbe';
 
 export interface PadFrame {
   /** Cursor movement this frame (CSS px). */
@@ -179,6 +185,8 @@ export interface PadFrame {
 
 /** The calibrate button (View by default) held this long (s) opens calibration instead of toggling help. */
 export const VIEW_HOLD_S = 0.8;
+/** With the meter selected and black probe sharing the cancel button (B), holding it this long (s) cancels. */
+export const CANCEL_HOLD_S = 0.6;
 
 export class GamepadMapper {
   settings: GamepadSettings;
@@ -188,6 +196,10 @@ export class GamepadMapper {
   private feedOn = false;
   private viewHeld = 0;
   private viewFired = false;
+  private bHeld = 0;
+  private bFired = false;
+  /** Set by the app each frame: the multimeter is the selected tool (B = black probe). */
+  meterContext = false;
 
   constructor(settings: Partial<GamepadSettings> = {}) {
     this.settings = { ...defaultSettings(), ...settings, keymap: { ...DEFAULT_KEYMAP, ...(settings.keymap ?? {}) } };
@@ -196,7 +208,7 @@ export class GamepadMapper {
   get fine(): boolean { return this.fineLatched; }
 
   /** Forget held state (pad disconnected or app lost focus). */
-  reset() { this.prev = []; this.heatOn = false; this.feedOn = false; this.viewHeld = 0; this.viewFired = false; }
+  reset() { this.prev = []; this.heatOn = false; this.feedOn = false; this.viewHeld = 0; this.viewFired = false; this.bHeld = 0; this.bFired = false; }
 
   update(p: PadSnapshot, dt: number): PadFrame {
     const s = this.settings;
@@ -223,10 +235,25 @@ export class GamepadMapper {
     else if (this.feedOn && feed < s.triggerOn * 0.6) this.feedOn = false;
 
     const pressMap: [BindAction, PadAction][] = [
-      ['act', 'act'], ['cancel', 'cancel'], ['toolPrev', 'toolPrev'], ['toolNext', 'toolNext'], ['flip', 'flip'],
+      ['act', 'act'], ['toolPrev', 'toolPrev'], ['toolNext', 'toolNext'], ['flip', 'flip'],
       ['menu', 'menu'], ['zoomIn', 'up'], ['zoomOut', 'down'], ['panLeft', 'left'], ['panRight', 'right'], ['settings', 'settings'],
     ];
     for (const [b, a] of pressMap) if (edge(km[b])) actions.push(a);
+
+    // Cancel and black probe. Sharing one button (default B): with the meter selected a tap places
+    // the black probe and a CANCEL_HOLD_S hold cancels; with any other tool it is plain cancel.
+    const bShared = km.blackProbe === km.cancel;
+    if (bShared && this.meterContext) {
+      if (down(km.cancel)) {
+        if (!this.prev[km.cancel]) { this.bHeld = 0; this.bFired = false; }
+        this.bHeld += dt;
+        if (!this.bFired && this.bHeld >= CANCEL_HOLD_S) { this.bFired = true; actions.push('cancel'); }
+      } else if (this.prev[km.cancel] && !this.bFired && this.bHeld > 0) actions.push('blackProbe');
+    } else {
+      if (edge(km.cancel)) actions.push('cancel');
+      if (!bShared && this.meterContext && edge(km.blackProbe)) actions.push('blackProbe');
+    }
+    if (!down(km.cancel)) { this.bHeld = 0; this.bFired = false; }
 
     // help: a tap; calibrate: a 0.8 s hold. Sharing one button (the default, View): tap vs hold.
     const shared = km.help === km.calibrate;
@@ -297,9 +324,11 @@ export function controlHints(s: GamepadSettings = DEFAULT_SETTINGS): [string, st
     [`${n(k.fineToggle)} / hold ${n(k.fineHold)}`, 'Fine cursor (toggle / hold)'],
     [pan, 'Pan the board'],
     [`${n(k.heat)} (hold)`, 'Iron on the joint: heat while held, pressure = contact'],
-    [n(k.feed), 'Feed solder (iron) · black probe (meter) · use tool'],
-    [n(k.act), 'Use tool / select'],
-    [n(k.cancel), 'Cancel · lift · close'],
+    [n(k.feed), 'Feed solder (iron) · use tool'],
+    [n(k.act), 'Use tool / select · red probe (meter)'],
+    ...(k.blackProbe === k.cancel
+      ? [[n(k.cancel), 'Cancel · lift · close · meter: black probe (hold: cancel)']]
+      : [[n(k.blackProbe), 'Black probe (meter)'], [n(k.cancel), 'Cancel · lift · close']]) as [string, string][],
     [pair(k.toolPrev, k.toolNext), 'Previous / next tool'],
     [n(k.flip), 'Flip board (top / bottom)'],
     [pair(k.zoomIn, k.zoomOut), 'Zoom in / out (menus: move)'],
@@ -334,6 +363,8 @@ export function sanitizeSettings(v: unknown): Partial<GamepadSettings> {
   if (o.keymap && typeof o.keymap === 'object') {
     const km: Partial<Keymap> = {};
     for (const [a] of KEYMAP_ROWS) { const b = (o.keymap as Record<string, unknown>)[a]; if (Number.isInteger(b) && (b as number) >= 0 && (b as number) <= 15) km[a] = b as number; }
+    // keymaps saved before blackProbe existed: put it on their cancel button (meter tap = black, hold = cancel)
+    if (km.blackProbe === undefined && km.cancel !== undefined) km.blackProbe = km.cancel;
     if (Object.keys(km).length) out.keymap = km;
   }
   return out as Partial<GamepadSettings>;

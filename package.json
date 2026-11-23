@@ -1,15 +1,15 @@
 {
-  "name": "deadboard",
+  "name": "purpleboard",
   "private": true,
   "version": "0.1.0",
   "forkVersion": "0.4.0",
-  "description": "Board-level repair trainer: diagnose and fix simulated circuit boards on a realistic bench, in the browser.",
+  "description": "PurpleBoard, based on DEADBOARD by tholtman1-del (Apache-2.0). Board-level repair trainer: diagnose and fix simulated circuit boards on a realistic bench, in the browser.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tholtman1-del/deadboard.git"
+    "url": "https://github.com/sergioSHKLR/purpleboard.git"
   },
-  "homepage": "https://github.com/tholtman1-del/deadboard#readme",
+  "homepage": "https://sergioshklr.github.io/purpleboard/",
   "type": "module",
   "scripts": {
     "dev": "vite",

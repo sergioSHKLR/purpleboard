@@ -56,7 +56,7 @@ async function run() {
     const mf = parseManifest(JSON.stringify(v2({ code: { entry: 'dist/main.js', api: '^1', permissions: ['network:localhost', 'network:https://models.example.org'] } })));
     assert(mf.code?.entry === 'dist/main.js' && mf.code.permissions.length === 2 && mf.boards.length === 0, 'a code mod needs no boards');
     throws(() => parseManifest(JSON.stringify(v2({ code: { entry: 'main.py', api: '^1' } }))), /\.js or \.mjs/, 'entry must be JS');
-    throws(() => parseManifest(JSON.stringify(v2({ code: { entry: 'main.js', api: '^2' } }))), new RegExp(`asks for \\^2, but this version of DEADBOARD has plug-in API ${API_VERSION.replace(/\./g, '\\.')}`), 'API range checked');
+    throws(() => parseManifest(JSON.stringify(v2({ code: { entry: 'main.js', api: '^2' } }))), new RegExp(`asks for \\^2, but this version of PurpleBoard has plug-in API ${API_VERSION.replace(/\./g, '\\.')}`), 'API range checked');
     throws(() => parseManifest(JSON.stringify(v2({ code: { entry: 'main.js', api: '^1', permissions: ['camera'] } }))), /unknown permission "camera"/, 'unknown permission');
     throws(() => parseManifest(JSON.stringify(v2({ code: { entry: 'main.js', api: '^1', permissions: ['network:http://evil.example'] } }))), /unknown permission/, 'only https origins');
     const w: string[] = [];

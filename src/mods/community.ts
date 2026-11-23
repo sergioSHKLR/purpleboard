@@ -86,7 +86,7 @@ function toEntry(x: unknown): CommunityMod | null {
 /** Reads a catalogue; entries that don't parse are left out. */
 export function parseIndex(json: unknown): CommunityIndex {
   const j = json as { format?: unknown; mods?: unknown } | null;
-  if (!j || j.format !== COMMUNITY_FORMAT || !Array.isArray(j.mods)) throw new Error('not a DEADBOARD community catalogue');
+  if (!j || j.format !== COMMUNITY_FORMAT || !Array.isArray(j.mods)) throw new Error('not a PurpleBoard community catalogue');
   return { format: COMMUNITY_FORMAT, mods: j.mods.map(toEntry).filter((m): m is CommunityMod => !!m) };
 }
 
@@ -168,7 +168,7 @@ export async function submissionFields(s: Submission): Promise<Record<string, st
   if (!fits && !link) throw new Error(`the mod is ${Math.ceil(s.bytes.length / 1024)} kB; the limit for sending it here is ${MAX_SUBMIT_BYTES / 1024} kB. Host the .zip somewhere (a GitHub release, a cloud drive) and send the link.`);
   const { id, name, version, license } = s.manifest;
   return {
-    _subject: `[DEADBOARD] Mod submission: ${name} v${version}`.slice(0, 150),
+    _subject: `[PurpleBoard] Mod submission: ${name} v${version}`.slice(0, 150),
     ...(s.contact.includes('@') && { _replyto: s.contact.trim() }),
     type: SUBMISSION_TYPE,
     mod: `${id} v${version}`,
