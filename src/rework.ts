@@ -77,7 +77,7 @@ export class ReworkMonitor {
     const L = this.limits, ev: ReworkEvent[] = [];
     const hotAir = this.thermal.sources.filter((s) => s.kind === 'hotair');
     for (const c of this.board.components) {
-      if (!c.state.populated || !c.pads.length) continue;
+      if (!c.state.populated || !c.pads.length || c.body.shape === 'none') continue; // nothing soldered: a fiducial, the bench supply's clips
       const T = this.thermal.partTemp(c.id);
       if (T === undefined) continue;
       const ps = this.part(c);

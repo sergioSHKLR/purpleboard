@@ -99,7 +99,8 @@ export function addBenchSupply(board: Board, choice: SupplyChoice, nextId: () =>
       { name: '2', at: [r3(negPt.at[0] - posPt.at[0]), r3(negPt.at[1] - posPt.at[1])], size: [...negPt.pad.size], shape: negPt.pad.shape, rot: negPt.rot, layers: negPt.pad.layers, net: gndNet },
     ],
     pins: { '+': '1', '-': '2' },
-    body: { shape: 'header', w: 2.5, h: 2.5, z: 3.0 },
+    // no body: the clips sit on the board's own pads, and a box there would cover the part they're on
+    body: { shape: 'none', w: 0, h: 0, z: 0 },
     state: { populated: true, reversed: false, burnt: false, cold: [] },
   };
   board.components.push(sup);

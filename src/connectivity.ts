@@ -116,7 +116,7 @@ export function buildConnectivity(board: Board): Conn {
   const cand: number[] = [];
   for (let i = 0; i < n; i++) {
     const A = items[i];
-    grid.query(A.shape.bb, cand);
+    grid.query([A.shape.bb[0] - 1e-6, A.shape.bb[1] - 1e-6, A.shape.bb[2] + 1e-6, A.shape.bb[3] + 1e-6], cand);
     for (const j of cand) {
       if (j <= i) continue;
       const B = items[j];
@@ -134,7 +134,8 @@ export function buildConnectivity(board: Board): Conn {
       else if (B.kind === 'zone') hit = zoneTouches(B, A);
       else {
         const a = A.shape.bb, b = B.shape.bb;
-        if (a[0] > b[2] || b[0] > a[2] || a[1] > b[3] || b[1] > a[3]) continue;
+        // same 1e-6 slack as the gap test: abutting copper's boxes can miss by a rounding error
+        if (a[0] > b[2] + 1e-6 || b[0] > a[2] + 1e-6 || a[1] > b[3] + 1e-6 || b[1] > a[3] + 1e-6) continue;
         hit = shapeGap(A.shape, B.shape) <= 1e-6;
       }
       if (hit) union(parent, i, j);
@@ -153,6 +154,21 @@ export function buildConnectivity(board: Board): Conn {
       if (f === undefined) first.set(p.name, idx[pi]);
       else union(parent, f, idx[pi]);
     });
+    // Pads of one footprint drawn touching on the same net are one piece of copper (a USB-C
+    // footprint draws its combined A4/B9 VBUS contact as two abutting 0.3 mm pads). Same net
+    // only: touching pads of different nets inside a footprint stay a footprint matter.
+    for (let a = 0; a < c.pads.length; a++) {
+      const na = c.pads[a].net;
+      if (!na || c.state.cold.includes(a)) continue;
+      for (let b = a + 1; b < c.pads.length; b++) {
+        if (c.pads[b].net !== na || c.pads[b].name === c.pads[a].name || c.state.cold.includes(b)) continue;
+        const A = items[idx[a]], B = items[idx[b]];
+        if (!(A.layers & B.layers)) continue;
+        const p = A.shape.bb, q = B.shape.bb;
+        if (p[0] > q[2] + 1e-6 || q[0] > p[2] + 1e-6 || p[1] > q[3] + 1e-6 || q[1] > p[3] + 1e-6) continue;
+        if (shapeGap(A.shape, B.shape) <= 1e-6) union(parent, idx[a], idx[b]);
+      }
+    }
   }
   // Connect un-traced multi-layer planes (GND / mega power nets with no traces) across non-cold pads and vias.
   // Nets with broken copper (state.netBreak) connect along their spanning tree minus the broken links.

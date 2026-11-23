@@ -105,7 +105,7 @@ function classifyKind(ref: string, valText: string, fpName: string): ComponentKi
   if (/^F\d/.test(r) || fp.includes('fuse')) return 'fuse';
   if (/^(SW|S|BTN)\d/.test(r) || fp.includes('switch') || fp.includes('button')) return 'switch';
   if (/^(BT|BAT)\d/.test(r) || fp.includes('battery') || fp.includes('cr2032')) return 'battery';
-  if (/^TP\d/.test(r) || fp.includes('testpoint')) return 'testpoint';
+  if (/^TP\d/.test(r) || fp.includes('testpoint') || /test_?pad/.test(fp)) return 'testpoint';
   if (/^(J|P|CN|X)\d/.test(r) || /^PWR\d/.test(r) || fp.includes('header') || fp.includes('usb') || fp.includes('connector')) return 'connector';
   if (/^(U|IC|Q)\d/.test(r) || fp.includes('soic') || fp.includes('dip') || fp.includes('qfn')) return 'ic';
   return 'generic';
@@ -139,6 +139,8 @@ function fabBox(f: SExpr): { x0: number; y0: number; x1: number; y1: number } | 
  * package heights (estimates: a layout carries no 3D model data here).
  */
 function inferBody(kind: ComponentKind, pads: Pad[], fab: { x0: number; y0: number; x1: number; y1: number } | null, fpName: string): Body {
+  // a fiducial is a bare copper dot for the assembly machine's camera: no part sits on it
+  if (/fiducial/i.test(fpName)) return { shape: 'none', w: 0, h: 0, z: 0 };
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const p of pads) {
     x0 = Math.min(x0, p.at[0] - p.size[0] / 2);
@@ -162,17 +164,30 @@ function inferBody(kind: ComponentKind, pads: Pad[], fab: { x0: number; y0: numb
   }
   const w = Number.isFinite(x0) ? Math.max(2.0, x1 - x0) : 3.2;
   const h = Number.isFinite(y0) ? Math.max(1.6, y1 - y0) : 1.8;
+  // The body sits over its pins, not on the footprint origin: KiCad puts the origin on pin 1 for
+  // headers, DIPs, radial / axial parts and many connectors and switches.
+  const off: [number, number] = Number.isFinite(x0) ? [(x0 + x1) / 2, (y0 + y1) / 2] : [0, 0];
+  const at = (body: Body): Body => (Math.abs(off[0]) + Math.abs(off[1]) > 0.05 ? { ...body, off } : body);
   switch (kind) {
-    case 'resistor': return { shape: 'axial', w: Math.max(3.2, w * 0.65), h: Math.min(3.0, Math.max(1.6, h)), z: 2.6 };
-    case 'led': return { shape: 'led', w: Math.min(5, Math.max(2.4, w)), h: Math.min(5, Math.max(2.4, w)), z: 5.5 };
-    case 'capacitor': return { shape: 'radial', w: Math.max(2.4, w * 0.7), h: Math.max(2.4, h), z: 3.5 };
-    case 'battery': return { shape: w > 12 ? 'coin' : 'header', w: Math.max(3, w), h: Math.max(3, h), z: w > 12 ? 3.4 : 6.0 };
-    case 'switch': return { shape: 'tactile', w: Math.max(4, w * 0.8), h: Math.max(4, h * 0.8), z: 4.5 };
-    case 'fuse': return { shape: 'fuse', w: Math.max(4, w * 0.7), h: 2.4, z: 3.0 };
+    case 'resistor': return at({ shape: 'axial', w: Math.max(3.2, w * 0.65), h: Math.min(3.0, Math.max(1.6, h)), z: 2.6 });
+    case 'led': return at({ shape: 'led', w: Math.min(5, Math.max(2.4, w)), h: Math.min(5, Math.max(2.4, w)), z: 5.5 });
+    case 'capacitor': return at({ shape: 'radial', w: Math.max(2.4, w * 0.7), h: Math.max(2.4, h), z: 3.5 });
+    case 'battery': return at({ shape: w > 12 ? 'coin' : 'header', w: Math.max(3, w), h: Math.max(3, h), z: w > 12 ? 3.4 : 6.0 });
+    case 'switch': {
+      // Pins in one row (microswitch, slide switch): the body runs along the row and covers every
+      // pin, a bit under half as wide as it is long (typical microswitch proportions; an estimate).
+      const spread = (v: number[]) => Math.max(...v) - Math.min(...v);
+      if (pads.length >= 3 && Math.min(spread(pads.map((p) => p.at[0])), spread(pads.map((p) => p.at[1]))) < 0.5) {
+        const long = Math.max(w, h), short = Math.max(4, long * 0.45);
+        return at({ shape: 'tactile', w: w >= h ? long : short, h: w >= h ? short : long, z: 4.5 });
+      }
+      return at({ shape: 'tactile', w: Math.max(4, w * 0.8), h: Math.max(4, h * 0.8), z: 4.5 });
+    }
+    case 'fuse': return at({ shape: 'fuse', w: Math.max(4, w * 0.7), h: 2.4, z: 3.0 });
     case 'testpoint': return { shape: 'pin', w: 1.4, h: 1.4, z: 3.5 };
-    case 'ic': return { shape: 'chip', w: Math.max(3.5, w * 0.75), h: Math.max(3.5, h * 0.75), z: 2.2 };
-    case 'connector': return { shape: 'header', w: Math.max(2.5, w), h: Math.max(2.5, h), z: 6.0 };
-    default: return { shape: 'box', w: Math.max(2.0, w * 0.7), h: Math.max(1.6, h * 0.7), z: 2.0 };
+    case 'ic': return at({ shape: 'chip', w: Math.max(3.5, w * 0.75), h: Math.max(3.5, h * 0.75), z: 2.2 });
+    case 'connector': return at({ shape: 'header', w: Math.max(2.5, w), h: Math.max(2.5, h), z: 6.0 });
+    default: return at({ shape: 'box', w: Math.max(2.0, w * 0.7), h: Math.max(1.6, h * 0.7), z: 2.0 });
   }
 }
 

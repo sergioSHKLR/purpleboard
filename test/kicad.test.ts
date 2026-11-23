@@ -198,7 +198,42 @@ function run() {
       `body sized from the F.Fab outline, off-centre offset kept: ${JSON.stringify(j.body)}`);
   }
 
-  console.log('KICAD TESTS PASSED (90° rotation, inner planes, thermal reliefs, dnp, ESD/TVS/dual diodes, ferrites, library values, rail names, bench supply, fab-outline bodies)');
+  // ---- through-hole bodies sit over their pins, not on a pin-1 origin ----
+  {
+    const tht = (name: string, at: string, net: number) => `(pad "${name}" thru_hole rect (at ${at}) (size 1.7 1.7) (drill 1) (layers "*.Cu") (net ${net} ${NETS[net]}))`;
+    // a 1×4 header (origin on pin 1) and a 3-pin microswitch in one row, origin on its middle pin
+    const b = board(`${fp('J9', 'CONN', '10 10 0', tht('1', '0 0', 2) + tht('2', '0 2.54', 2) + tht('3', '0 5.08', 2) + tht('4', '0 7.62', 2))}
+      ${fp('SW2', 'SW', '30 20 0', tht('1', '0 -5.08', 2) + tht('2', '0 0', 4) + tht('3', '0 5.08', 4) + tht('4', '0 10.16', 4))}`);
+    const j = get(b, 'J9'), sw = get(b, 'SW2');
+    // KiCad y points down, the board's up: pins at local y 0 … -7.62, so the body centre is at -3.81
+    assert(Math.abs(j.body.off?.[0] ?? 0) < 0.01 && Math.abs((j.body.off?.[1] ?? 0) + 3.81) < 0.01, `header body centred on its pins: ${JSON.stringify(j.body)}`);
+    assert(sw.body.shape === 'tactile' && Math.abs((sw.body.off?.[1] ?? 0) + 2.54) < 0.01, `switch body centred on its pins: ${JSON.stringify(sw.body)}`);
+    assert(sw.body.h >= 15.24 + 1.7 - 0.01 && sw.body.w > 4 && sw.body.w < sw.body.h * 0.5, `a one-row switch covers every pin and is long, not square: ${JSON.stringify(sw.body)}`);
+  }
+
+  // ---- abutting pads of one footprint on one net are one piece of copper (USB-C A4/B9 VBUS) ----
+  {
+    // J7: A4 and B9 (both +5V) 0.3 mm wide at 0.3 mm pitch, edges touching; A5 (EN5) touches B9 on
+    // the other side. Only A4 is routed. Real sizes: before, the 0.4 mm floor let the track reach B9.
+    const b = board(`${fp('J7', 'USB_C', '20 20 0', pad('A4', '0 0', 7, 'F.Cu', '0.3 1.15') + pad('B9', '0.3 0', 7, 'F.Cu', '0.3 1.15') + pad('A5', '0.6 0', 8, 'F.Cu', '0.3 1.15'))}
+      (segment (start 20 20) (end 20 30) (width 0.2) (layer "F.Cu") (net 7))
+      ${fp('R9', '10k', '21 30 0', pad('1', '-1 0', 7) + pad('2', '1 0', 2))}`);
+    const conn = buildConnectivity(b), j = get(b, 'J7');
+    const padNet = (name: string) => conn.net[conn.padItem.get(j)![j.pads.findIndex((p) => p.name === name)]]; // connector pads have no roles
+    assert(padNet('B9') === pinNet(conn, get(b, 'R9'), '1') && padNet('A4') === padNet('B9'), 'B9 joins A4 through their touching copper');
+    assert(padNet('A5') !== padNet('B9'), 'a touching pad of another net in the same footprint is not joined');
+  }
+
+  // ---- a fiducial is a copper dot with no body; a test pad is a test point ----
+  {
+    const b = importScenarioOrPcb('t.kicad_pcb', `(kicad_pcb (version 20221018) ${netTable} ${edge}
+      (footprint "OLIMEX_Other-FP:Fiducial1x3" (layer "F.Cu") (at 5 5 0) (property "Reference" "FID1") (property "Value" "FID") ${pad('Fid1', '0 0', 0, 'F.Cu', '1 1')})
+      (footprint "OLIMEX_Other-FP:TESTPAD_40-ROUND" (layer "F.Cu") (at 9 5 0) (property "Reference" "GND1") (property "Value" "GND") ${pad('1', '0 0', 2, 'F.Cu', '1 1')}))`).board;
+    assert(get(b, 'FID1').body.shape === 'none', `a fiducial has no body: ${JSON.stringify(get(b, 'FID1').body)}`);
+    assert(get(b, 'GND1').kind === 'testpoint', `a TESTPAD footprint is a test point: ${get(b, 'GND1').kind}`);
+  }
+
+  console.log('KICAD TESTS PASSED (90° rotation, inner planes, thermal reliefs, dnp, ESD/TVS/dual diodes, ferrites, library values, rail names, bench supply, fab-outline bodies, through-hole bodies over their pins, abutting same-net pads, fiducials and test pads)');
 }
 
 run();

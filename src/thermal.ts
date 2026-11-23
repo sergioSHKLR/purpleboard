@@ -311,7 +311,8 @@ export class ThermalModel {
     return this.parts.filter((n) => {
       const hw = Math.max(n.c.body.w, 0.2) / 2, hh = Math.max(n.c.body.h, 0.2) / 2;
       const a = (-n.c.rot * Math.PI) / 180, dx = xmm - n.c.at[0], dy = ymm - n.c.at[1];
-      const lx = dx * Math.cos(a) - dy * Math.sin(a), ly = dx * Math.sin(a) + dy * Math.cos(a);
+      const [ox, oy] = n.c.body.off ?? [0, 0];
+      const lx = dx * Math.cos(a) - dy * Math.sin(a) - ox, ly = dx * Math.sin(a) + dy * Math.cos(a) - oy;
       const qx = Math.max(Math.abs(lx) - hw, 0), qy = Math.max(Math.abs(ly) - hh, 0);
       return qx * qx + qy * qy <= rmm * rmm;
     });

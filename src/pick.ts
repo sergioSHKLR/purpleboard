@@ -13,6 +13,7 @@ export type PickHit =
   | { kind: 'comp'; comp: Component; pos: V2; dist: number };
 
 function compBodyHit(c: Component, pt: V2): boolean {
+  if (c.body.shape === 'none') return false; // no body to click (a fiducial, the bench supply's clips)
   const hw = Math.max(1.2, c.body.w * 0.5 + 0.4);
   const hh = Math.max(1.2, c.body.h * 0.5 + 0.4);
   const dx = pt[0] - c.at[0], dy = pt[1] - c.at[1];

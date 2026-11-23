@@ -125,8 +125,9 @@ async function run() {
     const named = (ref: string, mm: number) => netsNear(conn, part(ref), mm).map((x) => ({ ...x, name: conn.netNames[x.net] }));
     const c97 = named('C97', 0.5);
     assert(c97.some((x) => x.name === 'GND' && x.pad === '1') && c97.some((x) => x.name === '+5V' && x.pad === '2'), `a capacitor's two pads see each other's net (${JSON.stringify(c97)})`);
-    const u9 = named('U9', 0.15);
-    assert(u9.length >= 4 && u9.every((x, i) => x.mm <= 0.15 && (i === 0 || u9[i - 1].mm <= x.mm)), 'neighbouring pins of a regulator, nearest first, within the distance');
+    // U9 (LM61495, 0.5 mm pitch): real 0.25 mm pads leave 0.25 mm between pins (0.1 mm only while the importer swelled pads to 0.4 mm)
+    const u9 = named('U9', 0.3);
+    assert(u9.length >= 4 && u9.every((x, i) => x.mm <= 0.3 && (i === 0 || u9[i - 1].mm <= x.mm)), 'neighbouring pins of a regulator, nearest first, within the distance');
     const own = new Set((conn.padItem.get(part('U9')) ?? []).map((i) => conn.net[i]));
     assert(u9.some((x) => own.has(x.net)), 'a pin\'s neighbour on the same part counts (a bridge between two pins)');
     assert(named('C97', 0).every((x) => x.mm === 0) && netsNear(conn, part('C97'), 0.5).length >= named('C97', 0.2).length, 'a larger distance finds at least as much');
