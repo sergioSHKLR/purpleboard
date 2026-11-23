@@ -18,7 +18,8 @@ database_name = "deadboard-attempts"
 database_id = "d444f252-622b-4ed9-9f67-c102c058450a"
 
 [triggers]
-crons = ["17 3 * * *"]
+# 03:17 UTC: upkeep (tokens, expiry) + summary; every 6 hours: the public summary (stats.html)
+crons = ["17 3 * * *", "47 */6 * * *"]
 
 # no request logs: nothing about a request (IP, headers) is kept anywhere
 [observability]

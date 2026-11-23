@@ -50,3 +50,10 @@ CREATE TABLE IF NOT EXISTS daily_count (
   day TEXT PRIMARY KEY,
   n   INTEGER NOT NULL
 );
+
+-- The public summary (src/attempts/summary.ts), rebuilt every 6 hours: one row.
+CREATE TABLE IF NOT EXISTS summary (
+  id   INTEGER PRIMARY KEY CHECK (id = 1),
+  made TEXT NOT NULL,
+  json TEXT NOT NULL
+);

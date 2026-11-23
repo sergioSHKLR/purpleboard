@@ -195,7 +195,7 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: false,
     cssMinify: true,
-    // homepage at / (+ static Russian at /ru.html), the bench app at /app.html, educational & boardview guides at /learn*.html + /boardview.html, mod docs at /modding.html (+ mod-reference, code-mods, mod-safety, mods-for-agents), privacy policy at /privacy.html
+    // homepage at / (+ static Russian at /ru.html), the bench app at /app.html, educational & boardview guides at /learn*.html + /boardview.html, mod docs at /modding.html (+ mod-reference, code-mods, mod-safety, mods-for-agents), privacy policy at /privacy.html, public puzzle stats at /stats.html
     rollupOptions: {
       input: {
         home: 'index.html',
@@ -210,6 +210,7 @@ export default defineConfig({
         learnCaseStudies: 'learn-case-studies.html',
         modding: 'modding.html',
         privacy: 'privacy.html',
+        stats: 'stats.html',
         modReference: 'mod-reference.html',
         codeMods: 'code-mods.html',
         modSafety: 'mod-safety.html',

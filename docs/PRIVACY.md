@@ -61,7 +61,9 @@ request and keeps no request logs (Cloudflare, which runs the server, handles th
 Cloudflare's privacy policy). Records are kept for 90 days, after which only daily counts per puzzle
 remain. They are used only to improve DEADBOARD's puzzles and help, never sold or shared. To turn them
 off: ⚙ Settings → Puzzle stats. Nothing is sent if your browser sends Do Not Track or Global Privacy
-Control. The apps never send these records. The code is open source: `src/attempts/` and `collector/`.
+Control. The apps never send these records. Totals per puzzle are public at
+https://deadboard.org/stats.html (any group of fewer than 10 attempts is left out). The code is open
+source: `src/attempts/` and `collector/`.
 
 **Submitting a mod.** If you press **Submit** on a mod in the Mods window and send it, the mod
 (its `.zip`, or the link you give), your note and the contact you chose to give (optional) are sent

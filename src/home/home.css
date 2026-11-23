@@ -381,3 +381,35 @@ figcaption { margin-top: 12px; font: 13px/1.5 var(--mono); color: var(--muted); 
 .tap-3d:disabled { color: var(--text-2); }
 .frame-bar .frame-hint { margin-left: auto; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 640px) { .frame-bar > span:first-of-type { display: none; } }
+
+/* Puzzle stats page (stats.html, src/home/stats.ts): single-series bars in the brand green, text in text colours. */
+.doc.stats { max-width: 980px; }
+.st-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 28px 0 8px; }
+.st-tile { display: grid; gap: 2px; padding: 16px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+.st-big { font: 700 30px/1.1 var(--mono); color: var(--text); }
+.st-made { font: 13px var(--mono); margin: 0 0 8px; }
+.st-days { display: flex; align-items: flex-end; gap: 2px; height: 120px; padding: 8px 0; border-bottom: 1px solid var(--border-strong); }
+.st-col { flex: 1; height: 100%; display: flex; align-items: flex-end; min-width: 4px; }
+.st-col span { width: 100%; background: var(--accent); border-radius: 4px 4px 0 0; }
+.st-col:hover span { background: var(--text); }
+.st-axis { display: flex; justify-content: space-between; font: 12px var(--mono); color: var(--muted); margin: 6px 0 0; }
+.st-scroll { overflow-x: auto; }
+.st-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.st-table th, .st-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; vertical-align: middle; }
+.st-table thead th, .st-table thead th.st-n { font: 600 12px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.st-table tbody th { font-weight: 500; color: var(--text); white-space: normal; }
+.st-table tbody th a { color: var(--text); text-decoration: none; }
+.st-table tbody th a:hover { color: var(--accent); }
+.st-table .st-n { text-align: right; font-family: var(--mono); color: var(--text); }
+.st-bar { display: inline-block; width: 72px; height: 8px; background: var(--surface-2); border-radius: 4px; vertical-align: middle; overflow: hidden; }
+.st-bar span { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.st-cell { display: inline-flex; align-items: center; gap: 8px; }
+.st-num { display: inline-block; min-width: 3.2em; font: 13px var(--mono); color: var(--text); text-align: left; }
+/* phones: fold the extra columns instead of shrinking the text */
+@media (max-width: 640px) {
+  .st-opt { display: none; }
+  .st-bar { width: 44px; }
+  .st-first .st-bar { display: none; }
+  .st-table th, .st-table td { padding: 8px 6px; }
+}
+.doc .st-table { display: table; margin: 0; font-size: 15px; }

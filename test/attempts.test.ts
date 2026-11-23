@@ -5,6 +5,7 @@ import { checkRecord, FIELDS, inRange, ACTIVE_RANGES, COUNT_RANGES, shortHash, t
 import { d1Store, dayBefore, handle, KEEP_DAYS, type Store } from '../collector/core';
 import { SITE_HOST } from '../src/analytics';
 import { crossValidate, engaged, fitRasch, levelScale, type Obs } from '../src/attempts/difficulty';
+import { buildSummary, SUMMARY_DAYS, type PublicSummary } from '../src/attempts/summary';
 
 function assert(c: unknown, m: string): asserts c { if (!c) throw new Error(m); }
 
@@ -89,7 +90,7 @@ const ORIGIN = 'https://deadboard.org';
 const cfg = { origin: ORIGIN, cap: 3 };
 const mem = new Map<string, { rec: AttemptRecord; day: string }>();
 let accepted = 0;
-const fake: Store = { accepted: async () => accepted, put: async (rec, day) => { mem.set(rec.attempt, { rec, day }); accepted++; }, maintain: async () => {} };
+const fake: Store = { accepted: async () => accepted, put: async (rec, day) => { mem.set(rec.attempt, { rec, day }); accepted++; }, maintain: async () => {}, summary: async () => '{"v":1}', refreshSummary: async () => {} };
 const post = (body: string, headers: Record<string, string> = { Origin: ORIGIN }, path = '/v1/attempt') =>
   handle(new Request(`https://stats.deadboard.org${path}`, { method: 'POST', body, headers }), fake, cfg, new Date('2026-11-23T10:00:00Z'));
 const okBody = JSON.stringify(fixed);
@@ -114,6 +115,7 @@ const stmt = (sql: string, args: unknown[] = []) => ({
   bind: (...a: unknown[]) => stmt(sql, a),
   run: async () => db.prepare(sql).run(...(args as never[])),
   first: async <T>() => (db.prepare(sql).get(...(args as never[])) ?? null) as T | null,
+  all: async <T>() => ({ results: db.prepare(sql).all(...(args as never[])) as T[] }),
 });
 const d1 = { prepare: (sql: string) => stmt(sql), batch: async (s: ReturnType<typeof stmt>[]) => { db.exec('BEGIN'); try { for (const x of s) await x.run(); db.exec('COMMIT'); } catch (e) { db.exec('ROLLBACK'); throw e; } } };
 const store = d1Store(d1 as never);
@@ -137,6 +139,30 @@ const totals = db.prepare('SELECT * FROM totals').all() as Record<string, unknow
 assert(totals.length === 1 && totals[0].n === 1 && totals[0].puzzle === 'builtin-first-light' && totals[0].outcome === 'fixed', `expired rows folded into totals: ${JSON.stringify(totals)}`);
 await store.maintain(today); // running twice changes nothing
 assert((db.prepare('SELECT SUM(n) s FROM totals').get() as { s: number }).s === 1, 'maintenance is idempotent');
+
+// ---- the public summary: built from the database, small groups left out
+const sumReq = await handle(new Request('https://stats.deadboard.org/v1/summary'), fake, cfg);
+assert(sumReq.status === 200 && sumReq.headers.get('Access-Control-Allow-Origin') === '*' && (await sumReq.text()) === '{"v":1}', 'GET /v1/summary is public');
+for (let i = 0; i < 12; i++) await store.put({ ...fixed, attempt: (i + 100).toString(16).padStart(32, 'a'), outcome: i < 9 ? 'fixed' : 'left', layout: i < 4 ? 'phone' : 'desktop' }, today);
+await store.refreshSummary(new Date(`${today}T12:00:00Z`));
+const pub = JSON.parse((await store.summary())!) as PublicSummary;
+const fl = pub.puzzles.find((p) => p.puzzle === 'builtin-first-light')!;
+assert(pub.v === 1 && pub.days === SUMMARY_DAYS && fl.attempts === 14 && fl.fixed === 10 && fl.noTests === 1, `summary totals: ${JSON.stringify(fl)}`);
+assert(fl.phoneAttempts === null && fl.phoneFixed === null, 'phone group under 10: left out');
+const smallP = pub.puzzles.find((p) => p.puzzle === 'builtin-tut-polarity');
+assert(!smallP || (smallP.attempts === null && smallP.fixed === null && smallP.typicalTime === null), 'puzzle under 10: no numbers');
+assert(fl.typicalTime === '1-2m' && fl.fitted === null, `typical time, no fit without enough data: ${JSON.stringify(fl)}`);
+// with enough data the summary carries fitted levels on the shown scale
+const big = buildSummary({
+  puzzles: [['a', 1, 0.8], ['b', 2, 0.5], ['c', 4, 0.2]].map(([p, level, rate]) => ({ puzzle: `builtin-${p}`, src: '', kind: 'challenge', level: level as number, n: 200, fixed: Math.round(200 * (rate as number)), phone: 80, phone_fixed: 30, noted: 20, looked: 10, no_tests: 30, engaged: 200 })),
+  active: [{ puzzle: 'builtin-a', src: '', active: '2-5m', n: 200 }],
+  cells: [['a', 0.8], ['b', 0.5], ['c', 0.2]].map(([p, rate]) => ({ puzzle: `builtin-${p}`, src: '', solved: '0', n: 200, fixed: Math.round(200 * (rate as number)) })),
+  days: [{ day: today, n: 600, fixed: 300 }],
+  first: [{ layout: 'phone', n: 50, tool: 30, tested: 20, fixed: 10 }, { layout: 'desktop', n: 4, tool: 4, tested: 4, fixed: 4 }],
+}, new Date(), today);
+const fa = big.puzzles.find((p) => p.puzzle === 'builtin-a')!, fc = big.puzzles.find((p) => p.puzzle === 'builtin-c')!;
+assert(fa.fitted !== null && fc.fitted !== null && fa.fitted < fc.fitted && fa.fittedPm! > 0, `fitted levels: ${fa.fitted} < ${fc.fitted}`);
+assert(big.firstVisit.length === 1 && big.firstVisit[0].layout === 'phone', 'first-visit group under 10 left out');
 
 // ---- fitted difficulty (src/attempts/difficulty.ts) on synthetic players with known truth
 {
@@ -167,4 +193,4 @@ assert((db.prepare('SELECT SUM(n) s FROM totals').get() as { s: number }).s === 
   assert(cvWrong.level - cvWrong.fitted > 0.03, `a wrong level shows (${cvWrong.level.toFixed(3)} vs ${cvWrong.fitted.toFixed(3)})`);
 }
 
-console.log('attempts: ok (record rules, tracker, collector requests + SQL, fitted difficulty)');
+console.log('attempts: ok (record rules, tracker, collector requests + SQL, fitted difficulty, public summary)');

@@ -23,21 +23,39 @@ export function engaged(r: { tests: string; active: string }): boolean {
 const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
 
 export function fitRasch(obs: readonly Obs[], opts: { l2?: number; maxIter?: number; anchor?: string } = {}): Fit {
-  const l2 = opts.l2 ?? 0.2, maxIter = opts.maxIter ?? 200, anchor = opts.anchor ?? '0';
-  const diff = new Map<string, number>(), ability = new Map<string, number>();
-  for (const o of obs) { diff.set(o.puzzle, 0); ability.set(o.band, 0); }
-  const byPuzzle = new Map<string, Obs[]>(), byBand = new Map<string, Obs[]>();
+  const cells = new Map<string, Cell>();
   for (const o of obs) {
-    (byPuzzle.get(o.puzzle) ?? byPuzzle.set(o.puzzle, []).get(o.puzzle)!).push(o);
-    (byBand.get(o.band) ?? byBand.set(o.band, []).get(o.band)!).push(o);
+    const k = `${o.puzzle}\u0000${o.band}`;
+    const c = cells.get(k) ?? cells.set(k, { puzzle: o.puzzle, band: o.band, n: 0, fixed: 0 }).get(k)!;
+    c.n++; if (o.fixed) c.fixed++;
+  }
+  return fitRaschCells([...cells.values()], opts);
+}
+
+/** Attempts of one puzzle by one player band: how many, and how many were fixed. */
+export interface Cell { puzzle: string; band: string; n: number; fixed: number }
+
+/**
+ * The same fit from totals per puzzle × band (what the collector's nightly job has: a few dozen
+ * cells instead of thousands of rows, well inside a Worker's CPU limit).
+ */
+export function fitRaschCells(cells: readonly Cell[], opts: { l2?: number; maxIter?: number; anchor?: string } = {}): Fit {
+  const l2 = opts.l2 ?? 0.2, maxIter = opts.maxIter ?? 200, anchor = opts.anchor ?? '0';
+  const use = cells.filter((c) => c.n > 0);
+  const diff = new Map<string, number>(), ability = new Map<string, number>();
+  const byPuzzle = new Map<string, Cell[]>(), byBand = new Map<string, Cell[]>();
+  for (const c of use) {
+    diff.set(c.puzzle, 0); ability.set(c.band, 0);
+    (byPuzzle.get(c.puzzle) ?? byPuzzle.set(c.puzzle, []).get(c.puzzle)!).push(c);
+    (byBand.get(c.band) ?? byBand.set(c.band, []).get(c.band)!).push(c);
   }
   // one Newton step on a parameter: gradient / curvature of the penalised log-likelihood
-  const step = (list: Obs[], current: number, sign: 1 | -1, eta: (o: Obs) => number) => {
+  const step = (list: Cell[], current: number, sign: 1 | -1, eta: (c: Cell) => number) => {
     let g = -l2 * current, h = l2;
-    for (const o of list) {
-      const p = sigmoid(eta(o));
-      g += sign * ((o.fixed ? 1 : 0) - p);
-      h += p * (1 - p);
+    for (const c of list) {
+      const p = sigmoid(eta(c));
+      g += sign * (c.fixed - c.n * p);
+      h += c.n * p * (1 - p);
     }
     return current + g / h;
   };
@@ -46,13 +64,13 @@ export function fitRasch(obs: readonly Obs[], opts: { l2?: number; maxIter?: num
     let moved = 0;
     for (const [pz, list] of byPuzzle) {
       const old = diff.get(pz)!;
-      const nu = step(list, old, -1, (o) => ability.get(o.band)! - old);
+      const nu = step(list, old, -1, (c) => ability.get(c.band)! - old);
       diff.set(pz, nu); moved = Math.max(moved, Math.abs(nu - old));
     }
     for (const [band, list] of byBand) {
       if (band === anchor && byBand.size > 1) continue; // the anchor stays 0
       const old = ability.get(band)!;
-      const nu = step(list, old, 1, (o) => old - diff.get(o.puzzle)!);
+      const nu = step(list, old, 1, (c) => old - diff.get(c.puzzle)!);
       ability.set(band, nu); moved = Math.max(moved, Math.abs(nu - old));
     }
     if (moved < 1e-6) break;
@@ -60,9 +78,9 @@ export function fitRasch(obs: readonly Obs[], opts: { l2?: number; maxIter?: num
   const puzzles = new Map<string, PuzzleFit>();
   for (const [pz, list] of byPuzzle) {
     const d = diff.get(pz)!;
-    let info = l2, fixed = 0;
-    for (const o of list) { const p = sigmoid(ability.get(o.band)! - d); info += p * (1 - p); if (o.fixed) fixed++; }
-    puzzles.set(pz, { difficulty: d, se: 1 / Math.sqrt(info), n: list.length, fixed });
+    let info = l2, n = 0, fixed = 0;
+    for (const c of list) { const p = sigmoid(ability.get(c.band)! - d); info += c.n * p * (1 - p); n += c.n; fixed += c.fixed; }
+    puzzles.set(pz, { difficulty: d, se: 1 / Math.sqrt(info), n, fixed });
   }
   return { puzzles, bands: ability, iterations: it + 1 };
 }
