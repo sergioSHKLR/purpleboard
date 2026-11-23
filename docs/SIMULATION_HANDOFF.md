@@ -43,6 +43,23 @@ No reference hardware is available, so realism is validated against *design inte
   - **Possible next work after the reads:** whatever the numbers point at (e.g. a puzzle flagged HARD,
     phones dropping after the first tool, homepage exits at the hero); later: richer adaptive picks
     (generated follow-ups at the right level), the part card / debrief / pick-by-spec from E.
+  - **Issues + feedback check (end of 11-23, pushed `a48002f`):** no open GitHub issues left.
+    - **#5 closed:** Biga73's **local-coach 1.6.1** taken exactly as sent (zip = Mods → Submit
+      `.feedback/20261122133548-24c789`, identical; code read: network only localhost +
+      `https://openrouter.ai`, key in memory only). Zip + Community list rebuilt; the only other
+      change is the permission line in `test/modphase6.test.ts`. Comment posted: in, but **not a
+      default** (local-first, low-end phones, no board data sent by default; opt-in example code
+      mod). **User: "no further implementation".** Deliberately NOT taken: their `CODE_MODS.md`
+      "Connecting a local model" patch (issue comment; applies cleanly) and the app-side fix they
+      describe: `renderModPanelsTab` keeps `panelInputs` drafts after submit, so a submitted input
+      (e.g. a pasted key) is drawn back into the field (a real bug, a few lines in `act`, app.ts
+      ~1291). `CODE_MODS.md` still describes the coach as 1.0.0 (local only). Pick up only if asked.
+    - **Feedback form:** 72 reports, nothing new after 11-22. The one not yet in this file
+      (`7a1ca1`, 11-21): *"more challenges that are not real boards … real boards are too
+      intimidating for a beginner"*, which backs the planned **1–2 in-between boards** (see the 11-21
+      feedback entry) / concept boards of the learning-journey plan.
+    - Watch out: when a `npm test` suite fails inside the coach block, its fake server stays open and
+      the chain hangs; kill the `tsx test/modphase6` process.
 
 - **Homepage round (2026-11-23, its own workstream).** Baseline before it (Umami `home left`,
   11-21 10:00 → 11-23): 638 homepage exits, 54 % to the bench, 41 % away; phones 54 % away
