@@ -73,9 +73,27 @@ export function liveToolViolation(tool: string): SafetyKind | null {
 /** Meter modes that need the board unpowered (the meter drives its own test current). */
 export const POWER_OFF_METER_MODES: readonly string[] = ['OHM', 'DIODE', 'CAP'];
 
-/** A probe on copper in Ω / diode / capacitance mode with the supply on is a violation (V and A are live-board modes). */
-export function liveMeterViolation(mode: string, powered: boolean, probeOnCopper: boolean): SafetyKind | null {
-  return powered && probeOnCopper && POWER_OFF_METER_MODES.includes(mode) ? 'live-meter' : null;
+/** The moment a meter probe is placed (see liveMeterViolation). */
+export interface ProbeContact {
+  /** The meter's mode: 'V' | 'OHM' | 'DIODE' | 'CAP' | 'AMP'. */
+  mode: string;
+  powered: boolean;
+  /** The meter is the active tool (probes left from earlier meter use never count). */
+  meterActive: boolean;
+  /** The probe just placed landed on copper (a net), not on bare board or off the board. */
+  onCopper: boolean;
+  /** It landed on the side of the board the camera shows. */
+  visible: boolean;
+}
+
+/**
+ * Ω / diode / capacitance on a powered board: only a probe actually placed. The meter is the active
+ * tool, it is in one of those modes, the supply is on, and the probe just placed touches copper on the
+ * visible side. Selecting a mode, switching power, floating, off-copper or leftover probes never
+ * count; V and A are live-board modes.
+ */
+export function liveMeterViolation(c: ProbeContact): SafetyKind | null {
+  return c.meterActive && c.powered && c.onCopper && c.visible && POWER_OFF_METER_MODES.includes(c.mode) ? 'live-meter' : null;
 }
 
 /** Rework events that count as overheat damage. */

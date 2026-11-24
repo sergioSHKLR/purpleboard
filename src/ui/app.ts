@@ -3099,7 +3099,6 @@ export class PcbApp {
     if (!this.powerOn) this.boot.powerOff();
     sfxClick();
     this.recompute(false);
-    this.safetyCheckMeter(); // powering up with the probes down in Ω / diode / C
     this.renderUI();
     if (this.runningCode.size) this.codeHost.emit('power:changed', { on: this.powerOn, nets: this.powerOn ? this.netVoltsByName() : {} });
   }
@@ -3394,7 +3393,7 @@ export class PcbApp {
     else this.probeBlack = pin;
     if (this.powerOn && (this.psuInject || (this.solver !== 'fast' && this.dmmMode === 'V'))) { this.sim = this.solve(); this.updateThermalPower(); }
     sfxClick();
-    this.safetyCheckMeter();
+    this.safetyCheckMeter(pin);
     this.checkContinuityBeep();
     this.renderDmm();
     this.renderTutorial();
@@ -4006,19 +4005,17 @@ export class PcbApp {
     });
     this.dmmBoxEl.querySelector('#dmm-ohm')!.addEventListener('click', () => {
       this.dmmMode = 'OHM';
-      this.safetyCheckMeter();
       this.checkContinuityBeep();
       this.renderDmm();
       this.renderTutorial();
     });
     this.dmmBoxEl.querySelector('#dmm-diode')!.addEventListener('click', () => {
       this.dmmMode = 'DIODE';
-      this.safetyCheckMeter();
       this.renderDmm();
       this.renderTutorial();
     });
     for (const [id, mode] of [['#dmm-cap', 'CAP'], ['#dmm-amp', 'AMP']] as const) {
-      this.dmmBoxEl.querySelector(id)!.addEventListener('click', () => { this.dmmMode = mode; this.safetyCheckMeter(); this.renderDmm(); this.renderTutorial(); });
+      this.dmmBoxEl.querySelector(id)!.addEventListener('click', () => { this.dmmMode = mode; this.renderDmm(); this.renderTutorial(); });
     }
     if (this.mobile) this.dmmBoxEl.querySelector('.dmm-lcd')?.addEventListener('click', () => { this.dmmSubFull = !this.dmmSubFull; this.renderDmm(); });
     for (const [id, which] of [['#probe-red', 'red'], ['#probe-blk', 'black']] as const) {
@@ -6654,10 +6651,18 @@ export class PcbApp {
     if (kind) this.safetyViolation(kind, 'tool');
   }
 
-  /** Ω / diode / capacitance with a probe on copper and the supply on (mouse, touch and pad all land in placeProbe). */
-  private safetyCheckMeter() {
-    const onCopper = (this.probeRed?.net ?? -1) >= 0 || (this.probeBlack?.net ?? -1) >= 0;
-    const kind = liveMeterViolation(this.dmmMode, this.powerOn, onCopper);
+  /**
+   * Ω / diode / capacitance on a powered board, judged only when a probe is placed (mouse, touch and
+   * pad all land in placeProbe): the meter active, the probe just placed on copper on the visible side.
+   */
+  private safetyCheckMeter(pin: ProbePin) {
+    const kind = liveMeterViolation({
+      mode: this.dmmMode,
+      powered: this.powerOn,
+      meterActive: this.activeTool === 'dmm',
+      onCopper: pin.net >= 0,
+      visible: this.camera.bothSides || pin.side === this.camera.side,
+    });
     if (kind) this.safetyViolation(kind, 'meter');
   }
 

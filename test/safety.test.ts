@@ -64,12 +64,15 @@ for (const k of SAFETY_ORDER) assert(SAFETY_POINTS[k] > 0 && SAFETY_LABELS[k].le
 
 // ---- meter: Ω / diode / capacitance on a powered board ----
 {
+  const placed = { mode: 'OHM', powered: true, meterActive: true, onCopper: true, visible: true };
   for (const mode of ['OHM', 'DIODE', 'CAP']) {
-    assert(liveMeterViolation(mode, true, true) === 'live-meter', `${mode} on a powered board with a probe on copper is a violation`);
-    assert(liveMeterViolation(mode, false, true) === null, `${mode} unpowered is fine`);
-    assert(liveMeterViolation(mode, true, false) === null, `${mode}: a probe off copper touches nothing`);
+    assert(liveMeterViolation({ ...placed, mode }) === 'live-meter', `${mode}: meter active, probe placed on copper, powered → violation`);
+    assert(liveMeterViolation({ ...placed, mode, powered: false }) === null, `${mode} unpowered is fine`);
+    assert(liveMeterViolation({ ...placed, mode, onCopper: false }) === null, `${mode}: a floating / off-copper probe touches nothing`);
+    assert(liveMeterViolation({ ...placed, mode, meterActive: false }) === null, `${mode}: leftover probes with another tool active never count`);
+    assert(liveMeterViolation({ ...placed, mode, visible: false }) === null, `${mode}: a probe on the hidden side never counts`);
   }
-  for (const mode of ['V', 'AMP']) assert(liveMeterViolation(mode, true, true) === null, `${mode} is a live-board mode`);
+  for (const mode of ['V', 'AMP']) assert(liveMeterViolation({ ...placed, mode }) === null, `${mode} is a live-board mode`);
   assert(POWER_OFF_METER_MODES.join() === 'OHM,DIODE,CAP', 'power-off meter modes');
   assert(SAFETY_POINTS['live-meter'] === 10, 'meter violation costs 10');
   const log = new SafetyLog();
@@ -141,9 +144,11 @@ for (const k of SAFETY_ORDER) assert(SAFETY_POINTS[k] > 0 && SAFETY_LABELS[k].le
   assert(src.includes('|| !!this.briefEl; }'), 'the pad treats the brief as a modal (A presses its button)');
   assert(body('openBrief').includes('safetyBriefFor(this.board)'), 'the brief comes from the board');
   assert(body('openBrief').includes('<span class="sb-ico" aria-hidden="true">${i.emoji}</span>'), 'emoji is decorative (aria-hidden)');
-  assert(body('placeProbe').includes('this.safetyCheckMeter()'), 'every probe placement (mouse, touch, pad) runs the meter check');
-  assert(body('togglePower').includes('this.safetyCheckMeter()'), 'powering up with probes down in Ω / diode / C is checked');
-  assert((src.match(/this\.dmmMode = (?:'OHM'|'DIODE'|mode);\n?\s*this\.safetyCheckMeter\(\)|this\.dmmMode = mode; this\.safetyCheckMeter\(\)/g) ?? []).length === 3, 'switching into Ω, diode or C/A runs the meter check');
+  assert(body('placeProbe').includes('this.safetyCheckMeter(pin)'), 'every probe placement (mouse, touch, pad) runs the meter check on the probe just placed');
+  assert((src.match(/this\.safetyCheckMeter\(/g) ?? []).length === 1, 'the meter check runs only from placeProbe (no mode-switch or power-on hook)');
+  assert(!body('togglePower').includes('safetyCheckMeter'), 'turning power on never counts by itself');
+  const meterCheck = body('safetyCheckMeter');
+  for (const k of ["meterActive: this.activeTool === 'dmm'", 'onCopper: pin.net >= 0', 'visible: this.camera.bothSides || pin.side === this.camera.side']) assert(meterCheck.includes(k), `meter check reads ${k}`);
 }
 
 console.log('safety: ok (once per contact, points + score, live-board tools, overheat, buzzer setting, bench wiring, tiered safety brief, live meter, brief emojis)');
