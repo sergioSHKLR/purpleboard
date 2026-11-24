@@ -61,7 +61,7 @@ import { Renderer, type RendererKind, type VizMode } from '../render/renderer';
 import { NoAdapterError, gpuDiagnosis, webGlInfo } from '../render/gpuprobe';
 import { gpuHelp } from './gpuhelp';
 import { setSoundEnabled, sfxBeep, sfxBlow, sfxBuzz, sfxClick, sfxCut, sfxSolder, sfxWin, soundEnabled } from './audio';
-import { BRIEF_TIER_LABELS, SAFETY_LABELS, SafetyLog, isOverheatEvent, safetyBriefFor, liveToolViolation, loadBuzzerOn, saveBuzzerOn, type SafetyKind } from '../safety';
+import { BRIEF_TIER_LABELS, SAFETY_LABELS, SafetyLog, isOverheatEvent, liveMeterViolation, liveToolViolation, loadBuzzerOn, safetyBriefFor, saveBuzzerOn, type SafetyKind } from '../safety';
 import { icon } from './icons';
 import { chromeIntentUrl, inAppBrowser } from './inapp';
 import { LANGUAGES, lang, saveLanguage, t, t as translate, tk } from '../i18n';
@@ -3099,6 +3099,7 @@ export class PcbApp {
     if (!this.powerOn) this.boot.powerOff();
     sfxClick();
     this.recompute(false);
+    this.safetyCheckMeter(); // powering up with the probes down in Ω / diode / C
     this.renderUI();
     if (this.runningCode.size) this.codeHost.emit('power:changed', { on: this.powerOn, nets: this.powerOn ? this.netVoltsByName() : {} });
   }
@@ -3393,6 +3394,7 @@ export class PcbApp {
     else this.probeBlack = pin;
     if (this.powerOn && (this.psuInject || (this.solver !== 'fast' && this.dmmMode === 'V'))) { this.sim = this.solve(); this.updateThermalPower(); }
     sfxClick();
+    this.safetyCheckMeter();
     this.checkContinuityBeep();
     this.renderDmm();
     this.renderTutorial();
@@ -4004,17 +4006,19 @@ export class PcbApp {
     });
     this.dmmBoxEl.querySelector('#dmm-ohm')!.addEventListener('click', () => {
       this.dmmMode = 'OHM';
+      this.safetyCheckMeter();
       this.checkContinuityBeep();
       this.renderDmm();
       this.renderTutorial();
     });
     this.dmmBoxEl.querySelector('#dmm-diode')!.addEventListener('click', () => {
       this.dmmMode = 'DIODE';
+      this.safetyCheckMeter();
       this.renderDmm();
       this.renderTutorial();
     });
     for (const [id, mode] of [['#dmm-cap', 'CAP'], ['#dmm-amp', 'AMP']] as const) {
-      this.dmmBoxEl.querySelector(id)!.addEventListener('click', () => { this.dmmMode = mode; this.renderDmm(); this.renderTutorial(); });
+      this.dmmBoxEl.querySelector(id)!.addEventListener('click', () => { this.dmmMode = mode; this.safetyCheckMeter(); this.renderDmm(); this.renderTutorial(); });
     }
     if (this.mobile) this.dmmBoxEl.querySelector('.dmm-lcd')?.addEventListener('click', () => { this.dmmSubFull = !this.dmmSubFull; this.renderDmm(); });
     for (const [id, which] of [['#probe-red', 'red'], ['#probe-blk', 'black']] as const) {
@@ -6650,6 +6654,13 @@ export class PcbApp {
     if (kind) this.safetyViolation(kind, 'tool');
   }
 
+  /** Ω / diode / capacitance with a probe on copper and the supply on (mouse, touch and pad all land in placeProbe). */
+  private safetyCheckMeter() {
+    const onCopper = (this.probeRed?.net ?? -1) >= 0 || (this.probeBlack?.net ?? -1) >= 0;
+    const kind = liveMeterViolation(this.dmmMode, this.powerOn, onCopper);
+    if (kind) this.safetyViolation(kind, 'meter');
+  }
+
   /** Count a violation (once per contact): buzzer, red flash, rumble, toast. Returns the points taken (0: same contact). */
   private safetyViolation(kind: SafetyKind, key: string, toast = true): number {
     const v = this.safety.record(kind, key, performance.now() / 1000);
@@ -6678,7 +6689,7 @@ export class PcbApp {
           <h2 id="sb-title">${t('Safety brief')} · ${this.esc(t(this.activeScenario.meta.title))}</h2>
           <span class="badge ${brief.tier === 'short' ? 'info' : 'warn'}">${t(BRIEF_TIER_LABELS[brief.tier])}</span>
         </div>
-        <ol class="sb-list" id="sb-list">${brief.items.map((i) => `<li class="${i.scored ? 'scored' : ''}" data-item="${i.id}">${this.esc(i.text)}</li>`).join('')}</ol>
+        <ol class="sb-list" id="sb-list">${brief.items.map((i) => `<li class="${i.scored ? 'scored' : ''}" data-item="${i.id}"><span class="sb-ico" aria-hidden="true">${i.emoji}</span><span>${this.esc(i.text)}</span></li>`).join('')}</ol>
         <div class="sb-foot">
           <span class="muted">${t('Acknowledge to start this board.')}</span>
           <button class="btn primary" id="sb-ack">${t('I understand, start')}</button>

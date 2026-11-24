@@ -3,13 +3,14 @@
 import { t, tk } from './i18n';
 import type { Board, Component } from './types';
 
-export type SafetyKind = 'live-iron' | 'live-wick' | 'live-ipa' | 'live-short' | 'overheat';
+export type SafetyKind = 'live-iron' | 'live-wick' | 'live-ipa' | 'live-meter' | 'live-short' | 'overheat';
 
 /** Points each violation costs, out of a 100-point safety score per board. */
 export const SAFETY_POINTS: Readonly<Record<SafetyKind, number>> = {
   'live-iron': 10,
   'live-wick': 10,
   'live-ipa': 15,
+  'live-meter': 10,
   'live-short': 20,
   overheat: 10,
 };
@@ -19,11 +20,12 @@ export const SAFETY_LABELS: Readonly<Record<SafetyKind, string>> = {
   'live-iron': tk('Soldering iron on a powered board'),
   'live-wick': tk('Desolder wick on a powered board'),
   'live-ipa': tk('Isopropyl on a powered board'),
+  'live-meter': tk('Ω / diode / capacitance check on a powered board'),
   'live-short': tk('Short made on a live board'),
   overheat: tk('Overheat damage (iron or hot air held too long)'),
 };
 
-export const SAFETY_ORDER: readonly SafetyKind[] = ['live-iron', 'live-wick', 'live-ipa', 'live-short', 'overheat'];
+export const SAFETY_ORDER: readonly SafetyKind[] = ['live-iron', 'live-wick', 'live-ipa', 'live-meter', 'live-short', 'overheat'];
 
 /** The same violation key within this many seconds of the last attempt is the same contact. */
 export const SAFETY_DEBOUNCE_S = 1.5;
@@ -68,6 +70,14 @@ export function liveToolViolation(tool: string): SafetyKind | null {
   return tool === 'iron' ? 'live-iron' : tool === 'wick' ? 'live-wick' : tool === 'ipa' ? 'live-ipa' : null;
 }
 
+/** Meter modes that need the board unpowered (the meter drives its own test current). */
+export const POWER_OFF_METER_MODES: readonly string[] = ['OHM', 'DIODE', 'CAP'];
+
+/** A probe on copper in Ω / diode / capacitance mode with the supply on is a violation (V and A are live-board modes). */
+export function liveMeterViolation(mode: string, powered: boolean, probeOnCopper: boolean): SafetyKind | null {
+  return powered && probeOnCopper && POWER_OFF_METER_MODES.includes(mode) ? 'live-meter' : null;
+}
+
 /** Rework events that count as overheat damage. */
 export function isOverheatEvent(kind: string): boolean {
   return kind === 'pad-lifted' || kind === 'part-overheated' || kind === 'mlcc-cracked';
@@ -84,7 +94,7 @@ export function saveBuzzerOn(store: Pick<Storage, 'setItem'> | null, on: boolean
 // ---------------- safety brief (before every board exercise) ----------------
 
 export type BriefItemId = 'power-off' | 'heat' | 'short' | 'supplies' | 'high-voltage' | 'charge' | 'mlcc' | 'hot-air' | 'ipa' | 'esd';
-export interface BriefItem { id: BriefItemId; text: string; /** Breaking it costs safety points (else it is advice). */ scored: boolean }
+export interface BriefItem { id: BriefItemId; text: string; /** Breaking it costs safety points (else it is advice). */ scored: boolean; /** Decorative marker (not translated). */ emoji: string }
 export type BriefTier = 'short' | 'standard' | 'full';
 export interface SafetyBrief { tier: BriefTier; items: BriefItem[] }
 
@@ -102,6 +112,20 @@ export const BRIEF_LIMITS = {
   smallPartArea: 0.6,
 };
 
+/** One emoji per brief item (decorative; rendered aria-hidden). */
+export const BRIEF_EMOJI: Readonly<Record<BriefItemId, string>> = {
+  'power-off': '🚫',
+  'high-voltage': '⚡',
+  supplies: '🔌',
+  short: '⚡',
+  charge: '🔋',
+  heat: '🔥',
+  mlcc: '🔥',
+  'hot-air': '🔥',
+  ipa: '💧',
+  esd: '🧤',
+};
+
 const refList = (cs: Component[]) => cs.slice(0, 3).map((c) => c.ref).join(', ') + (cs.length > 3 ? ', …' : '');
 const volts = (v: number) => `${+v.toPrecision(3)} V`;
 
@@ -117,9 +141,9 @@ export function safetyBriefFor(board: Board): SafetyBrief {
   const sources = of('battery');
   const maxV = Math.max(0, ...sources.map((c) => c.value));
   const P = SAFETY_POINTS;
-  const items: BriefItem[] = [];
+  const items: Omit<BriefItem, 'emoji'>[] = [];
   if (sources.length) {
-    items.push({ id: 'power-off', scored: true, text: t('Power off before the iron, wick or isopropyl touch the board (−{iron} / −{wick} / −{ipa} pts if not).', { iron: P['live-iron'], wick: P['live-wick'], ipa: P['live-ipa'] }) });
+    items.push({ id: 'power-off', scored: true, text: t('Power off before the iron, wick or isopropyl touch the board (−{iron} / −{wick} / −{ipa} pts), and for Ω / diode / C checks (−{meter}).', { iron: P['live-iron'], wick: P['live-wick'], ipa: P['live-ipa'], meter: P['live-meter'] }) });
   }
   if (maxV > BRIEF_LIMITS.highVolts) {
     items.push({ id: 'high-voltage', scored: false, text: t('High voltage ({v}): keep hands and tools off live copper.', { v: volts(maxV) }) });
@@ -155,7 +179,7 @@ export function safetyBriefFor(board: Board): SafetyBrief {
     items.push({ id: 'esd', scored: false, text: t('{n} IC is static-sensitive: use a wrist strap and mat (good practice; the sim does not score ESD).|{n} ICs are static-sensitive: use a wrist strap and mat (good practice; the sim does not score ESD).', { n: ics.length }) });
   }
   const tier: BriefTier = items.length <= 2 ? 'short' : items.length <= 4 ? 'standard' : 'full';
-  return { tier, items };
+  return { tier, items: items.map((i) => ({ ...i, emoji: BRIEF_EMOJI[i.id] })) };
 }
 
 export const BRIEF_TIER_LABELS: Readonly<Record<BriefTier, string>> = {

@@ -1,6 +1,6 @@
 // Safety violations (PurpleBoard): debounce once per contact, points and score, tool rules,
 // overheat events, buzzer setting, and the bench wiring (one check shared by mouse, touch and pad).
-import { BRIEF_LIMITS, BRIEF_TIER_LABELS, SAFETY_DEBOUNCE_S, SAFETY_LABELS, SAFETY_ORDER, SAFETY_POINTS, SafetyLog, isOverheatEvent, liveToolViolation, loadBuzzerOn, safetyBriefFor, saveBuzzerOn } from '../src/safety';
+import { BRIEF_EMOJI, BRIEF_LIMITS, BRIEF_TIER_LABELS, POWER_OFF_METER_MODES, liveMeterViolation, SAFETY_DEBOUNCE_S, SAFETY_LABELS, SAFETY_ORDER, SAFETY_POINTS, SafetyLog, isOverheatEvent, liveToolViolation, loadBuzzerOn, safetyBriefFor, saveBuzzerOn } from '../src/safety';
 import { builtinScenarios } from '../src/scenarios/builtin';
 import type { Board } from '../src/types';
 
@@ -62,6 +62,23 @@ for (const k of SAFETY_ORDER) assert(SAFETY_POINTS[k] > 0 && SAFETY_LABELS[k].le
   assert(body('onReworkEvents').includes("this.safetyViolation('overheat'"), 'overheat damage is checked');
 }
 
+// ---- meter: Ω / diode / capacitance on a powered board ----
+{
+  for (const mode of ['OHM', 'DIODE', 'CAP']) {
+    assert(liveMeterViolation(mode, true, true) === 'live-meter', `${mode} on a powered board with a probe on copper is a violation`);
+    assert(liveMeterViolation(mode, false, true) === null, `${mode} unpowered is fine`);
+    assert(liveMeterViolation(mode, true, false) === null, `${mode}: a probe off copper touches nothing`);
+  }
+  for (const mode of ['V', 'AMP']) assert(liveMeterViolation(mode, true, true) === null, `${mode} is a live-board mode`);
+  assert(POWER_OFF_METER_MODES.join() === 'OHM,DIODE,CAP', 'power-off meter modes');
+  assert(SAFETY_POINTS['live-meter'] === 10, 'meter violation costs 10');
+  const log = new SafetyLog();
+  assert(log.record('live-meter', 'meter', 50) !== null, 'first live Ω probe counts');
+  assert(log.record('live-meter', 'meter', 50.4) === null, 'second probe within the debounce: same contact');
+  assert(log.record('live-meter', 'meter', 50.4 + SAFETY_DEBOUNCE_S + 0.1) !== null, 'a later probe counts again');
+  assert(log.score === 100 - 2 * SAFETY_POINTS['live-meter'], 'score 80 after two');
+}
+
 // ---- safety brief: derived from the board, tiered ----
 {
   interface Fs { readFileSync(p: string, enc: 'utf8'): string }
@@ -101,6 +118,15 @@ for (const k of SAFETY_ORDER) assert(SAFETY_POINTS[k] > 0 && SAFETY_LABELS[k].le
   dead.components = dead.components.filter((c) => c.kind !== 'battery');
   assert(!ids(dead).includes('power-off') && ids(dead).includes('heat'), 'no supply: no power-off item, heat still applies');
   for (const tier of ['short', 'standard', 'full'] as const) assert(BRIEF_TIER_LABELS[tier], `${tier} label`);
+  // the power-off item names the meter checks with the meter penalty; every item has its emoji
+  for (const b of [...all.map((s) => s.board), demo('demo-mnt-reform2-mb30.pcbfix.json')]) {
+    const br = safetyBriefFor(b);
+    const po = br.items.find((i) => i.id === 'power-off');
+    assert(po && po.text.includes('Ω / diode / C') && po.text.includes(`−${SAFETY_POINTS['live-meter']}`), 'powered boards: power off for Ω / diode / C, with its points');
+    for (const i of br.items) assert(i.emoji && i.emoji === BRIEF_EMOJI[i.id] && !i.text.includes(i.emoji), `${i.id}: emoji set, kept out of the translated text`);
+  }
+  assert(!safetyBriefFor(dead).items.some((i) => i.text.includes('Ω / diode / C')), 'unpowered board: no meter line');
+  for (const [id, e] of Object.entries(BRIEF_EMOJI)) assert(e.length > 0, `${id} emoji`);
 }
 
 // ---- brief wiring: every board load asks for it; it blocks keys and the pad until acknowledged ----
@@ -114,6 +140,10 @@ for (const k of SAFETY_ORDER) assert(SAFETY_POINTS[k] > 0 && SAFETY_LABELS[k].le
   assert(body('onKeyDown').startsWith('private onKeyDown(e: KeyboardEvent) {\n    if (this.briefEl) {'), 'keys stay in the brief');
   assert(src.includes('|| !!this.briefEl; }'), 'the pad treats the brief as a modal (A presses its button)');
   assert(body('openBrief').includes('safetyBriefFor(this.board)'), 'the brief comes from the board');
+  assert(body('openBrief').includes('<span class="sb-ico" aria-hidden="true">${i.emoji}</span>'), 'emoji is decorative (aria-hidden)');
+  assert(body('placeProbe').includes('this.safetyCheckMeter()'), 'every probe placement (mouse, touch, pad) runs the meter check');
+  assert(body('togglePower').includes('this.safetyCheckMeter()'), 'powering up with probes down in Ω / diode / C is checked');
+  assert((src.match(/this\.dmmMode = (?:'OHM'|'DIODE'|mode);\n?\s*this\.safetyCheckMeter\(\)|this\.dmmMode = mode; this\.safetyCheckMeter\(\)/g) ?? []).length === 3, 'switching into Ω, diode or C/A runs the meter check');
 }
 
-console.log('safety: ok (once per contact, points + score, live-board tools, overheat, buzzer setting, bench wiring, tiered safety brief)');
+console.log('safety: ok (once per contact, points + score, live-board tools, overheat, buzzer setting, bench wiring, tiered safety brief, live meter, brief emojis)');
